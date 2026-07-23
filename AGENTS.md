@@ -35,6 +35,7 @@ Read in this order.
 | `ARCHITECTURE.md` | The layered model, the build/distribute seam, the host bridge. Read first. |
 | `STRUCTURE.md` | Canonical folder tree and what each directory owns. |
 | `TOOLCHAIN.md` | Package management, dependency isolation, SDK & signing handling. |
+| `SECRETS.md` | How store credentials are stored (SOPS+age) and reach the packager. |
 | `RELEASE.md` | Per-store setup, the repeatable release flow, versioning, CI. |
 | `ROADMAP.md` | Current status and the order to build things in. |
 

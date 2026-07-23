@@ -24,9 +24,11 @@ drydock/
 │  │     │  ├─ package.json       #     steamworks.js (store-only dep)
 │  │     │  ├─ host.js            #     achievements / cloud saves / overlay impl
 │  │     │  ├─ assets/            #     capsules, library art, screenshots
-│  │     │  ├─ metadata/          #     store copy, achievement defs, depot .vdf
+│  │     │  ├─ metadata/          #     store copy, achievement defs, depot .vdf (public IDs OK)
 │  │     │  ├─ builder.steam.yml  #     overrides base (appId, artifact name)
-│  │     │  └─ publish.sh         #     steamcmd depot build + upload
+│  │     │  ├─ secrets.example    #     required env var NAMES only (committed)
+│  │     │  ├─ secrets.enc.yaml   #     SOPS+age encrypted values (committed, safe)
+│  │     │  └─ publish.sh         #     steamcmd depot build + upload (reads env vars only)
 │  │     ├─ epic/                 #   EOS SDK + BuildPatchTool, same shape
 │  │     └─ gog/  itch/           #   optional, same shape
 │  │
@@ -47,6 +49,7 @@ drydock/
 │  └─ shared/                     # cross-family native helpers (rare)
 │
 ├─ tools/                         # vendor deps, sync payload, fetch SDKs, release helpers
+├─ .sops.yaml                     # age recipients authorized to decrypt secrets (see SECRETS.md)
 ├─ .github/workflows/             # one pipeline per target (steam / epic / ios / play)
 ├─ AGENTS.md  ARCHITECTURE.md  STRUCTURE.md  TOOLCHAIN.md  RELEASE.md  ROADMAP.md
 └─ package.json                   # pnpm workspace root (see TOOLCHAIN.md)
@@ -62,6 +65,7 @@ drydock/
 | `platforms/mobile/build/capacitor/` | Web→native bridge config, plugins | Store metadata (lives in ios/android fastlane) |
 | `platforms/mobile/{ios,android}/` | Generated native project + fastlane lane | Be hand-edited where `cap sync` regenerates |
 | `tools/` | Repeatable scripts (vendor, sync, fetch-sdk, bump) | Hold secrets |
+| `stores/<store>/secrets.*` | The env-var contract + encrypted values (see `SECRETS.md`) | Contain plaintext secrets |
 | `.github/workflows/` | One workflow per store target | Cross-hold another target's secrets |
 
 ## Invariants

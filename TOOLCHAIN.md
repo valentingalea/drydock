@@ -46,8 +46,9 @@ Steam pipeline because they do not share a resolver.
   pins the required version; CI installs them on the matching runner.
 - **Redistributable SDKs** (Steamworks redistributable, EOS SDK) are gitignored and fetched
   by a pinned `tools/fetch-sdk-<name>.sh` against a fixed version.
-- **Signing keys & store credentials** live only as CI secrets (or an encrypted store such
-  as fastlane `match`). Never in the repo, never in plaintext.
+- **Signing keys & store credentials** — see `SECRETS.md`. Default is SOPS+age (encrypted in
+  the repo) plus fastlane `match` for iOS; packagers read env vars only. Never plaintext,
+  never a personal account.
 
 ## CI — one workflow per target
 
