@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build-out/
+*.app/
+*.ipa
+*.aab
+*.apk
+
+# Native generated / local
+platforms/mobile/ios/Pods/
+platforms/mobile/**/DerivedData/
+platforms/mobile/android/.gradle/
+platforms/mobile/android/local.properties
+
+# SDKs & secrets — pinned/fetched, never committed (see TOOLCHAIN.md)
+sdk/
+*.keystore
+*.p12
+*.mobileprovision
+**/fastlane/report.xml
+.env
+*.local
+
+# OS / editor
+.DS_Store
