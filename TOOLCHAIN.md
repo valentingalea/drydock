@@ -1,66 +1,108 @@
 # Toolchain
 
-## Rule: every folder owns its own dependency manifest
+## Rule: each package owns its dependency graph
 
-Nothing shares a `node_modules`. The Electron shell, each store overlay, and the Capacitor
-shell each have their own `package.json` and their own isolated dependency tree, so one
-family's dependencies can never contaminate another's.
+Nothing relies on a shared `node_modules`. The Electron adapter, each release channel,
+the Capacitor adapter, and the shared host bridge are separate packages with their own
+manifests and scripts.
 
-## JavaScript side — pnpm workspaces via Corepack
+Expected package shape:
 
-- **Corepack pins the package manager per-repo.** The root `package.json` declares
-  `"packageManager": "pnpm@<version>"`. No global install is required; every machine and CI
-  runner uses the exact pinned version:
-  ```
-  corepack enable pnpm
-  pnpm install
-  ```
-- **Workspaces link the payload in, keep trees isolated.** pnpm's content-addressed store
-  keeps one physical copy of each dependency on disk and hard-links it into each package —
-  so multiple heavy installs (Electron is ~150 MB+) cost the disk of roughly one, without
-  merging the dependency graphs.
-- **`game/` is a workspace package** so shells depend on it by reference; there is still
-  exactly one copy of the game.
-- Run a package's script with a filter:
-  ```
-  pnpm --filter @drydock/desktop-shell build:win
-  ```
+| Package | Folder | Purpose |
+|---|---|---|
+| `@drydock/game` | `game/` | Portable payload package |
+| `@drydock/host-bridge` | `packages/host-bridge/` | Typed host API + conformance tests |
+| `@drydock/desktop-electron` | `platforms/desktop/build/electron/` | Desktop build adapter |
+| `@drydock/channel-steam` | `platforms/desktop/channels/steam/` | Steam integrate/package/publish tooling |
+| `@drydock/channel-epic` | `platforms/desktop/channels/epic/` | Epic integrate/package/publish tooling |
+| `@drydock/mobile-capacitor` | `platforms/mobile/build/capacitor/` | Mobile build adapter |
+| `@drydock/channel-appstore` | `platforms/mobile/channels/appstore/` | App Store package/publish tooling |
+| `@drydock/channel-play` | `platforms/mobile/channels/play/` | Google Play package/publish tooling |
 
-pnpm is a Node program and runs identically on Windows, macOS, and Linux.
+The root should contain `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and
+`pnpm-lock.yaml`. Corepack pins the package manager through the root
+`packageManager` field.
 
-## Native toolchains live outside the JS graph
+```sh
+corepack enable pnpm
+pnpm install
+```
 
-Xcode, Gradle, CocoaPods (`Podfile`), and fastlane (`Gemfile`, Ruby) are per-project worlds
-the JS package manager never sees. This is intended: an iOS signing problem cannot break the
-Steam pipeline because they do not share a resolver.
+Run package scripts with filters:
+
+```sh
+pnpm --filter @drydock/desktop-electron build -- --platform win32 --arch x64
+pnpm --filter @drydock/channel-steam integrate -- out/win32-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-steam package -- out/win32-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-steam publish -- out/win32-x64/drydock-artifact.json
+```
+
+pnpm's content-addressed store keeps installs disk-efficient without merging dependency
+graphs.
+
+## Workspace Rules
+
+- The payload can depend on `@drydock/host-bridge`, but not on platform or channel
+  packages.
+- Build adapters can depend on `@drydock/game` and `@drydock/host-bridge`, but not on
+  concrete channel packages.
+- Channel packages can depend on `@drydock/host-bridge` and consume artifact manifests.
+  They should not import private engine adapter internals.
+- If a channel implementation must run inside Electron, it must be bundled or copied into
+  the Electron app during the channel integration/package stage. Do not rely on runtime
+  `require()` resolving across unrelated package `node_modules`.
+- Shared helpers belong in a package only when at least two real adapters/channels use
+  them. Avoid premature framework code.
+
+## JavaScript Is Not The Whole Toolchain
+
+Native toolchains live beside, not inside, the JS dependency graph.
 
 | Target | Native toolchain(s) |
 |---|---|
-| Steam / Epic / GOG / itch | electron-builder; `steamcmd` / EOS BuildPatchTool for upload |
-| App Store | Xcode + CocoaPods + fastlane (Ruby) |
-| Google Play | Gradle + fastlane (Ruby) |
+| Steam / Epic / GOG / itch desktop | electron-builder; channel upload tool such as `steamcmd`, EOS BuildPatchTool, or Butler |
+| macOS desktop signing/notarization | Xcode command line tools, Apple notarization credentials |
+| App Store | Xcode + CocoaPods + fastlane |
+| Google Play | Gradle + Android SDK + fastlane |
 
-## SDKs — pin, don't vendor
+An iOS signing problem should not break the Steam pipeline because they do not share a
+resolver or secrets file.
 
-- **Machine-level SDKs** (Android SDK/NDK, Xcode) are never committed. Each folder's README
-  pins the required version; CI installs them on the matching runner.
-- **Redistributable SDKs** (Steamworks redistributable, EOS SDK) are gitignored and fetched
-  by a pinned `tools/fetch-sdk-<name>.sh` against a fixed version.
-- **Signing keys & store credentials** — see `SECRETS.md`. Default is SOPS+age (encrypted in
-  the repo) plus fastlane `match` for iOS; packagers read env vars only. Never plaintext,
-  never a personal account.
+## SDKs: Pin, Fetch, Ignore
 
-## CI — one workflow per target
+- Machine-level SDKs such as Xcode, Android SDK/NDK, and platform CLI tools are never
+  committed. Pin the required version in the relevant package README or workflow.
+- Redistributable SDKs such as Steamworks or EOS are gitignored and fetched by a pinned
+  `tools/fetch-sdk-<name>.sh` script against a fixed version.
+- Signing keys and channel credentials use SOPS+age. Packagers read environment variables
+  only; they do not know how secrets were decrypted.
 
-Each store target has its own workflow, pinned to the correct runner OS and triggered by its
-own tag / path filter, holding only that store's secrets:
+## Build Outputs
 
-| Workflow | Runner | Builds |
+Every build adapter writes an artifact root and manifest:
+
+```text
+out/<target>/drydock-artifact.json
+```
+
+Every integrate/package/publish script accepts a path to that manifest. Scripts should
+validate the manifest before doing work and should write updated manifest data or
+channel-specific sidecar files when they transform the artifact.
+
+## CI: One Workflow Per Channel
+
+Each release channel has its own workflow, runner requirements, and SOPS age key.
+
+| Workflow | Runner | Builds/releases |
 |---|---|---|
-| `steam.yml` | windows + macos + linux (matrix) | Electron per-OS, upload via steamcmd |
-| `epic.yml` | windows + macos | Electron per-OS, upload via BuildPatchTool |
-| `ios.yml` | **macOS only** | Capacitor → Xcode, upload via fastlane |
-| `play.yml` | linux | Capacitor → Gradle, upload via fastlane |
+| `steam.yml` | windows + macos + linux matrix | Electron per OS, Steam integration/package, upload via steamcmd |
+| `epic.yml` | windows + macos matrix | Electron per OS, Epic integration/package, upload via BuildPatchTool |
+| `appstore.yml` | macOS only | Capacitor -> Xcode, App Store package/sign/upload via fastlane |
+| `play.yml` | linux | Capacitor -> Gradle, Play package/sign/upload via fastlane |
 
-Hard constraint: iOS (and a signed/notarized macOS build) **requires a macOS runner**.
-Everything else can build on Linux.
+Hard constraints:
+
+- iOS and signed/notarized macOS builds require macOS runners.
+- Android can build on Linux.
+- Each workflow decrypts only its own `secrets.enc.yaml`.
+- Release scripts must avoid `set -x` around secret injection.

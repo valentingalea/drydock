@@ -1,120 +1,182 @@
 # Release
 
-Mental model: **one-time setup per store** (accounts, signing, SDKs) then a **repeatable
-release flow**. The commands below assume the one-time setup is done.
+Mental model: one-time setup per release channel, then a repeatable four-stage flow:
 
-## Build/host OS matrix
+```text
+BUILD -> INTEGRATE -> PACKAGE / SIGN -> PUBLISH
+```
 
-| Build | Can build on |
+The commands below assume channel accounts, SDK access, signing setup, and SOPS files are
+already configured.
+
+## Build/Host OS Matrix
+
+| Target | Can build on |
 |---|---|
-| Steam / Epic — Windows + Linux binaries | any OS |
-| Steam / Epic — macOS binary (signed + notarized) | macOS only |
-| iOS | macOS only (Xcode) |
-| Android | any OS |
+| Steam / Epic / GOG / itch Windows + Linux binaries | Any OS if the engine/toolchain supports cross-build |
+| Steam / Epic / GOG / itch macOS binary, signed/notarized | macOS only |
+| App Store | macOS only |
+| Google Play | Linux, macOS, or Windows; Linux preferred in CI |
 
-## Versioning — single source of truth
+## Versioning: Release Manifest
 
-One version value drives every manifest. Bump it once:
+Do not rely on one scalar version to cover every store. Use one release manifest per
+candidate:
 
+```yaml
+version: 1.4.0
+build:
+  steam: 10400
+  epic: 10400
+  appstore: 87
+  play: 1040087
+channels:
+  steam:
+    branch: beta
+  epic:
+    sandbox: stage
+  appstore:
+    submitForReview: false
+  play:
+    track: internal
 ```
-pnpm run bump 1.4.0     # writes version into every platform manifest
-```
 
-## Shared prep (any machine, per release)
+The shared `version` is the marketing version. Per-channel build numbers stay monotonic
+according to each platform's rules. A future `pnpm run bump` should update this manifest
+and generate platform-specific manifest changes from it.
 
-```
+## Shared Prep
+
+```sh
 corepack enable pnpm
 pnpm install
-pnpm run vendor          # ensure runtime deps are vendored locally (offline-safe)
-pnpm run bump <version>
+pnpm run vendor
+pnpm run release:prepare -- releases/1.4.0.yaml
 ```
 
-There is no bundler step for the web payload — the "web build" is `game/` with its runtime
-vendored. Every target consumes that same folder.
+`release:prepare` should eventually validate:
 
----
+- release manifest shape;
+- artifact schema availability;
+- no CDN/runtime dependency leakage;
+- required SOPS files and `secrets.example` contracts;
+- channel workflow names and tag patterns.
 
-## Steam
+## Desktop Example: Steam
 
-**One-time:** Steamworks partner account; create the app → obtain AppID + depot IDs; install
-`steamcmd`; add `steamworks.js` to `platforms/desktop/stores/steam`; write depot scripts
-(`app_build_<AppID>.vdf`, `depot_build_*.vdf`) into `stores/steam/metadata/`.
+One-time setup:
 
-**Per release:**
-```
-# Build the desktop app with the Steam overlay, per OS.
-STORE=steam pnpm --filter @drydock/desktop-shell build:win
-STORE=steam pnpm --filter @drydock/desktop-shell build:linux
-STORE=steam pnpm --filter @drydock/desktop-shell build:mac     # needs macOS + notarization
+- Steamworks partner account and least-privilege builder account.
+- AppID and depot IDs committed in `platforms/desktop/channels/steam/metadata/`.
+- Steamworks SDK fetch script pinned to an exact version.
+- `steamcmd` available in CI.
+- `platforms/desktop/channels/steam/secrets.enc.yaml` populated with builder credentials
+  and Steam Guard solution.
 
-# Push all depots in one shot.
-steamcmd +login <builder_acct> \
-  +run_app_build "$PWD/platforms/desktop/stores/steam/metadata/app_build_<AppID>.vdf" \
-  +quit
-```
-Final step is manual: set the build live on its branch in the Steamworks dashboard. First
-release also needs the store page filled and a one-time Valve content review. No per-build
-review after go-live.
+Per release:
 
----
+```sh
+# BUILD: raw Electron artifact + drydock-artifact.json.
+pnpm --filter @drydock/desktop-electron build -- \
+  --platform win32 \
+  --arch x64 \
+  --release releases/1.4.0.yaml
 
-## iOS → App Store
+# INTEGRATE: Steam SDK/runtime provider/depot inputs.
+pnpm --filter @drydock/channel-steam integrate -- \
+  out/win32-x64/drydock-artifact.json
 
-**One-time (macOS):** Apple Developer Program; create the app record in App Store Connect;
-signing certs + provisioning (prefer fastlane `match`); `bundle install` the `Gemfile` in
-`platforms/mobile/ios`.
+# PACKAGE / SIGN: produce the Steam-ready depot layout.
+pnpm --filter @drydock/channel-steam package -- \
+  out/win32-x64/drydock-artifact.json
 
-**Per release:**
-```
-pnpm --filter @drydock/mobile-shell exec cap sync ios     # push web build into native project
-cd platforms/mobile/ios
-bundle exec fastlane release
-#   lane: increment_build_number → gym (archive+sign .ipa) → pilot (upload to App Store Connect)
-```
-Then submit for review (or `deliver --submit_for_review`) and wait for Apple review.
-TestFlight internal builds skip full review — use them for the fast smoke-test loop.
-
----
-
-## Android → Google Play
-
-**One-time:** Play Console account; create the app; generate an upload keystore and enrol in
-Play App Signing; create a Google Cloud service-account JSON for headless upload;
-`bundle install` the `Gemfile` in `platforms/mobile/android`.
-
-**Per release:**
-```
-pnpm --filter @drydock/mobile-shell exec cap sync android
-cd platforms/mobile/android
-bundle exec fastlane deploy
-#   lane: gradle bundleRelease (signed .aab) → supply (upload to 'internal' track)
-```
-Promote internal → closed → production in Play Console (or `supply --track production`).
-First release needs the store listing + content-rating questionnaire once.
-
----
-
-## Release day (CI-driven)
-
-The macOS constraint means releases are tag-triggered rather than run by hand. Each target
-has its own workflow on the right runner with only its own secrets.
-
-```
-pnpm run bump 1.4.0
-git commit -am "release 1.4.0"
-
-git tag steam-v1.4.0 && git push origin steam-v1.4.0    # → steam.yml (win+linux+mac)
-git tag ios-v1.4.0   && git push origin ios-v1.4.0      # → ios.yml   (macOS runner)
-git tag play-v1.4.0  && git push origin play-v1.4.0      # → play.yml  (linux runner)
+# PUBLISH: decrypt only Steam secrets and upload.
+sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml \
+  'pnpm --filter @drydock/channel-steam publish -- out/win32-x64/drydock-artifact.json'
 ```
 
-Each pipeline checks out, `pnpm install`, builds only its target, and uploads with that
-store's secrets. The only remaining manual step is the "go live / submit" button in each
-store dashboard — deliberately un-automated because it is the legal act of publishing.
+Final step is manual: set the uploaded build live on its Steam branch in the Steamworks
+dashboard. First release also needs store page completion and Valve content review.
 
-## Unreal note
+## Mobile Example: App Store
 
-For an Unreal payload the per-store flow above is unchanged; only the build step differs:
-`build/unreal` invokes `RunUAT BuildCookRun` to produce the per-platform artifact, which the
-same `stores/*` overlays and CI workflows then publish. Store SDK integration lives in engine
-plugins rather than the shell. See `ARCHITECTURE.md`.
+One-time setup:
+
+- Apple Developer Program membership.
+- App record in App Store Connect.
+- Native iOS project generated under `platforms/mobile/native/ios`.
+- fastlane `match` configured for signing.
+- App Store channel SOPS file populated with App Store Connect API key fields,
+  `MATCH_PASSWORD`, and related lane secrets.
+
+Per release:
+
+```sh
+# BUILD: sync payload into the native iOS project and emit artifact manifest.
+pnpm --filter @drydock/mobile-capacitor build:ios -- \
+  --release releases/1.4.0.yaml
+
+# PACKAGE / SIGN + PUBLISH through the App Store channel.
+sops exec-env platforms/mobile/channels/appstore/secrets.enc.yaml \
+  'pnpm --filter @drydock/channel-appstore publish -- out/ios/drydock-artifact.json'
+```
+
+The App Store channel lane should archive/sign the `.ipa`, upload to App Store Connect,
+and optionally submit for review based on the release manifest. Internal TestFlight builds
+should be the fast smoke-test path.
+
+## Mobile Example: Google Play
+
+One-time setup:
+
+- Play Console account and app record.
+- Upload keystore enrolled in Play App Signing.
+- Google Cloud service-account JSON encrypted in
+  `platforms/mobile/channels/play/secrets.enc.yaml`.
+- Native Android project generated under `platforms/mobile/native/android`.
+
+Per release:
+
+```sh
+# BUILD: sync payload into the native Android project and emit artifact manifest.
+pnpm --filter @drydock/mobile-capacitor build:android -- \
+  --release releases/1.4.0.yaml
+
+# PACKAGE / SIGN + PUBLISH through the Play channel.
+sops exec-env platforms/mobile/channels/play/secrets.enc.yaml \
+  'pnpm --filter @drydock/channel-play publish -- out/android/drydock-artifact.json'
+```
+
+The Play channel lane should build a signed `.aab` and upload to the track selected by the
+release manifest. Promotion from internal/closed tracks to production may remain manual.
+
+## CI-Driven Release
+
+Releases should be tag-triggered or workflow-dispatched per channel. Each workflow:
+
+1. Checks out the repo.
+2. Enables Corepack and installs dependencies.
+3. Validates the release manifest.
+4. Builds the target artifact and validates `drydock-artifact.json`.
+5. Runs channel integration/package scripts.
+6. Decrypts only that channel's SOPS file.
+7. Publishes to a private branch, beta track, internal track, draft release, or equivalent.
+
+Example tags:
+
+```sh
+git tag steam-v1.4.0
+git tag appstore-v1.4.0
+git tag play-v1.4.0
+git push origin steam-v1.4.0 appstore-v1.4.0 play-v1.4.0
+```
+
+The remaining manual step is the store dashboard action that legally publishes or submits
+the release, unless the release manifest explicitly opts into automatic submission.
+
+## Unreal Note
+
+For an Unreal payload, the build stage changes to a `build/unreal` adapter around
+`RunUAT BuildCookRun`. Channel work may configure Unreal store plugins, but channel
+scripts still consume the artifact manifest and publish through the same channel-owned
+flow.

@@ -5,6 +5,7 @@ node_modules/
 # Build output
 dist/
 build-out/
+out/
 *.app/
 *.ipa
 *.aab
@@ -12,9 +13,12 @@ build-out/
 
 # Native generated / local
 platforms/mobile/ios/Pods/
+platforms/mobile/native/ios/Pods/
 platforms/mobile/**/DerivedData/
 platforms/mobile/android/.gradle/
+platforms/mobile/native/android/.gradle/
 platforms/mobile/android/local.properties
+platforms/mobile/native/android/local.properties
 
 # SDKs & secrets — pinned/fetched, never committed (see SECRETS.md)
 sdk/
@@ -22,6 +26,11 @@ sdk/
 *.p12
 *.p8
 *.mobileprovision
+*service-account*.json
+*credentials*.json
+age-key.txt
+age-identity.txt
+.sops-age-key
 **/fastlane/report.xml
 .env
 *.local

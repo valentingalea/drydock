@@ -1,30 +1,35 @@
 # Drydock
 
-A reusable, engine-agnostic harness for shipping a single game to many storefronts —
-Steam, Epic, GOG, itch (desktop) and the App Store / Google Play (mobile), with a clear
-path to consoles. One housing; drop a game in, fan it out to every store.
+A reusable harness for shipping one game to many release channels: Steam, Epic, GOG,
+itch, the App Store, and Google Play. The goal is to keep game code portable while
+making each channel's build, signing, metadata, and upload rules explicit.
 
-The game itself is treated as an interchangeable **payload**. This repo ships with a
-minimal placeholder payload (an empty WebGL render) so the pipeline can be proven end to
-end before a real game exists.
+The game itself is treated as an interchangeable **payload**. This repo is currently a
+planning / proof-of-concept scaffold; the first implementation target is a minimal WebGL
+payload shipped through one desktop channel so the contracts can be proven before more
+targets are added.
 
-## Core principle — the build/distribute seam
+## Core principle - the release pipeline
 
-Everything hinges on one split:
+Do not collapse engine build work and channel release work into one script. A release
+passes through four stages:
 
 ```
-   BUILD  (engine-specific)            │          DISTRIBUTE  (engine-agnostic)
-   produce a per-platform artifact ───►│───►  wrap it + upload it to a storefront
+BUILD  ->  INTEGRATE  ->  PACKAGE / SIGN  ->  PUBLISH
 ```
 
-- **BUILD** turns the game into a native artifact (a folder, `.app`, `.ipa`, `.aab`).
-  The adapter is engine-specific: Electron/Capacitor for a web game, Unreal's UAT for an
-  Unreal game, etc.
-- **DISTRIBUTE** takes *any* artifact and publishes it. Storefronts do not care what
-  produced the binary, so this half is reused unchanged across engines, games, and stores.
+- **BUILD** is engine-specific. It turns the payload into a raw native artifact and writes
+  a `drydock-artifact.json` manifest describing the output.
+- **INTEGRATE** is channel-specific runtime work. It wires in store SDKs, overlays,
+  entitlement checks, achievement providers, cloud-save providers, and other channel
+  capabilities.
+- **PACKAGE / SIGN** creates the channel-ready binary or depot: signed/notarized desktop
+  app, Steam depot layout, `.ipa`, `.aab`, etc.
+- **PUBLISH** uploads or promotes that packaged output with the channel's own tooling.
 
-Keep this seam clean and the harness stays universal. Violate it (game code that knows
-about a store, a store overlay that assumes an engine) and it rots.
+The boundary is not "stores never affect binaries." Real stores often do. The boundary is
+that channel-specific behavior is isolated behind a documented artifact manifest and host
+bridge instead of leaking into the payload.
 
 ## Documentation map
 
@@ -32,20 +37,24 @@ Read in this order.
 
 | File | Purpose |
 |---|---|
-| `ARCHITECTURE.md` | The layered model, the build/distribute seam, the host bridge. Read first. |
+| `ARCHITECTURE.md` | The layered model, release stages, artifact manifest, host bridge. Read first. |
 | `STRUCTURE.md` | Canonical folder tree and what each directory owns. |
 | `TOOLCHAIN.md` | Package management, dependency isolation, SDK & signing handling. |
-| `SECRETS.md` | How store credentials are stored (SOPS+age) and reach the packager. |
-| `RELEASE.md` | Per-store setup, the repeatable release flow, versioning, CI. |
+| `SECRETS.md` | SOPS+age secrets workflow and how secrets reach the packager. |
+| `RELEASE.md` | Per-channel setup, repeatable release flow, versioning, CI. |
 | `ROADMAP.md` | Current status and the order to build things in. |
 
 ## Ground rules for contributors
 
-1. **The payload never references a store or an engine.** It calls the host bridge only.
-2. **Every platform folder owns its own dependency manifest.** Nothing shares `node_modules`.
-3. **Adding a store is one new folder + one CI workflow.** If it touches anything else, the
-   seam is wrong — fix the seam, not the store.
-4. **Secrets and heavy SDKs never enter the repo.** Pin versions; fetch on demand; inject
-   credentials from CI.
-5. Prefer conventional tools (pnpm, electron-builder, fastlane, steamcmd) over bespoke
+1. **The payload never references a channel, store, or engine.** It calls the host bridge
+   only.
+2. **Every platform or channel package owns its own dependency manifest.** Nothing relies
+   on a shared `node_modules`.
+3. **Every build adapter emits `drydock-artifact.json`.** Channel tooling consumes the
+   manifest, not engine-specific paths.
+4. **Adding a channel should add a channel folder + workflow.** If shared code changes,
+   it should be because the artifact or host contract was missing a real capability.
+5. **Secrets use SOPS+age by default.** Encrypted files may be committed; plaintext keys,
+   signing material, SDK caches, and personal credentials never enter the repo.
+6. Prefer conventional tools (pnpm, electron-builder, fastlane, steamcmd) over bespoke
    scripting, so any agent or engineer can pick the work up cold.

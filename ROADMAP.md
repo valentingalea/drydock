@@ -1,48 +1,97 @@
 # Roadmap
 
-Status: **planning / scaffold**. No build pipeline exists yet. The game is a placeholder
-(minimal WebGL render) whose only job is to prove the pipeline end to end.
+Status: **planning / proof-of-concept scaffold**. No build pipeline exists yet. The first
+goal is not broad platform coverage; it is one real vertical slice that proves the
+contracts.
 
-## Build order
+## Build Order
 
-Do these in sequence — each proves a layer the next depends on.
+Do these in sequence. Each step should leave something executable or enforceable behind.
 
-### 1. Payload + web run
-- [ ] `game/index.html` renders a minimal WebGL scene (e.g. a spinning cube).
-- [ ] Vendor the runtime dependency locally; no CDN references (offline-safe).
-- [ ] `game/host-bridge.js` defines the Host interface with a no-op web implementation.
+### 1. Shared Contracts
+
+- [ ] `packages/host-bridge/` defines the typed host API, protocol version, capability
+      model, error codes, and conformance tests.
+- [ ] `schemas/drydock-artifact.schema.json` defines the artifact manifest contract.
+- [ ] `tools/validate-artifact` validates `drydock-artifact.json`.
+- [ ] Root `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and lockfile exist.
+
+### 2. Payload + Web Run
+
+- [ ] `game/index.html` renders a minimal WebGL scene.
+- [ ] Runtime dependencies are vendored locally; no CDN references.
+- [ ] `game/host-bridge.js` uses the shared bridge contract with honest web/dev
+      capabilities.
 - [ ] Serve `game/` locally and confirm it runs.
 
-### 2. Desktop shell (Electron), store-agnostic
-- [ ] `platforms/desktop/build/electron/` with `main.js`, `preload.js`, `builder.base.yml`.
-- [ ] Register an `app://` protocol serving `game/` (stable origin for ES modules / importmap).
-- [ ] GPU flags (force high-performance GPU, verify hardware acceleration).
-- [ ] `preload.js` implements the host bridge over IPC.
-- [ ] Produce an unpacked build that launches the payload.
+### 3. Desktop Build Adapter: Electron
 
-### 3. First store overlay — Steam
-- [ ] `platforms/desktop/stores/steam/` with `host.js`, `metadata/`, `assets/`, depot `.vdf`.
-- [ ] `STORE=steam` build wires the overlay into the shell.
-- [ ] `publish.sh` uploads via `steamcmd`.
-- [ ] `.github/workflows/steam.yml` (win + linux + mac matrix), tag-triggered.
-- [ ] Prove the tag-push → CI → upload flow to a Steam private branch.
+- [ ] `platforms/desktop/build/electron/` exists with `main.js`, `preload.js`,
+      `builder.base.yml`, and `package.json`.
+- [ ] Register a secure `app://` protocol serving `game/`.
+- [ ] Enforce Electron security defaults: context isolation, no node integration,
+      sandboxed renderer, strict IPC allowlist, CSP.
+- [ ] `preload.js` exposes only the typed host bridge over validated IPC.
+- [ ] Produce an unpacked build.
+- [ ] Emit and validate `out/<target>/drydock-artifact.json`.
 
-### 4. Mobile (Capacitor)
-- [ ] `platforms/mobile/build/capacitor/` config with `webDir` → `game/`, host-bridge impl.
-- [ ] Generate `ios/` and `android/` native projects.
-- [ ] fastlane lanes: iOS `release`, Android `deploy`.
-- [ ] `.github/workflows/ios.yml` (macOS) and `play.yml` (linux), tag-triggered.
+### 4. First Channel: Steam
 
-### 5. Second desktop store — Epic
-- [ ] `platforms/desktop/stores/epic/` proving the overlay pattern generalizes with zero
-      changes outside the new folder + workflow.
+- [ ] `platforms/desktop/channels/steam/` exists with `integrate.sh`, `package.sh`,
+      `publish.sh`, `host.js`, metadata, assets, and `package.json`.
+- [ ] `secrets.example`, `secrets.enc.yaml`, and `.sops.yaml` are configured for Steam.
+- [ ] Steam integration consumes only `drydock-artifact.json` plus documented channel
+      metadata.
+- [ ] Steam host provider passes host-bridge conformance tests for its claimed
+      capabilities.
+- [ ] `publish.sh` uploads via `steamcmd` using env vars injected by SOPS.
+- [ ] `.github/workflows/steam.yml` builds win/linux/mac where appropriate and decrypts
+      only Steam secrets.
+- [ ] Prove tag/workflow -> private Steam branch upload.
 
-### 6. Engine adapter — Unreal (validation)
-- [ ] `platforms/desktop/build/unreal/` wrapping `RunUAT BuildCookRun`.
-- [ ] Confirm every `stores/*` overlay and CI workflow is reused unchanged.
+### 5. Release Manifest
 
-## Definition of done for the template
+- [ ] `releases/<version>.yaml` schema exists.
+- [ ] Shared marketing version and per-channel build numbers are represented.
+- [ ] Build/package scripts consume the release manifest.
+- [ ] Platform manifests are generated from the release manifest where needed.
 
-- One `pnpm run bump` + three tag pushes produce uploads to Steam, App Store, and Play.
-- Adding a store touches exactly one `stores/` folder and one workflow.
-- Swapping the payload (or the engine adapter) touches nothing in the store layer.
+### 6. Mobile: Capacitor + App Store / Play Channels
+
+- [ ] `platforms/mobile/build/capacitor/` emits iOS and Android artifact manifests.
+- [ ] `platforms/mobile/native/ios/` and `platforms/mobile/native/android/` are generated
+      and reproducible.
+- [ ] `platforms/mobile/channels/appstore/` owns fastlane lanes, metadata, assets,
+      package/publish scripts, and SOPS secrets.
+- [ ] `platforms/mobile/channels/play/` owns fastlane lanes, metadata, assets,
+      package/publish scripts, and SOPS secrets.
+- [ ] `.github/workflows/appstore.yml` runs on macOS and decrypts only App Store secrets.
+- [ ] `.github/workflows/play.yml` runs on Linux and decrypts only Play secrets.
+
+### 7. Second Desktop Channel: Epic
+
+- [ ] `platforms/desktop/channels/epic/` proves the channel pattern generalizes.
+- [ ] Epic adds channel folder + workflow without changing payload code.
+- [ ] Any required shared contract changes are documented as artifact/host schema
+      improvements, not ad hoc engine path access.
+
+### 8. Second Engine Adapter: Unreal
+
+- [ ] `platforms/desktop/build/unreal/` wraps `RunUAT BuildCookRun`.
+- [ ] Unreal emits the same artifact manifest schema.
+- [ ] Channel-owned Unreal plugin configuration is explicit.
+- [ ] At least one existing desktop channel can package/publish an Unreal artifact through
+      the same manifest-first flow.
+
+## Definition Of Done For The Template
+
+- One release manifest plus channel tags can produce uploads to Steam, App Store, and Play.
+- Every build adapter emits a valid `drydock-artifact.json`.
+- Every host bridge implementation passes shared conformance tests for its claimed
+  capabilities.
+- SOPS+age is the only documented secret storage path for channel credentials.
+- Adding a channel primarily adds one `channels/<channel>/` folder and one workflow.
+- Swapping the payload or engine adapter does not require payload code to know about a
+  store/channel.
+- Console support is described only as a future/private extension until a real adapter and
+  certification workflow exist.

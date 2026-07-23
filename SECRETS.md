@@ -1,95 +1,162 @@
 # Secrets
 
-How store credentials are stored, and how they reach the packager. Default backend is
-**SOPS + age** (git-native, self-hosted); **1Password** is a supported alternative.
+Drydock uses **SOPS + age** as the supported secrets workflow. Encrypted secret files are
+committed beside the channel that uses them; plaintext values are decrypted only into a
+process environment for local commands or CI jobs.
 
-## Classify first — not everything is a secret
+## Classify First
 
 | Class | Examples | Where it lives |
 |---|---|---|
-| **Public identifiers** | Steam AppID + depot IDs, iOS bundle ID, Android package name, Apple Team ID, EOS product/sandbox IDs | Committed plainly in `stores/*/metadata`. They ship inside the binary anyway; committing them keeps builds reproducible. |
-| **Real secrets** | Signing keys, API keys, service accounts, build passwords | Encrypted at rest, injected at build time. Never plaintext in the repo. |
-| **Accounts** | Publisher logins, 2FA | Dedicated least-privilege bot accounts, not personal identities. |
+| Public identifiers | Steam AppID + depot IDs, iOS bundle ID, Android package name, Apple Team ID, EOS product/sandbox IDs | Committed plainly in channel metadata. They ship inside binaries or dashboards anyway. |
+| Real secrets | Signing keys, API keys, service accounts, build passwords, TOTP shared secrets | SOPS-encrypted YAML committed in the owning channel folder. |
+| Accounts | Publisher logins, 2FA ownership | Dedicated least-privilege bot/service accounts, not personal identities. |
 
-Over-protecting identifiers breaks reproducibility; under-protecting the second row leaks
-keys. Keep the line sharp.
+Over-protecting identifiers breaks reproducibility. Under-protecting real secrets leaks
+publishing authority.
 
-## The seam — packagers read env vars only
+## Contract: Packagers Read Env Vars Only
 
-A packager (`publish.sh`, electron-builder, fastlane, steamcmd) reads secrets **exclusively
-from environment variables**. It must not know where they came from.
+A packager or publisher (`publish.sh`, electron-builder, fastlane, steamcmd, Butler,
+BuildPatchTool) reads secrets exclusively from environment variables. It must not know
+where those variables came from.
 
+```text
+SOPS encrypted file -> decrypt/inject -> env vars -> packager
 ```
-  source of truth  ──►  [ decrypt / inject ]  ──►  env vars  ──►  packager
-  (SOPS file / vault)                              $STEAM_BUILD_PW …
+
+This keeps scripts stable while allowing local and CI injection to use the same encrypted
+source file.
+
+## File Layout
+
+Each channel owns its own secret contract and encrypted values:
+
+```text
+platforms/desktop/channels/steam/
+├─ secrets.example
+└─ secrets.enc.yaml
+
+platforms/mobile/channels/appstore/
+├─ secrets.example
+└─ secrets.enc.yaml
 ```
 
-This decouples storage from consumption: swap the backend without touching a build script.
+`secrets.example` lists required environment variable names only:
 
-## One source of truth, two consumers
+```text
+STEAM_USERNAME=
+STEAM_PASSWORD=
+STEAM_TOTP_SHARED_SECRET=
+```
 
-| Consumer | Backend |
-|---|---|
-| **CI** (the real release path) | GitHub Actions **environment** secrets, scoped per target so one workflow can't read another's keys. Injected as env at job runtime; gone with the runner. |
-| **Local machine** (occasional hand-builds) | The manager, injected into a shell. Never written to a dotfile. |
+`secrets.enc.yaml` contains the encrypted values:
 
-Feed both from one source so they don't drift.
+```yaml
+STEAM_USERNAME: ENC[AES256_GCM,...]
+STEAM_PASSWORD: ENC[AES256_GCM,...]
+STEAM_TOTP_SHARED_SECRET: ENC[AES256_GCM,...]
+```
 
-## Default backend — SOPS + age
+## `.sops.yaml`
 
-- Secrets live **encrypted in the repo** as `stores/<store>/secrets.enc.yaml`, encrypted with
-  [age](https://github.com/FiloSottile/age) via [SOPS](https://github.com/getsops/sops).
-  Safe to commit — only holders of the age private key can decrypt.
-- **Local injection:**
-  ```
-  sops exec-env platforms/desktop/stores/steam/secrets.enc.yaml ./publish.sh
-  ```
-- **CI injection:** one age private key held as a GitHub secret decrypts the committed files;
-  the encrypted YAML rides along in the checkout.
-- **Edit:** `sops platforms/desktop/stores/steam/secrets.enc.yaml` (opens decrypted, re-encrypts on save).
+The repo root `.sops.yaml` declares age recipients. Prefer a separate recipient group per
+release channel so one workflow cannot decrypt another channel's secrets.
 
-### Alternative — 1Password
-Use if you prefer a SaaS manager or expect collaborators. Local: `op run -- ./publish.sh`.
-CI: 1Password's GitHub Actions integration, or mirror the handful of values into GitHub
-secrets. The packager contract (env vars) is unchanged.
+Example shape:
 
-## iOS signing is special — use fastlane `match`
+```yaml
+creation_rules:
+  - path_regex: platforms/desktop/channels/steam/secrets\.enc\.yaml$
+    age: age1steamrecipient...
 
-Regardless of backend, iOS certs + provisioning profiles are managed by
-[`match`](https://docs.fastlane.tools/actions/match/): it stores them encrypted in a separate
-git repo (or bucket) and syncs them onto any Mac / CI runner on demand. Purpose-built to
-solve "certs trapped on one developer's Keychain." The `match` passphrase is itself a secret
-(SOPS/1Password/CI).
+  - path_regex: platforms/mobile/channels/appstore/secrets\.enc\.yaml$
+    age: age1appstorerecipient...
 
-## Per-store inventory
+  - path_regex: platforms/mobile/channels/play/secrets\.enc\.yaml$
+    age: age1playrecipient...
+```
 
-| Store | Public (commit) | Secret (backend only) |
+Developer recipients can be added to the relevant channel rule when they need local
+release access. Do not use one global decrypt key for every channel unless the project is
+still a private solo prototype.
+
+## Local Use
+
+Run channel commands through `sops exec-env`:
+
+```sh
+sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml \
+  'pnpm --filter @drydock/channel-steam publish -- out/win32-x64/drydock-artifact.json'
+```
+
+For multi-step local work, open a scoped shell:
+
+```sh
+sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml bash
+```
+
+Do not write decrypted values to `.env`, shell profiles, committed config, or build logs.
+
+## CI Use
+
+Each workflow decrypts only its own channel file.
+
+1. The workflow stores the matching age private key as a GitHub environment secret, for
+   example `SOPS_AGE_KEY_STEAM`.
+2. The job writes that key to a temporary file or exports `SOPS_AGE_KEY`.
+3. The job runs `sops exec-env <channel>/secrets.enc.yaml '<command>'`.
+4. The command builds/packages/publishes using env vars only.
+5. The runner is discarded.
+
+CI should use GitHub Environments for approvals and scoping, but channel credentials
+themselves live in SOPS files. The GitHub secret is only the age private key needed to
+decrypt that channel's file.
+
+## iOS Signing
+
+iOS certificates and provisioning profiles should use fastlane `match`. The match
+repository or storage bucket is separate from this repo. The `MATCH_PASSWORD`,
+App Store Connect API key fields, and any other lane secrets live in
+`platforms/mobile/channels/appstore/secrets.enc.yaml`.
+
+Prefer App Store Connect API keys over Apple ID sessions so CI does not depend on
+interactive 2FA.
+
+## Per-Channel Inventory
+
+| Channel | Public values | SOPS-encrypted values |
 |---|---|---|
-| Steam | AppID, depot IDs | builder-account password, Steam Guard config/`ssfn` or TOTP shared secret |
-| iOS | Team ID, bundle ID | App Store Connect API key (`.p8` + key id + issuer id); certs/profiles via `match` |
-| Android | package name | upload keystore + passwords, Play service-account JSON |
-| Epic | product/sandbox/deployment IDs | EOS client secret, BuildPatchTool credentials |
+| Steam | AppID, depot IDs, public achievement IDs | Builder username/password, Steam Guard sentry/config or TOTP shared secret |
+| Epic | Product/sandbox/deployment IDs, artifact labels | EOS client secret, BuildPatchTool credentials |
+| itch | Project slug, channel names | Butler API key |
+| App Store | Team ID, bundle ID, SKU | App Store Connect API key, `MATCH_PASSWORD`, match repo credentials if needed |
+| Google Play | Android package name | Upload keystore, keystore passwords, Play service-account JSON |
 
 ## Rules
 
-1. **Prefer API keys over password+2FA.** App Store Connect API key removes Apple ID 2FA from
-   CI; a Play service-account JSON removes human login. Never script interactive 2FA.
-2. **Steam Guard is the classic CI blocker.** A fresh runner is untrusted. Solve once: store
-   the generated sentry/`config` files as a secret, or keep the TOTP shared secret in the
-   backend and compute the code in-pipeline.
-3. **Least privilege, dedicated bots.** A build-only Apple ID role, a Steam builder
-   sub-account (not the master partner login), a release-scoped Play service account. Leaked
-   token → blast radius is publishing, not your whole identity.
-4. **Never log secrets.** CI masks registered secrets; avoid `set -x` around injection.
-5. **Rotate on a schedule** and when anyone with access leaves. Document expiry (API keys and
-   certs expire).
+1. Prefer API keys over password+2FA whenever the store supports them.
+2. Use least-privilege bot/service accounts for publishing.
+3. Avoid `set -x` around secret injection and upload commands.
+4. Rotate age recipients and store credentials when access changes.
+5. Document secret expiry dates where the platform has them.
+6. Never commit plaintext `.env`, `*.p12`, `*.keystore`, `*.mobileprovision`, `*.p8`, or
+   service-account JSON files.
 
-## Repo conventions
+## Git Ignore Expectations
 
-| File | Committed? | Purpose |
-|---|---|---|
-| `stores/<store>/secrets.example` | yes | Lists the required env var **names** only — the contract, no values |
-| `stores/<store>/secrets.enc.yaml` | yes (encrypted) | SOPS+age encrypted values (omit if using 1Password) |
-| `.env`, `*.p12`, `*.keystore`, `*.mobileprovision`, `*.p8`, service-account JSON | **no** | gitignored; plaintext secrets never committed |
+Committed:
 
-`.sops.yaml` at the repo root declares the age recipients (public keys) authorized to decrypt.
+- `secrets.example`
+- `secrets.enc.yaml`
+- `.sops.yaml`
+
+Ignored:
+
+- `.env`
+- `*.p12`
+- `*.keystore`
+- `*.mobileprovision`
+- `*.p8`
+- service-account JSON files
+- SDK caches and downloaded SDK archives
