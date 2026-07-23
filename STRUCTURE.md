@@ -24,6 +24,22 @@ drydock/
 │  └─ artifacts/                   # valid/invalid manifest examples for tests and docs
 │
 ├─ platforms/
+│  ├─ web/
+│  │  ├─ iterate/
+│  │  │  └─ caddy-live/           # live game/ origin for immediate browser feedback
+│  │  │     ├─ package.json
+│  │  │     ├─ start.sh
+│  │  │     └─ caddy.example
+│  │  ├─ build/
+│  │  │  └─ static/               # copy runtime files into out/web-static/
+│  │  │     └─ package.json
+│  │  └─ channels/
+│  │     └─ vps/                  # deploy packaged web artifact through Caddy
+│  │        ├─ package.json
+│  │        ├─ package.sh
+│  │        ├─ publish.sh
+│  │        └─ caddy.example
+│  │
 │  ├─ desktop/
 │  │  ├─ build/
 │  │  │  ├─ electron/             # engine/runtime build adapter
@@ -88,6 +104,7 @@ drydock/
 ├─ pnpm-workspace.yaml
 ├─ AGENTS.md
 ├─ ARCHITECTURE.md
+├─ ITERATE.md
 ├─ TOOLCHAIN.md
 ├─ SECRETS.md
 ├─ RELEASE.md
@@ -102,6 +119,7 @@ drydock/
 | `packages/host-bridge/` | Typed bridge API, error model, conformance tests | Contain platform SDK code |
 | `schemas/` | Artifact and release manifest schemas | Encode one engine's private paths as required fields |
 | `fixtures/` | Small sample manifests for validation and docs | Become a second source of truth for real release outputs |
+| `platforms/*/iterate/<mode>/` | Fast feedback loops such as Caddy-backed web iteration | Emit release artifacts or read secrets |
 | `platforms/*/build/<engine>/` | Engine/runtime build adapter | Hard-code release channels |
 | `platforms/*/channels/<channel>/` | Channel SDK integration, metadata, package/sign scripts, publish tooling | Reach into engine internals without going through `drydock-artifact.json` |
 | `platforms/mobile/native/{ios,android}/` | OS-native generated projects and durable native extension points | Hold App Store / Play release metadata directly |
@@ -113,6 +131,10 @@ drydock/
 
 - `game/` exists exactly once. Every target consumes it by reference or generated runtime
   copy; the repo never gains a second canonical copy of the payload.
+- Web iteration serves `game/` directly as the document root. It must not duplicate the
+  source tree or symlink a second source mirror.
+- Public live iteration origins bind to `127.0.0.1` and rely on Caddy allowlists. They do
+  not serve the repo root.
 - Every build adapter emits `drydock-artifact.json` and validates it against the schema.
 - Channel tooling consumes the artifact manifest first. It must fail early if required
   fields or capabilities are missing.

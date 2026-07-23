@@ -46,6 +46,26 @@ The clean boundary is therefore:
 - game code calls the host bridge instead of store SDKs;
 - shared contracts change only when a real capability is missing.
 
+## Iteration Loop
+
+Iteration is intentionally outside the release pipeline:
+
+```text
+EDIT game/  ->  localhost origin rooted at game/  ->  Caddy allowlist  ->  browser
+```
+
+For web payload work, `platforms/web/iterate/caddy-live/` owns the fast feedback path.
+It serves the live `game/` tree directly so changes to HTML, JS, shaders, assets, and
+styling appear on the public Caddy URL after a browser refresh. It does not copy source,
+does not create symlink mirrors, does not emit `drydock-artifact.json`, and does not
+publish anything.
+
+The live origin must bind to `127.0.0.1` and use `game/` as its document root. Caddy is
+the public boundary and must allowlist only runtime paths such as `/`, `/index.html`,
+`/host-bridge.js`, `/src/*`, `/assets/*`, and `/vendor/*`.
+
+This path optimizes latency. Release channels optimize reproducibility.
+
 ## Artifact Manifest
 
 Every build adapter emits a manifest next to its raw output:
@@ -139,11 +159,29 @@ Implementations:
 
 | Runtime/channel | How the bridge is provided |
 |---|---|
-| Web dev / itch web | Local implementation using `localStorage` or IndexedDB, with honest capabilities. |
+| Web iterate / itch web | Local implementation using `localStorage` or IndexedDB, with honest capabilities. |
 | Electron base shell | `preload.js` exposes only the typed bridge over validated IPC. |
 | Steam channel | Supplies Steam achievements, overlay/auth where needed, and cloud-save provider. |
 | Epic channel | Supplies EOS-backed capabilities where needed. |
 | Capacitor base shell | Bridges to native plugins; App Store / Play channels provide IAP and platform services. |
+
+## Web Composition
+
+Web has both an iteration path and a release path:
+
+```text
+platforms/web/iterate/caddy-live/   # live game/ origin for immediate feedback
+platforms/web/build/static/         # copies runtime files into out/web-static/
+platforms/web/channels/vps/         # deploys the packaged static artifact to the VPS
+```
+
+The static build adapter consumes `game/`, copies only runtime files into
+`out/web-static/`, and emits `drydock-artifact.json`. The VPS channel consumes that
+manifest, installs the clean output under a stable webroot or localhost origin root,
+validates the Caddy config, reloads Caddy, and performs public allow/deny checks.
+
+The iteration path may serve live source for speed. The VPS channel must deploy a
+packaged artifact for reproducibility.
 
 ## Desktop Composition
 
@@ -201,7 +239,9 @@ The preload exposes only the typed host bridge.
 
 Engine changes replace build adapters, not the payload or channel contracts:
 
-- **Web games** use Electron for desktop and Capacitor for mobile.
+- **Web games** use `platforms/web/iterate/caddy-live/` for fast browser iteration,
+  `platforms/web/build/static/` + `platforms/web/channels/vps/` for public web releases,
+  Electron for desktop, and Capacitor for mobile.
 - **Unreal games** use a `build/unreal` adapter around `RunUAT BuildCookRun`.
 - **Other engines** can be added if they emit the artifact manifest and implement the host
   bridge.

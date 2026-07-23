@@ -9,10 +9,27 @@ BUILD -> INTEGRATE -> PACKAGE / SIGN -> PUBLISH
 The commands below assume channel accounts, SDK access, signing setup, and SOPS files are
 already configured.
 
+## Iteration Is Separate
+
+The fast web path is not a release. `platforms/web/iterate/caddy-live/` serves the live
+`game/` directory through a localhost-bound origin and Caddy allowlist so browser refreshes
+reflect source edits immediately.
+
+Use it for feel, rendering, controls, and device smoke checks:
+
+```sh
+pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
+```
+
+Do not promote, archive, or compare that live origin as a release. The release path for
+the VPS is `platforms/web/build/static/` plus `platforms/web/channels/vps/`.
+
 ## Build/Host OS Matrix
 
 | Target | Can build on |
 |---|---|
+| VPS web static artifact | Any OS |
+| VPS publish through Caddy/systemd | Target VPS or a runner with SSH/deploy access |
 | Steam / Epic / GOG / itch Windows + Linux binaries | Any OS if the engine/toolchain supports cross-build |
 | Steam / Epic / GOG / itch macOS binary, signed/notarized | macOS only |
 | App Store | macOS only |
@@ -26,11 +43,15 @@ candidate:
 ```yaml
 version: 1.4.0
 build:
+  vps: 10400
   steam: 10400
   epic: 10400
   appstore: 87
   play: 1040087
 channels:
+  vps:
+    host: drydock.example.com
+    root: /var/www/drydock
   steam:
     branch: beta
   epic:
@@ -61,6 +82,32 @@ pnpm run release:prepare -- releases/1.4.0.yaml
 - no CDN/runtime dependency leakage;
 - required SOPS files and `secrets.example` contracts;
 - channel workflow names and tag patterns.
+
+## Web Example: VPS / Caddy
+
+One-time setup:
+
+- Public domain or subdomain points at the VPS.
+- Caddy is installed, enabled, and serving TLS.
+- The live iteration origin, if enabled, serves only `game/` from `127.0.0.1`.
+- The release channel has a stable deploy root such as `/var/www/drydock`.
+- Caddy config is generated or templated from `platforms/web/channels/vps/caddy.example`.
+
+Per release:
+
+```sh
+# BUILD: copy only runtime files from game/ into out/web-static and emit manifest.
+pnpm --filter @drydock/web-static build -- \
+  --release releases/1.4.0.yaml
+
+# PACKAGE / PUBLISH: install clean static output and reload Caddy.
+pnpm --filter @drydock/channel-vps publish -- \
+  out/web-static/drydock-artifact.json
+```
+
+The VPS channel must deploy the packaged `out/web-static/` output, not the repo root and
+not the live iteration origin. It should validate the Caddy config before reload and run
+public checks for allowed runtime paths and denied repo paths.
 
 ## Desktop Example: Steam
 

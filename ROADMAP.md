@@ -16,15 +16,30 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [x] `tools/validate-artifact.js` validates `drydock-artifact.json`.
 - [x] Root `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and lockfile exist.
 
-### 2. Payload + Web Run
+### 2. Payload + Web Iterate
 
 - [ ] `game/index.html` renders a minimal WebGL scene.
 - [ ] Runtime dependencies are vendored locally; no CDN references.
 - [ ] `game/host-bridge.js` uses the shared bridge contract with honest web/dev
       capabilities.
-- [ ] Serve `game/` locally and confirm it runs.
+- [ ] `platforms/web/iterate/caddy-live/` serves `game/` directly as the document root.
+- [ ] The live origin binds to `127.0.0.1`, sends no-cache headers, and never serves the
+      repo root.
+- [ ] Caddy allowlist exposes only runtime paths such as `/`, `/index.html`,
+      `/host-bridge.js`, `/src/*`, `/assets/*`, and `/vendor/*`.
+- [ ] Public browser refresh reflects edits to `game/` without a build or deploy step.
 
-### 3. Desktop Build Adapter: Electron
+### 3. Web Static Build + VPS Channel
+
+- [ ] `platforms/web/build/static/` copies only runtime files from `game/` into
+      `out/web-static/`.
+- [ ] The static build emits and validates `out/web-static/drydock-artifact.json`.
+- [ ] `platforms/web/channels/vps/` deploys the packaged `out/web-static/` artifact, not
+      the live iterate origin.
+- [ ] VPS channel config validates Caddy before reload and runs public allow/deny checks.
+- [ ] The release manifest includes the `vps` channel.
+
+### 4. Desktop Build Adapter: Electron
 
 - [ ] `platforms/desktop/build/electron/` exists with `main.js`, `preload.js`,
       `builder.base.yml`, and `package.json`.
@@ -35,7 +50,7 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [ ] Produce an unpacked build.
 - [ ] Emit and validate `out/<target>/drydock-artifact.json`.
 
-### 4. First Channel: Steam
+### 5. First Desktop Store Channel: Steam
 
 - [ ] `platforms/desktop/channels/steam/` exists with `integrate.sh`, `package.sh`,
       `publish.sh`, `host.js`, metadata, assets, and `package.json`.
@@ -49,7 +64,7 @@ Do these in sequence. Each step should leave something executable or enforceable
       only Steam secrets.
 - [ ] Prove tag/workflow -> private Steam branch upload.
 
-### 5. Release Manifest
+### 6. Release Manifest
 
 - [x] `schemas/release-manifest.schema.json` exists.
 - [x] `releases/<version>.yaml` example exists.
@@ -57,7 +72,7 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [ ] Build/package scripts consume the release manifest.
 - [ ] Platform manifests are generated from the release manifest where needed.
 
-### 6. Mobile: Capacitor + App Store / Play Channels
+### 7. Mobile: Capacitor + App Store / Play Channels
 
 - [ ] `platforms/mobile/build/capacitor/` emits iOS and Android artifact manifests.
 - [ ] `platforms/mobile/native/ios/` and `platforms/mobile/native/android/` are generated
@@ -69,14 +84,14 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [ ] `.github/workflows/appstore.yml` runs on macOS and decrypts only App Store secrets.
 - [ ] `.github/workflows/play.yml` runs on Linux and decrypts only Play secrets.
 
-### 7. Second Desktop Channel: Epic
+### 8. Second Desktop Store Channel: Epic
 
 - [ ] `platforms/desktop/channels/epic/` proves the channel pattern generalizes.
 - [ ] Epic adds channel folder + workflow without changing payload code.
 - [ ] Any required shared contract changes are documented as artifact/host schema
       improvements, not ad hoc engine path access.
 
-### 8. Second Engine Adapter: Unreal
+### 9. Second Engine Adapter: Unreal
 
 - [ ] `platforms/desktop/build/unreal/` wraps `RunUAT BuildCookRun`.
 - [ ] Unreal emits the same artifact manifest schema.
@@ -86,7 +101,10 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ## Definition Of Done For The Template
 
-- One release manifest plus channel tags can produce uploads to Steam, App Store, and Play.
+- Live Caddy-backed web iteration serves `game/` directly without duplicate source or repo
+  root exposure.
+- One release manifest plus channel tags can produce uploads to the VPS web channel,
+  Steam, App Store, and Play.
 - Every build adapter emits a valid `drydock-artifact.json`.
 - Every host bridge implementation passes shared conformance tests for its claimed
   capabilities.

@@ -31,6 +31,10 @@ The boundary is not "stores never affect binaries." Real stores often do. The bo
 that channel-specific behavior is isolated behind a documented artifact manifest and host
 bridge instead of leaking into the payload.
 
+Fast iteration is separate from release. Web iteration may serve `game/` directly through
+a localhost-only origin and Caddy allowlist for instant browser feedback, but that path
+does not emit an artifact and is not used for release verification.
+
 ## Documentation map
 
 Read in this order.
@@ -40,6 +44,7 @@ Read in this order.
 | `ARCHITECTURE.md` | The layered model, release stages, artifact manifest, host bridge. Read first. |
 | `STRUCTURE.md` | Canonical folder tree and what each directory owns. |
 | `TOOLCHAIN.md` | Package management, dependency isolation, SDK & signing handling. |
+| `ITERATE.md` | The fast Caddy-backed web iteration path and its safety rules. |
 | `SECRETS.md` | SOPS+age secrets workflow and how secrets reach the packager. |
 | `RELEASE.md` | Per-channel setup, repeatable release flow, versioning, CI. |
 | `ROADMAP.md` | Current status and the order to build things in. |
@@ -54,7 +59,9 @@ Read in this order.
    manifest, not engine-specific paths.
 4. **Adding a channel should add a channel folder + workflow.** If shared code changes,
    it should be because the artifact or host contract was missing a real capability.
-5. **Secrets use SOPS+age by default.** Encrypted files may be committed; plaintext keys,
+5. **Iteration paths are not release paths.** `platforms/web/iterate/caddy-live/` may serve
+   live `game/` files for speed, but release channels consume packaged artifacts.
+6. **Secrets use SOPS+age by default.** Encrypted files may be committed; plaintext keys,
    signing material, SDK caches, and personal credentials never enter the repo.
-6. Prefer conventional tools (pnpm, electron-builder, fastlane, steamcmd) over bespoke
+7. Prefer conventional tools (pnpm, electron-builder, fastlane, steamcmd) over bespoke
    scripting, so any agent or engineer can pick the work up cold.

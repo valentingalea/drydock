@@ -12,6 +12,9 @@ Expected package shape:
 |---|---|---|
 | `@drydock/game` | `game/` | Portable payload package |
 | `@drydock/host-bridge` | `packages/host-bridge/` | Typed host API + conformance tests |
+| `@drydock/web-iterate-caddy-live` | `platforms/web/iterate/caddy-live/` | Live Caddy-backed browser iteration |
+| `@drydock/web-static` | `platforms/web/build/static/` | Static web build adapter |
+| `@drydock/channel-vps` | `platforms/web/channels/vps/` | Packaged VPS/Caddy web release |
 | `@drydock/desktop-electron` | `platforms/desktop/build/electron/` | Desktop build adapter |
 | `@drydock/channel-steam` | `platforms/desktop/channels/steam/` | Steam integrate/package/publish tooling |
 | `@drydock/channel-epic` | `platforms/desktop/channels/epic/` | Epic integrate/package/publish tooling |
@@ -31,6 +34,9 @@ pnpm install
 Run package scripts with filters:
 
 ```sh
+pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
+pnpm --filter @drydock/web-static build -- --release releases/1.4.0.yaml
+pnpm --filter @drydock/channel-vps publish -- out/web-static/drydock-artifact.json
 pnpm --filter @drydock/desktop-electron build -- --platform win32 --arch x64
 pnpm --filter @drydock/channel-steam integrate -- out/win32-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-steam package -- out/win32-x64/drydock-artifact.json
@@ -44,6 +50,8 @@ graphs.
 
 - The payload can depend on `@drydock/host-bridge`, but not on platform or channel
   packages.
+- Iterate packages may serve `game/` directly for fast feedback, but they do not emit
+  artifacts, read secrets, or act as release inputs.
 - Build adapters can depend on `@drydock/game` and `@drydock/host-bridge`, but not on
   concrete channel packages.
 - Channel packages can depend on `@drydock/host-bridge` and consume artifact manifests.
@@ -67,6 +75,27 @@ Native toolchains live beside, not inside, the JS dependency graph.
 
 An iOS signing problem should not break the Steam pipeline because they do not share a
 resolver or secrets file.
+
+## Iteration Tooling
+
+The web iteration path is deliberately lighter than a release:
+
+```sh
+pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
+```
+
+It should start a localhost-only origin rooted at `game/`, with no-cache headers and no
+artifact output. Caddy exposes that origin through a tight allowlist. This is the right
+path for fast rendering, controls, layout, and device checks.
+
+Iteration packages must not:
+
+- copy `game/src` into another canonical source tree;
+- symlink a second source mirror;
+- serve the repo root;
+- read SOPS secrets;
+- produce `drydock-artifact.json`;
+- be used as evidence that a release artifact is reproducible.
 
 ## SDKs: Pin, Fetch, Ignore
 
@@ -95,6 +124,7 @@ Each release channel has its own workflow, runner requirements, and SOPS age key
 
 | Workflow | Runner | Builds/releases |
 |---|---|---|
+| `vps.yml` | linux / target VPS | Static web artifact, Caddy config validation, VPS publish |
 | `steam.yml` | windows + macos + linux matrix | Electron per OS, Steam integration/package, upload via steamcmd |
 | `epic.yml` | windows + macos matrix | Electron per OS, Epic integration/package, upload via BuildPatchTool |
 | `appstore.yml` | macOS only | Capacitor -> Xcode, App Store package/sign/upload via fastlane |

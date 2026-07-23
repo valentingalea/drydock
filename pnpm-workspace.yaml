@@ -1,5 +1,6 @@
 packages:
   - "game"
   - "packages/*"
+  - "platforms/*/iterate/*"
   - "platforms/*/build/*"
   - "platforms/*/channels/*"

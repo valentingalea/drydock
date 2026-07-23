@@ -127,6 +127,7 @@ interactive 2FA.
 
 | Channel | Public values | SOPS-encrypted values |
 |---|---|---|
+| VPS web | Hostname, deploy root, Caddy route name | Optional SSH deploy key if publishing from a remote runner; none if publishing locally on the VPS |
 | Steam | AppID, depot IDs, public achievement IDs | Builder username/password, Steam Guard sentry/config or TOTP shared secret |
 | Epic | Product/sandbox/deployment IDs, artifact labels | EOS client secret, BuildPatchTool credentials |
 | itch | Project slug, channel names | Butler API key |

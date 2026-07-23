@@ -1,10 +1,14 @@
 version: 1.4.0
 build:
+  vps: 10400
   steam: 10400
   epic: 10400
   appstore: 87
   play: 1040087
 channels:
+  vps:
+    host: drydock.example.com
+    root: /var/www/drydock
   steam:
     branch: beta
   epic:
