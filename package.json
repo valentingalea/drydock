@@ -1,0 +1,20 @@
+{
+  "name": "drydock",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "test": "node --test packages/host-bridge/test/*.test.js",
+    "validate": "node tools/validate-artifact.js fixtures/artifacts/electron-win32-x64.json && node tools/validate-release.js releases/1.4.0.yaml",
+    "validate:artifact": "node tools/validate-artifact.js",
+    "validate:release": "node tools/validate-release.js"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "yaml": "2.9.0"
+  }
+}

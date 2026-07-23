@@ -1,0 +1,15 @@
+version: 1.4.0
+build:
+  steam: 10400
+  epic: 10400
+  appstore: 87
+  play: 1040087
+channels:
+  steam:
+    branch: beta
+  epic:
+    sandbox: stage
+  appstore:
+    submitForReview: false
+  play:
+    track: internal

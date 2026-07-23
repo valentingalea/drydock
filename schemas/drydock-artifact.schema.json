@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://drydock.dev/schemas/drydock-artifact.schema.json",
+  "title": "Drydock Artifact Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "gameId",
+    "version",
+    "buildNumber",
+    "engine",
+    "platform",
+    "arch",
+    "artifactRoot",
+    "signing",
+    "capabilities",
+    "checksums"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "gameId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "buildNumber": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "engine": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "platform": {
+      "enum": [
+        "windows",
+        "linux",
+        "macos",
+        "ios",
+        "android",
+        "web"
+      ]
+    },
+    "arch": {
+      "enum": [
+        "x64",
+        "arm64",
+        "universal",
+        "wasm"
+      ]
+    },
+    "artifactRoot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "executable": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bundleId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "packageId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "unsigned",
+            "signed",
+            "notarized",
+            "provisioned",
+            "unknown"
+          ]
+        },
+        "identity": {
+          "type": "string"
+        },
+        "notarized": {
+          "type": "boolean"
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "storage",
+          "cloudSave",
+          "achievements",
+          "telemetry",
+          "purchases",
+          "identity",
+          "overlay",
+          "entitlementCheck"
+        ]
+      }
+    },
+    "checksums": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "algorithm",
+          "value"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "algorithm": {
+            "enum": [
+              "sha256",
+              "sha512"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

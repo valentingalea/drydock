@@ -17,7 +17,11 @@ drydock/
 │     └─ test/
 │
 ├─ schemas/
-│  └─ drydock-artifact.schema.json # validates build adapter output
+│  ├─ drydock-artifact.schema.json # validates build adapter output
+│  └─ release-manifest.schema.json # validates release manifests
+│
+├─ fixtures/
+│  └─ artifacts/                   # valid/invalid manifest examples for tests and docs
 │
 ├─ platforms/
 │  ├─ desktop/
@@ -74,7 +78,9 @@ drydock/
 │           ├─ secrets.example
 │           └─ secrets.enc.yaml
 │
-├─ tools/                         # vendor deps, fetch SDKs, release helpers
+├─ tools/                         # validators, vendor deps, fetch SDKs, release helpers
+│  ├─ validate-artifact.js
+│  └─ validate-release.js
 ├─ releases/                      # release manifests, one file per release/candidate
 ├─ .sops.yaml                     # age recipients authorized to decrypt SOPS files
 ├─ .github/workflows/             # one pipeline per release channel
@@ -94,11 +100,12 @@ drydock/
 |---|---|---|
 | `game/` | The whole payload + host bridge calls | Reference any channel, store, or engine |
 | `packages/host-bridge/` | Typed bridge API, error model, conformance tests | Contain platform SDK code |
-| `schemas/` | Artifact manifest schema and validation fixtures | Encode one engine's private paths as required fields |
+| `schemas/` | Artifact and release manifest schemas | Encode one engine's private paths as required fields |
+| `fixtures/` | Small sample manifests for validation and docs | Become a second source of truth for real release outputs |
 | `platforms/*/build/<engine>/` | Engine/runtime build adapter | Hard-code release channels |
 | `platforms/*/channels/<channel>/` | Channel SDK integration, metadata, package/sign scripts, publish tooling | Reach into engine internals without going through `drydock-artifact.json` |
 | `platforms/mobile/native/{ios,android}/` | OS-native generated projects and durable native extension points | Hold App Store / Play release metadata directly |
-| `tools/` | Repeatable helper scripts | Hold secrets |
+| `tools/` | Repeatable helper scripts and validators | Hold secrets |
 | `releases/` | Version/build/channel release manifests | Store credentials |
 | `.github/workflows/` | One workflow per release channel | Decrypt another channel's secrets |
 

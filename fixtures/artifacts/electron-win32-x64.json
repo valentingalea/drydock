@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "gameId": "drydock-placeholder",
+  "version": "1.4.0",
+  "buildNumber": 10400,
+  "engine": "electron",
+  "platform": "windows",
+  "arch": "x64",
+  "artifactRoot": "out/win32-x64",
+  "executable": "Drydock Placeholder.exe",
+  "bundleId": null,
+  "packageId": null,
+  "signing": {
+    "status": "unsigned"
+  },
+  "capabilities": [
+    "storage",
+    "achievements"
+  ],
+  "checksums": []
+}

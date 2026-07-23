@@ -10,11 +10,11 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ### 1. Shared Contracts
 
-- [ ] `packages/host-bridge/` defines the typed host API, protocol version, capability
+- [x] `packages/host-bridge/` defines the typed host API, protocol version, capability
       model, error codes, and conformance tests.
-- [ ] `schemas/drydock-artifact.schema.json` defines the artifact manifest contract.
-- [ ] `tools/validate-artifact` validates `drydock-artifact.json`.
-- [ ] Root `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and lockfile exist.
+- [x] `schemas/drydock-artifact.schema.json` defines the artifact manifest contract.
+- [x] `tools/validate-artifact.js` validates `drydock-artifact.json`.
+- [x] Root `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and lockfile exist.
 
 ### 2. Payload + Web Run
 
@@ -51,8 +51,9 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ### 5. Release Manifest
 
-- [ ] `releases/<version>.yaml` schema exists.
-- [ ] Shared marketing version and per-channel build numbers are represented.
+- [x] `schemas/release-manifest.schema.json` exists.
+- [x] `releases/<version>.yaml` example exists.
+- [x] Shared marketing version and per-channel build numbers are represented.
 - [ ] Build/package scripts consume the release manifest.
 - [ ] Platform manifests are generated from the release manifest where needed.
 
