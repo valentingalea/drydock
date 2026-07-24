@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "package": "node package.js",
+    "publish": "node publish.js",
+    "verify": "node verify.js",
     "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "yazl": "3.3.1"
   }
 }

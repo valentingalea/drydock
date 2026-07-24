@@ -64,8 +64,9 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [x] A Windows x64 Electron artifact can be built on the VPS for manual testing.
 - [x] A Caddy route exposes only packaged archives, checksums, and an index page under
       `/drydock-downloads/`.
-- [ ] If this remains useful, promote it from manual proof to a channel-owned
-      package/publish script.
+- [x] The downloads channel consumes `drydock-artifact.json`, packages a zip/checksum,
+      publishes the webroot, and verifies public allow/deny behavior.
+- [ ] Windows code signing is wired through SOPS-provided signing inputs.
 
 ### 5. First Desktop Store Channel: Steam
 

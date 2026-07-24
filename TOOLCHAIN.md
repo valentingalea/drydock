@@ -16,6 +16,7 @@ Expected package shape:
 | `@drydock/web-static` | `platforms/web/build/static/` | Static web build adapter |
 | `@drydock/channel-vps` | `platforms/web/channels/vps/` | Packaged VPS/Caddy web release |
 | `@drydock/desktop-electron` | `platforms/desktop/build/electron/` | Desktop build adapter |
+| `@drydock/channel-downloads` | `platforms/desktop/channels/downloads/` | Direct-download testing channel |
 | `@drydock/channel-steam` | `platforms/desktop/channels/steam/` | Steam integrate/package/publish tooling |
 | `@drydock/channel-epic` | `platforms/desktop/channels/epic/` | Epic integrate/package/publish tooling |
 | `@drydock/mobile-capacitor` | `platforms/mobile/build/capacitor/` | Mobile build adapter |
@@ -38,6 +39,9 @@ pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 pnpm --filter @drydock/web-static build -- --release releases/1.4.0.yaml
 pnpm --filter @drydock/channel-vps run publish -- out/web-static/drydock-artifact.json
 pnpm --filter @drydock/desktop-electron build -- --platform windows --arch x64
+pnpm --filter @drydock/channel-downloads run package -- out/windows-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-downloads run publish -- out/downloads
+pnpm --filter @drydock/channel-downloads run verify -- --base-url https://vinyltin.duckdns.org/drydock-downloads/
 curl -I https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-1.4.0-windows-x64.zip
 pnpm --filter @drydock/channel-steam integrate -- out/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-steam package -- out/windows-x64/drydock-artifact.json
@@ -76,6 +80,12 @@ Native toolchains live beside, not inside, the JS dependency graph.
 
 An iOS signing problem should not break the Steam pipeline because they do not share a
 resolver or secrets file.
+
+Windows code signing is its own toolchain concern. Steam upload tooling does not replace
+Authenticode signing, and Steam DRM wrapping should be treated as channel integration
+rather than an OS signature. The current direct-download channel can accept unsigned proof
+artifacts, but a production download release should sign before packaging and fail closed
+when SOPS-injected signing inputs are missing.
 
 ## Iteration Tooling
 

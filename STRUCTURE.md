@@ -66,9 +66,13 @@ drydock/
 │  │  │  │  └─ test/
 │  │  │  └─ unreal/               # future UE desktop build via RunUAT
 │  │  └─ channels/
-│  │     ├─ downloads/           # temporary unsigned direct-download test packages
+│  │     ├─ downloads/           # direct-download test packages
 │  │     │  ├─ package.json
+│  │     │  ├─ package.js
+│  │     │  ├─ publish.js
+│  │     │  ├─ verify.js
 │  │     │  ├─ caddy.path.example
+│  │     │  ├─ secrets.example
 │  │     │  ├─ README.md
 │  │     │  └─ test/
 │  │     ├─ steam/

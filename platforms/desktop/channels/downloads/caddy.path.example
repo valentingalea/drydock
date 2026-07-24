@@ -5,7 +5,7 @@ existing.example.com {
 	handle_path /drydock-downloads/* {
 		root * /var/www/drydock-downloads
 
-		@drydock_downloads_allowed path / /index.html /drydock-placeholder-1.4.0-windows-x64.zip /drydock-placeholder-1.4.0-windows-x64.zip.sha256
+		@drydock_downloads_allowed path / /index.html /*.zip /*.zip.sha256
 		handle @drydock_downloads_allowed {
 			header Cache-Control "no-store"
 			file_server

@@ -37,6 +37,10 @@ platforms/desktop/channels/steam/
 ├─ secrets.example
 └─ secrets.enc.yaml
 
+platforms/desktop/channels/downloads/
+├─ secrets.example
+└─ secrets.enc.yaml
+
 platforms/mobile/channels/appstore/
 ├─ secrets.example
 └─ secrets.enc.yaml
@@ -113,6 +117,21 @@ CI should use GitHub Environments for approvals and scoping, but channel credent
 themselves live in SOPS files. The GitHub secret is only the age private key needed to
 decrypt that channel's file.
 
+## Windows Signing
+
+Windows Authenticode signing material is a project credential, not something Steam grants
+for free. Steam packaging, Steam install scripts, and optional Steam DRM wrapping are
+separate from OS-level code signing.
+
+Keep Windows signing inputs in the channel that performs the signing step. The direct
+downloads proof channel reserves
+`platforms/desktop/channels/downloads/secrets.enc.yaml` for `WIN_CSC_LINK`,
+`WIN_CSC_KEY_PASSWORD`, Azure Trusted Signing service-principal values, or equivalent
+signing-tool inputs. A future Steam channel may either keep Steam-only credentials in its
+own `secrets.enc.yaml` and require an already signed artifact, or own a Steam-specific
+signing step with its own SOPS-encrypted signing inputs. Do not share a plaintext PFX or
+service-principal secret between channels.
+
 ## iOS Signing
 
 iOS certificates and provisioning profiles should use fastlane `match`. The match
@@ -128,6 +147,7 @@ interactive 2FA.
 | Channel | Public values | SOPS-encrypted values |
 |---|---|---|
 | VPS web | Hostname, deploy root, Caddy route name | Optional SSH deploy key if publishing from a remote runner; none if publishing locally on the VPS |
+| Direct downloads | Public download route, package names | Optional Windows signing certificate/password or Azure Trusted Signing service-principal credentials |
 | Steam | AppID, depot IDs, public achievement IDs | Builder username/password, Steam Guard sentry/config or TOTP shared secret |
 | Epic | Product/sandbox/deployment IDs, artifact labels | EOS client secret, BuildPatchTool credentials |
 | itch | Project slug, channel names | Butler API key |

@@ -137,9 +137,9 @@ Current proof-of-concept routes on this VPS:
 
 ## Desktop Example: Direct Downloads
 
-Direct downloads are a temporary manual-testing path for unsigned Electron artifacts. They
-are useful before a real store channel exists, but they do not replace Steam/Epic/GOG/itch
-package/sign/publish stages.
+Direct downloads are a testing channel for Electron artifacts. They are useful before a
+real store channel exists, but they do not replace Steam/Epic/GOG/itch package/sign/publish
+stages.
 
 Current proof package:
 
@@ -153,11 +153,33 @@ pnpm --filter @drydock/desktop-electron build -- \
   --release releases/1.4.0.yaml \
   --platform windows \
   --arch x64
+
+pnpm --filter @drydock/channel-downloads run package -- \
+  out/windows-x64/drydock-artifact.json
+
+pnpm --filter @drydock/channel-downloads run publish -- \
+  out/downloads
+
+pnpm --filter @drydock/channel-downloads run verify -- \
+  --base-url https://vinyltin.duckdns.org/drydock-downloads/
 ```
 
 The current VPS route serves only the package archive, checksum, and index page from
-`/var/www/drydock-downloads`. It should remain a testing channel until it has a
-manifest-consuming package/publish script.
+`/var/www/drydock-downloads`.
+
+Windows signing can be added before the download package step. The signing input is either
+an Authenticode code-signing certificate usable by electron-builder, Azure Trusted
+Signing credentials, or a Linux-compatible signing tool such as `osslsigncode` with a PFX
+and timestamp server. Signing secrets must be injected from
+`platforms/desktop/channels/downloads/secrets.enc.yaml` through SOPS+age.
+
+Windows signing is independent of Steam. Steam does not give this project a general
+Windows Authenticode signature for direct downloads. Steam can provide Steam-specific
+release mechanics such as depots, install scripts, and optional DRM wrapping, but those
+do not replace OS-level code signing. For private Steam branch testing, unsigned Windows
+builds are acceptable until the project chooses a stricter policy. For production direct
+downloads, require signing before packaging so missing credentials fail the release
+instead of producing an unsigned public archive.
 
 ## Desktop Example: Steam
 
@@ -195,6 +217,13 @@ sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml \
 
 Final step is manual: set the uploaded build live on its Steam branch in the Steamworks
 dashboard. First release also needs store page completion and Valve content review.
+
+Steam packaging and Windows code signing are separate decisions. The Steam channel can
+upload an unsigned Windows depot for early/private branch testing, but Steam does not sign
+the executable for use outside Steam. If the same binary will also ship through direct
+downloads, itch, GOG, or another non-Steam Windows channel, sign it before the channel
+package/depot step with SOPS-injected signing inputs. If Steam DRM wrapping is used, treat
+it as Steam integration, not as a signing substitute.
 
 ## Mobile Example: App Store
 
