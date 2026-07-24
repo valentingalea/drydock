@@ -7,12 +7,12 @@ Store-specific SDKs and upload behavior belong in desktop channel folders, not h
 
 ```sh
 pnpm --filter @drydock/desktop-electron build -- \
-  --release releases/1.4.0.yaml \
+  --release contracts/releases/1.4.0.yaml \
   --platform linux \
   --arch x64
 ```
 
-The default output is `out/<platform>-<arch>/`, using manifest platform names such as
+The default output is `artifacts/build/<platform>-<arch>/`, using manifest platform names such as
 `linux`, `windows`, and `macos`.
 
 The build stages a minimal Electron app, copies only runtime payload files into that

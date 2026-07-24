@@ -91,7 +91,7 @@ Run channel commands through `sops exec-env`:
 
 ```sh
 sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-steam publish -- out/win32-x64/drydock-artifact.json'
+  'pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/drydock-artifact.json'
 ```
 
 For multi-step local work, open a scoped shell:

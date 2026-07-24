@@ -22,9 +22,9 @@ importers:
     dependencies:
       '@drydock/host-bridge':
         specifier: workspace:*
-        version: link:../packages/host-bridge
+        version: link:../contracts/host-bridge
 
-  packages/host-bridge: {}
+  contracts/host-bridge: {}
 
   platforms/desktop/build/electron:
     devDependencies:
@@ -54,7 +54,7 @@ importers:
     dependencies:
       '@drydock/host-bridge':
         specifier: workspace:*
-        version: link:../../../../packages/host-bridge
+        version: link:../../../../contracts/host-bridge
 
   platforms/web/channels/vps: {}
 

@@ -10,10 +10,10 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ### 1. Shared Contracts
 
-- [x] `packages/host-bridge/` defines the typed host API, protocol version, capability
+- [x] `contracts/host-bridge/` defines the typed host API, protocol version, capability
       model, error codes, and conformance tests.
-- [x] `schemas/drydock-artifact.schema.json` defines the artifact manifest contract.
-- [x] `tools/validate-artifact.js` validates `drydock-artifact.json`.
+- [x] `contracts/schemas/drydock-artifact.schema.json` defines the artifact manifest contract.
+- [x] `tools/scripts/validate-artifact.js` validates `drydock-artifact.json`.
 - [x] Root `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and lockfile exist.
 
 ### 2. Payload + Web Iterate
@@ -32,9 +32,9 @@ Do these in sequence. Each step should leave something executable or enforceable
 ### 3. Web Static Build + VPS Channel
 
 - [x] `platforms/web/build/static/` copies only runtime files from `game/` into
-      `out/web-static/`.
-- [x] The static build emits and validates `out/web-static/drydock-artifact.json`.
-- [x] `platforms/web/channels/vps/` deploys the packaged `out/web-static/` artifact, not
+      `artifacts/build/web-static/`.
+- [x] The static build emits and validates `artifacts/build/web-static/drydock-artifact.json`.
+- [x] `platforms/web/channels/vps/` deploys the packaged `artifacts/build/web-static/` artifact, not
       the live iterate origin.
 - [x] VPS channel config validates Caddy before reload and runs public allow/deny checks.
 - [x] The release manifest includes the `vps` channel.
@@ -57,7 +57,7 @@ Do these in sequence. Each step should leave something executable or enforceable
       sandboxed renderer, strict IPC allowlist, CSP.
 - [x] `preload.js` exposes only the typed host bridge over validated IPC.
 - [x] Produce an unpacked build.
-- [x] Emit and validate `out/<target>/drydock-artifact.json`.
+- [x] Emit and validate `artifacts/build/<target>/drydock-artifact.json`.
 
 ### 4.5. Direct Download Test Packages
 
@@ -84,8 +84,8 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ### 6. Release Manifest
 
-- [x] `schemas/release-manifest.schema.json` exists.
-- [x] `releases/<version>.yaml` example exists.
+- [x] `contracts/schemas/release-manifest.schema.json` exists.
+- [x] `contracts/releases/<version>.yaml` example exists.
 - [x] Shared marketing version and per-channel build numbers are represented.
 - [ ] Build/package scripts consume the release manifest.
 - [ ] Platform manifests are generated from the release manifest where needed.

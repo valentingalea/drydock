@@ -41,14 +41,14 @@ Read in this order.
 
 | File | Purpose |
 |---|---|
-| `ARCHITECTURE.md` | The layered model, release stages, artifact manifest, host bridge. Read first. |
-| `STRUCTURE.md` | Canonical folder tree and what each directory owns. |
-| `TOOLCHAIN.md` | Package management, dependency isolation, SDK & signing handling. |
-| `ITERATE.md` | The fast Caddy-backed web iteration path and its safety rules. |
-| `SECRETS.md` | SOPS+age secrets workflow and how secrets reach the packager. |
-| `RELEASE.md` | Per-channel setup, repeatable release flow, versioning, CI. |
-| `ROADMAP.md` | Current status and the order to build things in. |
-| `skills/playwright-web-smoke/SKILL.md` | Repo-local Playwright workflow for blank-page and route diagnostics. |
+| `docs/ARCHITECTURE.md` | The layered model, release stages, artifact manifest, host bridge. Read first. |
+| `docs/STRUCTURE.md` | Canonical folder tree and what each directory owns. |
+| `docs/TOOLCHAIN.md` | Package management, dependency isolation, SDK & signing handling. |
+| `docs/ITERATE.md` | The fast Caddy-backed web iteration path and its safety rules. |
+| `docs/SECRETS.md` | SOPS+age secrets workflow and how secrets reach the packager. |
+| `docs/RELEASE.md` | Per-channel setup, repeatable release flow, versioning, CI. |
+| `docs/ROADMAP.md` | Current status and the order to build things in. |
+| `tools/skills/playwright-web-smoke/SKILL.md` | Repo-local Playwright workflow for blank-page and route diagnostics. |
 
 ## Ground rules for contributors
 

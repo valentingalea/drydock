@@ -6,7 +6,7 @@ import { chromium } from "playwright";
 const args = parseArgs(process.argv.slice(2));
 
 if (!args.url) {
-  console.error("usage: node skills/playwright-web-smoke/scripts/smoke.mjs <url> [--screenshot path] [--json path] [--timeout ms]");
+  console.error("usage: node tools/skills/playwright-web-smoke/scripts/smoke.mjs <url> [--screenshot path] [--json path] [--timeout ms]");
   process.exit(2);
 }
 
@@ -14,7 +14,7 @@ const url = new URL(args.url);
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const screenshotPath = resolve(
   process.cwd(),
-  args.screenshot ?? `artifacts/playwright-web-smoke/${url.hostname}-${timestamp}.png`
+  args.screenshot ?? `artifacts/smoke/playwright-web-smoke/${url.hostname}-${timestamp}.png`
 );
 const jsonPath = args.json ? resolve(process.cwd(), args.json) : null;
 const timeout = args.timeout ?? 10000;

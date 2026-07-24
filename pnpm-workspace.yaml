@@ -1,6 +1,6 @@
 packages:
   - "game"
-  - "packages/*"
+  - "contracts/host-bridge"
   - "platforms/*/iterate/*"
   - "platforms/*/build/*"
   - "platforms/*/channels/*"

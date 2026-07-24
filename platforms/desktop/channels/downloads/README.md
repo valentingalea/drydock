@@ -32,15 +32,15 @@ repo files, or directory browsing.
 
 ```sh
 pnpm --filter @drydock/desktop-electron build -- \
-  --release releases/1.4.0.yaml \
+  --release contracts/releases/1.4.0.yaml \
   --platform windows \
   --arch x64
 
 pnpm --filter @drydock/channel-downloads run package -- \
-  out/windows-x64/drydock-artifact.json
+  artifacts/build/windows-x64/drydock-artifact.json
 
 pnpm --filter @drydock/channel-downloads run publish -- \
-  out/downloads
+  artifacts/channels/downloads
 
 pnpm --filter @drydock/channel-downloads run verify -- \
   --base-url https://vinyltin.duckdns.org/drydock-downloads/

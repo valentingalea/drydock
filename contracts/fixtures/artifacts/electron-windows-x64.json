@@ -21,7 +21,7 @@
     "drydock": {
       "buildAdapter": "@drydock/desktop-electron",
       "buildKey": "desktop",
-      "release": "releases/1.4.0.yaml"
+      "release": "contracts/releases/1.4.0.yaml"
     },
     "electron": {
       "builder": "electron-builder",

@@ -26,7 +26,7 @@ test("VPS publish copies a packaged web artifact to the deploy root", async () =
   const root = await mkdtemp(join(tmpdir(), "drydock-vps-root-"));
 
   await buildStaticWeb({
-    release: "releases/1.4.0.yaml",
+    release: "contracts/releases/1.4.0.yaml",
     out
   });
 

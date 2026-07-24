@@ -11,7 +11,7 @@ Expected package shape:
 | Package | Folder | Purpose |
 |---|---|---|
 | `@drydock/game` | `game/` | Portable payload package |
-| `@drydock/host-bridge` | `packages/host-bridge/` | Typed host API + conformance tests |
+| `@drydock/host-bridge` | `contracts/host-bridge/` | Typed host API + conformance tests |
 | `@drydock/web-iterate-caddy-live` | `platforms/web/iterate/caddy-live/` | Live Caddy-backed browser iteration |
 | `@drydock/web-static` | `platforms/web/build/static/` | Static web build adapter |
 | `@drydock/channel-vps` | `platforms/web/channels/vps/` | Packaged VPS/Caddy web release |
@@ -36,16 +36,16 @@ Run package scripts with filters:
 
 ```sh
 pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
-pnpm --filter @drydock/web-static build -- --release releases/1.4.0.yaml
-pnpm --filter @drydock/channel-vps run publish -- out/web-static/drydock-artifact.json
+pnpm --filter @drydock/web-static build -- --release contracts/releases/1.4.0.yaml
+pnpm --filter @drydock/channel-vps run publish -- artifacts/build/web-static/drydock-artifact.json
 pnpm --filter @drydock/desktop-electron build -- --platform windows --arch x64
-pnpm --filter @drydock/channel-downloads run package -- out/windows-x64/drydock-artifact.json
-pnpm --filter @drydock/channel-downloads run publish -- out/downloads
+pnpm --filter @drydock/channel-downloads run package -- artifacts/build/windows-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-downloads run publish -- artifacts/channels/downloads
 pnpm --filter @drydock/channel-downloads run verify -- --base-url https://vinyltin.duckdns.org/drydock-downloads/
 curl -I https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-1.4.0-windows-x64.zip
-pnpm --filter @drydock/channel-steam integrate -- out/windows-x64/drydock-artifact.json
-pnpm --filter @drydock/channel-steam package -- out/windows-x64/drydock-artifact.json
-pnpm --filter @drydock/channel-steam run publish -- out/windows-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-steam integrate -- artifacts/build/windows-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-steam package -- artifacts/build/windows-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/drydock-artifact.json
 ```
 
 pnpm's content-addressed store keeps installs disk-efficient without merging dependency
@@ -113,7 +113,7 @@ Iteration packages must not:
 - Machine-level SDKs such as Xcode, Android SDK/NDK, and platform CLI tools are never
   committed. Pin the required version in the relevant package README or workflow.
 - Redistributable SDKs such as Steamworks or EOS are gitignored and fetched by a pinned
-  `tools/fetch-sdk-<name>.sh` script against a fixed version.
+  `tools/scripts/fetch-sdk-<name>.sh` script against a fixed version.
 - Signing keys and channel credentials use SOPS+age. Packagers read environment variables
   only; they do not know how secrets were decrypted.
 - The initial Electron proof explicitly denies the transitive `electron-winstaller` build
@@ -124,7 +124,7 @@ Iteration packages must not:
 Every build adapter writes an artifact root and manifest:
 
 ```text
-out/<target>/drydock-artifact.json
+artifacts/build/<target>/drydock-artifact.json
 ```
 
 Every integrate/package/publish script accepts a path to that manifest. Scripts should

@@ -6,7 +6,8 @@ node_modules/
 dist/
 build-out/
 out/
-/artifacts/
+/artifacts/*
+!/artifacts/README.md
 *.app/
 *.ipa
 *.aab

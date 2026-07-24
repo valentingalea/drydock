@@ -4,10 +4,10 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 function usage() {
-  console.error("usage: node tools/validate-artifact.js <drydock-artifact.json>");
+  console.error("usage: node tools/scripts/validate-artifact.js <drydock-artifact.json>");
 }
 
 async function readJson(path) {
@@ -31,7 +31,7 @@ if (!manifestPath) {
   process.exit(2);
 }
 
-const schemaPath = resolve(repoRoot, "schemas/drydock-artifact.schema.json");
+const schemaPath = resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json");
 const dataPath = resolve(process.cwd(), manifestPath);
 
 try {

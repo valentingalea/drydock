@@ -71,7 +71,7 @@ This path optimizes latency. Release channels optimize reproducibility.
 Every build adapter emits a manifest next to its raw output:
 
 ```
-out/<target>/drydock-artifact.json
+artifacts/build/<target>/drydock-artifact.json
 ```
 
 Minimum schema:
@@ -85,8 +85,8 @@ Minimum schema:
   "engine": "electron",
   "platform": "windows",
   "arch": "x64",
-  "artifactRoot": "out/windows-x64",
-  "executable": "Example.exe",
+  "artifactRoot": "win-unpacked",
+  "executable": "win-unpacked/Example.exe",
   "bundleId": null,
   "packageId": null,
   "signing": {
@@ -171,12 +171,12 @@ Web has both an iteration path and a release path:
 
 ```text
 platforms/web/iterate/caddy-live/   # live game/ origin for immediate feedback
-platforms/web/build/static/         # copies runtime files into out/web-static/
+platforms/web/build/static/         # copies runtime files into artifacts/build/web-static/
 platforms/web/channels/vps/         # deploys the packaged static artifact to the VPS
 ```
 
 The static build adapter consumes `game/`, copies only runtime files into
-`out/web-static/`, and emits `drydock-artifact.json`. The VPS channel consumes that
+`artifacts/build/web-static/`, and emits `drydock-artifact.json`. The VPS channel consumes that
 manifest, installs the clean output under a stable webroot or localhost origin root,
 validates the Caddy config, reloads Caddy, and performs public allow/deny checks.
 
@@ -190,9 +190,9 @@ integrates and packages it:
 
 ```
 BUILD:      pnpm --filter @drydock/desktop-electron build -- --platform windows --arch x64
-INTEGRATE:  pnpm --filter @drydock/channel-steam integrate out/windows-x64/drydock-artifact.json
-PACKAGE:    pnpm --filter @drydock/channel-steam package out/windows-x64/drydock-artifact.json
-PUBLISH:    pnpm --filter @drydock/channel-steam run publish -- out/windows-x64/drydock-artifact.json
+INTEGRATE:  pnpm --filter @drydock/channel-steam integrate artifacts/build/windows-x64/drydock-artifact.json
+PACKAGE:    pnpm --filter @drydock/channel-steam package artifacts/build/windows-x64/drydock-artifact.json
+PUBLISH:    pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/drydock-artifact.json
 ```
 
 The selected channel may add redistributables, SDK bootstrap code, metadata, depot layout,

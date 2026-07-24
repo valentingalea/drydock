@@ -20,8 +20,8 @@ repo so another agent can reconstruct the VPS.
 Build and publish the static artifact:
 
 ```sh
-pnpm --filter @drydock/web-static build -- --release releases/1.4.0.yaml
-pnpm --filter @drydock/channel-vps run publish -- out/web-static/drydock-artifact.json
+pnpm --filter @drydock/web-static build -- --release contracts/releases/1.4.0.yaml
+pnpm --filter @drydock/channel-vps run publish -- artifacts/build/web-static/drydock-artifact.json
 ```
 
 Validate Caddy before reload:

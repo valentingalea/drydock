@@ -47,14 +47,14 @@ test("downloads Caddy template exposes only the current package and checksum", a
 
 test("parses downloads channel arguments", () => {
   assert.deepEqual(parseArgs([
-    "out/windows-x64/drydock-artifact.json",
+    "artifacts/build/windows-x64/drydock-artifact.json",
     "--out",
-    "out/downloads",
+    "artifacts/channels/downloads",
     "--name",
     "drydock-placeholder-1.4.0-windows-x64.zip"
   ]), {
-    _: ["out/windows-x64/drydock-artifact.json"],
-    out: "out/downloads",
+    _: ["artifacts/build/windows-x64/drydock-artifact.json"],
+    out: "artifacts/channels/downloads",
     name: "drydock-placeholder-1.4.0-windows-x64.zip"
   });
 

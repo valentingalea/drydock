@@ -5,10 +5,10 @@ import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 function usage() {
-  console.error("usage: node tools/validate-release.js <release.yaml|release.json>");
+  console.error("usage: node tools/scripts/validate-release.js <release.yaml|release.json>");
 }
 
 async function readRelease(path) {
@@ -38,7 +38,7 @@ if (!releasePath) {
   process.exit(2);
 }
 
-const schemaPath = resolve(repoRoot, "schemas/release-manifest.schema.json");
+const schemaPath = resolve(repoRoot, "contracts/schemas/release-manifest.schema.json");
 const dataPath = resolve(process.cwd(), releasePath);
 
 try {

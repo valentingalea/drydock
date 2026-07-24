@@ -17,7 +17,7 @@ test("parses Electron build arguments", () => {
     "--release",
     "release.yaml",
     "--out",
-    "out/test",
+    "artifacts/tmp/test",
     "--platform",
     "win32",
     "--arch",
@@ -26,7 +26,7 @@ test("parses Electron build arguments", () => {
     "steam"
   ]), {
     release: "release.yaml",
-    out: "out/test",
+    out: "artifacts/tmp/test",
     platform: "win32",
     arch: "x64",
     buildKey: "steam"
@@ -78,7 +78,7 @@ test("stages Electron shell and runtime payload without repo-only files", async 
 test("Electron build emits a schema-valid artifact manifest", async () => {
   const out = await mkdtemp(join(tmpdir(), "drydock-electron-out-"));
   const { manifest } = await buildElectron({
-    release: "releases/1.4.0.yaml",
+    release: "contracts/releases/1.4.0.yaml",
     out,
     platform: "linux",
     arch: "x64",

@@ -73,7 +73,7 @@ and generate platform-specific manifest changes from it.
 corepack enable pnpm
 pnpm install
 pnpm run vendor
-pnpm run release:prepare -- releases/1.4.0.yaml
+pnpm run release:prepare -- contracts/releases/1.4.0.yaml
 ```
 
 `release:prepare` should eventually validate:
@@ -97,13 +97,13 @@ One-time setup:
 Per release:
 
 ```sh
-# BUILD: copy only runtime files from game/ into out/web-static and emit manifest.
+# BUILD: copy only runtime files from game/ into artifacts/build/web-static and emit manifest.
 pnpm --filter @drydock/web-static build -- \
-  --release releases/1.4.0.yaml
+  --release contracts/releases/1.4.0.yaml
 
 # PACKAGE / PUBLISH: install clean static output and reload Caddy.
 pnpm --filter @drydock/channel-vps run publish -- \
-  out/web-static/drydock-artifact.json
+  artifacts/build/web-static/drydock-artifact.json
 
 # VERIFY: confirm public runtime paths load and repo/internal paths are denied.
 pnpm --filter @drydock/channel-vps run verify -- \
@@ -111,7 +111,7 @@ pnpm --filter @drydock/channel-vps run verify -- \
   --release-url https://vinyltin.duckdns.org/drydock-release/
 ```
 
-The VPS channel must deploy the packaged `out/web-static/` output, not the repo root and
+The VPS channel must deploy the packaged `artifacts/build/web-static/` output, not the repo root and
 not the live iteration origin. It should validate the Caddy config before reload and run
 public checks for allowed runtime paths and denied repo paths.
 
@@ -150,15 +150,15 @@ Build the Windows x64 artifact:
 
 ```sh
 pnpm --filter @drydock/desktop-electron build -- \
-  --release releases/1.4.0.yaml \
+  --release contracts/releases/1.4.0.yaml \
   --platform windows \
   --arch x64
 
 pnpm --filter @drydock/channel-downloads run package -- \
-  out/windows-x64/drydock-artifact.json
+  artifacts/build/windows-x64/drydock-artifact.json
 
 pnpm --filter @drydock/channel-downloads run publish -- \
-  out/downloads
+  artifacts/channels/downloads
 
 pnpm --filter @drydock/channel-downloads run verify -- \
   --base-url https://vinyltin.duckdns.org/drydock-downloads/
@@ -200,19 +200,19 @@ Per release:
 pnpm --filter @drydock/desktop-electron build -- \
   --platform windows \
   --arch x64 \
-  --release releases/1.4.0.yaml
+  --release contracts/releases/1.4.0.yaml
 
 # INTEGRATE: Steam SDK/runtime provider/depot inputs.
 pnpm --filter @drydock/channel-steam integrate -- \
-  out/windows-x64/drydock-artifact.json
+  artifacts/build/windows-x64/drydock-artifact.json
 
 # PACKAGE / SIGN: produce the Steam-ready depot layout.
 pnpm --filter @drydock/channel-steam package -- \
-  out/windows-x64/drydock-artifact.json
+  artifacts/build/windows-x64/drydock-artifact.json
 
 # PUBLISH: decrypt only Steam secrets and upload.
 sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-steam run publish -- out/windows-x64/drydock-artifact.json'
+  'pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/drydock-artifact.json'
 ```
 
 Final step is manual: set the uploaded build live on its Steam branch in the Steamworks
@@ -241,11 +241,11 @@ Per release:
 ```sh
 # BUILD: sync payload into the native iOS project and emit artifact manifest.
 pnpm --filter @drydock/mobile-capacitor build:ios -- \
-  --release releases/1.4.0.yaml
+  --release contracts/releases/1.4.0.yaml
 
 # PACKAGE / SIGN + PUBLISH through the App Store channel.
 sops exec-env platforms/mobile/channels/appstore/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-appstore run publish -- out/ios/drydock-artifact.json'
+  'pnpm --filter @drydock/channel-appstore run publish -- artifacts/build/ios/drydock-artifact.json'
 ```
 
 The App Store channel lane should archive/sign the `.ipa`, upload to App Store Connect,
@@ -267,11 +267,11 @@ Per release:
 ```sh
 # BUILD: sync payload into the native Android project and emit artifact manifest.
 pnpm --filter @drydock/mobile-capacitor build:android -- \
-  --release releases/1.4.0.yaml
+  --release contracts/releases/1.4.0.yaml
 
 # PACKAGE / SIGN + PUBLISH through the Play channel.
 sops exec-env platforms/mobile/channels/play/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-play run publish -- out/android/drydock-artifact.json'
+  'pnpm --filter @drydock/channel-play run publish -- artifacts/build/android/drydock-artifact.json'
 ```
 
 The Play channel lane should build a signed `.aab` and upload to the track selected by the

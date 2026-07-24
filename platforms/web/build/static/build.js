@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
-const defaultRelease = "releases/1.4.0.yaml";
-const defaultOut = "out/web-static";
+const defaultRelease = "contracts/releases/1.4.0.yaml";
+const defaultOut = "artifacts/build/web-static";
 const runtimeEntries = [
   "index.html",
   "host-bridge.js",

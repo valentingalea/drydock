@@ -9,9 +9,9 @@ import { buildStaticWeb, parseArgs } from "../build.js";
 const repoRoot = resolve(import.meta.dirname, "../../../../..");
 
 test("parses static build arguments", () => {
-  assert.deepEqual(parseArgs(["--release", "r.yaml", "--out", "out/test", "--channel", "vps"]), {
+  assert.deepEqual(parseArgs(["--release", "r.yaml", "--out", "artifacts/tmp/test", "--channel", "vps"]), {
     release: "r.yaml",
-    out: "out/test",
+    out: "artifacts/tmp/test",
     channel: "vps"
   });
   assert.throws(() => parseArgs(["--out"]), /--out requires/);
@@ -20,7 +20,7 @@ test("parses static build arguments", () => {
 test("static build copies runtime files and emits schema-valid artifact", async () => {
   const out = await mkdtemp(join(tmpdir(), "drydock-web-static-"));
   const { manifest } = await buildStaticWeb({
-    release: "releases/1.4.0.yaml",
+    release: "contracts/releases/1.4.0.yaml",
     out
   });
 
@@ -33,7 +33,7 @@ test("static build copies runtime files and emits schema-valid artifact", async 
   await assert.rejects(stat(join(out, "test/game.test.js")), { code: "ENOENT" });
 
   const schema = JSON.parse(
-    await readFile(resolve(repoRoot, "schemas/drydock-artifact.schema.json"), "utf8")
+    await readFile(resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json"), "utf8")
   );
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   const validate = ajv.compile(schema);

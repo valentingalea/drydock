@@ -8,7 +8,7 @@ const YAML = require("yaml");
 
 const repoRoot = resolve(__dirname, "../../../..");
 const packageRoot = __dirname;
-const defaultRelease = "releases/1.4.0.yaml";
+const defaultRelease = "contracts/releases/1.4.0.yaml";
 const defaultBuildKey = "desktop";
 const productName = "Drydock Payload";
 const executableName = "drydock-placeholder";
@@ -31,8 +31,17 @@ if (require.main === module) {
 async function buildElectron(options = {}) {
   const target = resolveBuildTarget(options);
   const releasePath = resolve(repoRoot, options.release ?? defaultRelease);
-  const outDir = resolve(repoRoot, options.out ?? join("out", `${target.platform}-${target.arch}`));
-  const stageDir = resolve(repoRoot, "out", ".electron-stage", `${target.platform}-${target.arch}`);
+  const outDir = resolve(
+    repoRoot,
+    options.out ?? join("artifacts", "build", `${target.platform}-${target.arch}`)
+  );
+  const stageDir = resolve(
+    repoRoot,
+    "artifacts",
+    "tmp",
+    "electron-stage",
+    `${target.platform}-${target.arch}`
+  );
   const release = YAML.parse(await readFile(releasePath, "utf8"));
   const buildKey = options.buildKey ?? defaultBuildKey;
   const buildNumber = release?.build?.[buildKey];
@@ -258,7 +267,7 @@ async function createArtifactManifest({ artifactRoot, buildKey, buildNumber, out
 
 async function validateArtifactManifest(manifest) {
   const schema = JSON.parse(
-    await readFile(resolve(repoRoot, "schemas/drydock-artifact.schema.json"), "utf8")
+    await readFile(resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json"), "utf8")
   );
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   const validate = ajv.compile(schema);

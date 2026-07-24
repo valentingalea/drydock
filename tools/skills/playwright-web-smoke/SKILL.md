@@ -14,7 +14,7 @@ Use this skill to turn "blank page" reports into concrete browser evidence.
 2. Run the bundled smoke script:
 
    ```sh
-   node skills/playwright-web-smoke/scripts/smoke.mjs http://127.0.0.1:8090/
+   node tools/skills/playwright-web-smoke/scripts/smoke.mjs http://127.0.0.1:8090/
    ```
 
 3. Read the terminal summary first: navigation status, page errors, console errors,
@@ -27,7 +27,7 @@ Use this skill to turn "blank page" reports into concrete browser evidence.
 ## Script Options
 
 ```sh
-node skills/playwright-web-smoke/scripts/smoke.mjs <url> \
+node tools/skills/playwright-web-smoke/scripts/smoke.mjs <url> \
   --screenshot artifacts/smoke/page.png \
   --json artifacts/smoke/page.json \
   --timeout 10000
@@ -35,7 +35,7 @@ node skills/playwright-web-smoke/scripts/smoke.mjs <url> \
 
 Defaults:
 
-- screenshot: `artifacts/playwright-web-smoke/<host>-<timestamp>.png`
+- screenshot: `artifacts/smoke/playwright-web-smoke/<host>-<timestamp>.png`
 - JSON: omitted unless `--json` is provided
 - timeout: `10000`
 

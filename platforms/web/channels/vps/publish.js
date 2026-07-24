@@ -86,7 +86,7 @@ export function parseArgs(argv) {
 
 async function validateManifest(manifest) {
   const schema = JSON.parse(
-    await readFile(resolve(repoRoot, "schemas/drydock-artifact.schema.json"), "utf8")
+    await readFile(resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json"), "utf8")
   );
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   const validate = ajv.compile(schema);

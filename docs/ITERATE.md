@@ -131,7 +131,7 @@ Adjust `User=`, `Group=`, and repo paths before installing on a host that does n
 | Workflow | Optimizes for | Source | Output | Public route |
 |---|---|---|---|---|
 | `platforms/web/iterate/caddy-live/` | Latency | Live `game/` tree | None | Caddy allowlist to localhost origin |
-| `platforms/web/build/static/` + `platforms/web/channels/vps/` | Reproducibility | Release manifest + `game/` | `out/web-static/` + artifact manifest | Caddy route to clean packaged output |
+| `platforms/web/build/static/` + `platforms/web/channels/vps/` | Reproducibility | Release manifest + `game/` | `artifacts/build/web-static/` + artifact manifest | Caddy route to clean packaged output |
 
 Use iteration for feel, UI, rendering, and device smoke checks. Use the VPS release
 channel when the result needs to be archived, compared, promoted, or reproduced.

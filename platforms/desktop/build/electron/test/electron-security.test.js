@@ -56,7 +56,7 @@ test("Electron protocol denies path traversal and sends security headers", async
 
 test("Electron host provider passes shared host conformance", async () => {
   const { assertHostConformance } = await import(
-    pathToFileURL(resolve(repoRoot, "packages/host-bridge/src/index.js"))
+    pathToFileURL(resolve(repoRoot, "contracts/host-bridge/src/index.js"))
   );
   const root = await mkdtemp(join(tmpdir(), "drydock-electron-host-"));
   const host = createElectronHostProvider({

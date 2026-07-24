@@ -8,7 +8,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import yazl from "yazl";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
-const defaultOut = "out/downloads";
+const defaultOut = "artifacts/channels/downloads";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   await packageDownloads(parseArgs(process.argv.slice(2)));
@@ -277,7 +277,7 @@ async function renderIndex({ checksumName, digest, manifest, size, zipName }) {
 
 async function validateManifest(manifest) {
   const schema = JSON.parse(
-    await readFile(resolve(repoRoot, "schemas/drydock-artifact.schema.json"), "utf8")
+    await readFile(resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json"), "utf8")
   );
   const ajv = new Ajv2020({ allErrors: true, strict: true });
   const validate = ajv.compile(schema);
