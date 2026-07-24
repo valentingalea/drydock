@@ -1,0 +1,10 @@
+{
+  "name": "@drydock/web-iterate-caddy-live",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "node server.js",
+    "test": "node --test test/*.test.js"
+  }
+}

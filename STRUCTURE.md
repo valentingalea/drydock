@@ -7,6 +7,9 @@ channels, and tooling live in separate folders.
 drydock/
 ├─ game/                          # portable payload - the one source of truth
 │  ├─ index.html                  # placeholder: minimal WebGL render
+│  ├─ package.json
+│  ├─ src/
+│  ├─ test/
 │  ├─ vendor/                     # vendored runtime deps, offline-safe
 │  └─ host-bridge.js              # payload-facing bridge shim
 │
@@ -28,8 +31,11 @@ drydock/
 │  │  ├─ iterate/
 │  │  │  └─ caddy-live/           # live game/ origin for immediate browser feedback
 │  │  │     ├─ package.json
+│  │  │     ├─ server.js
 │  │  │     ├─ start.sh
-│  │  │     └─ caddy.example
+│  │  │     ├─ caddy.example
+│  │  │     ├─ caddy.path.example
+│  │  │     └─ test/
 │  │  ├─ build/
 │  │  │  └─ static/               # copy runtime files into out/web-static/
 │  │  │     └─ package.json
@@ -96,7 +102,12 @@ drydock/
 │
 ├─ tools/                         # validators, vendor deps, fetch SDKs, release helpers
 │  ├─ validate-artifact.js
-│  └─ validate-release.js
+│  ├─ validate-release.js
+│  └─ vendor-host-bridge.js
+├─ skills/                        # repo-local Codex skills for future agents
+│  └─ playwright-web-smoke/
+│     ├─ SKILL.md
+│     └─ scripts/
 ├─ releases/                      # release manifests, one file per release/candidate
 ├─ .sops.yaml                     # age recipients authorized to decrypt SOPS files
 ├─ .github/workflows/             # one pipeline per release channel
@@ -124,6 +135,7 @@ drydock/
 | `platforms/*/channels/<channel>/` | Channel SDK integration, metadata, package/sign scripts, publish tooling | Reach into engine internals without going through `drydock-artifact.json` |
 | `platforms/mobile/native/{ios,android}/` | OS-native generated projects and durable native extension points | Hold App Store / Play release metadata directly |
 | `tools/` | Repeatable helper scripts and validators | Hold secrets |
+| `skills/` | Repo-local Codex skills and reusable agent workflows | Replace project docs or hide required release behavior |
 | `releases/` | Version/build/channel release manifests | Store credentials |
 | `.github/workflows/` | One workflow per release channel | Decrypt another channel's secrets |
 

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'"
+    >
+    <title>Drydock Payload</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: #111314;
+        color: #eef1f2;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(61, 143, 136, 0.18), transparent 28rem),
+          linear-gradient(135deg, #101213 0%, #1a1e1f 48%, #121515 100%);
+      }
+
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        background: #0d1010;
+      }
+
+      .hud {
+        position: fixed;
+        left: 16px;
+        bottom: 16px;
+        display: grid;
+        gap: 4px;
+        max-width: min(520px, calc(100vw - 32px));
+        padding: 10px 12px;
+        border: 1px solid rgba(238, 241, 242, 0.18);
+        background: rgba(17, 19, 20, 0.82);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .hud strong {
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .hud span {
+        color: #b8c2c3;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" aria-label="Drydock WebGL placeholder"></canvas>
+    <div class="hud" aria-live="polite">
+      <strong>Drydock payload</strong>
+      <span id="status">Starting host bridge...</span>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

@@ -48,6 +48,7 @@ Read in this order.
 | `SECRETS.md` | SOPS+age secrets workflow and how secrets reach the packager. |
 | `RELEASE.md` | Per-channel setup, repeatable release flow, versioning, CI. |
 | `ROADMAP.md` | Current status and the order to build things in. |
+| `skills/playwright-web-smoke/SKILL.md` | Repo-local Playwright workflow for blank-page and route diagnostics. |
 
 ## Ground rules for contributors
 

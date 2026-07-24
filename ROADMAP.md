@@ -18,14 +18,14 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ### 2. Payload + Web Iterate
 
-- [ ] `game/index.html` renders a minimal WebGL scene.
-- [ ] Runtime dependencies are vendored locally; no CDN references.
-- [ ] `game/host-bridge.js` uses the shared bridge contract with honest web/dev
+- [x] `game/index.html` renders a minimal WebGL scene.
+- [x] Runtime dependencies are vendored locally; no CDN references.
+- [x] `game/host-bridge.js` uses the shared bridge contract with honest web/dev
       capabilities.
-- [ ] `platforms/web/iterate/caddy-live/` serves `game/` directly as the document root.
-- [ ] The live origin binds to `127.0.0.1`, sends no-cache headers, and never serves the
+- [x] `platforms/web/iterate/caddy-live/` serves `game/` directly as the document root.
+- [x] The live origin binds to `127.0.0.1`, sends no-cache headers, and never serves the
       repo root.
-- [ ] Caddy allowlist exposes only runtime paths such as `/`, `/index.html`,
+- [x] Caddy allowlist exposes only runtime paths such as `/`, `/index.html`,
       `/host-bridge.js`, `/src/*`, `/assets/*`, and `/vendor/*`.
 - [ ] Public browser refresh reflects edits to `game/` without a build or deploy step.
 

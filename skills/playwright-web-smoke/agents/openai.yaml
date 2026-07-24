@@ -1,0 +1,4 @@
+interface:
+  display_name: "Playwright Web Smoke"
+  short_description: "Smoke-test web pages with Playwright."
+  default_prompt: "Use Playwright Web Smoke to load a URL, capture a screenshot, and report page errors, failed requests, console errors, and rendering facts."

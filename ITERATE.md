@@ -65,6 +65,33 @@ drydock.example.com {
 Expand the allowlist only when the payload actually imports a new runtime path such as
 `/wasm/*`, `/audio/*`, or `/textures/*`.
 
+## No Spare Domain
+
+A dedicated subdomain is cleanest, but it is not required. If no DuckDNS domains are
+available, mount Drydock under a path on an existing domain:
+
+```caddy
+existing.example.com {
+    encode gzip zstd
+
+    redir /drydock /drydock/ 308
+    handle_path /drydock/* {
+        @allowed path / /index.html /host-bridge.js /src/* /assets/* /vendor/*
+        handle @allowed {
+            reverse_proxy 127.0.0.1:8090
+        }
+
+        handle {
+            respond 404
+        }
+    }
+}
+```
+
+This keeps the current domains intact and avoids hijacking a whole hostname. The payload
+must use relative imports and asset URLs so it works both at `/` and under `/drydock/`.
+Temporary whole-domain hijacks should be a last resort.
+
 ## Origin Rules
 
 - Bind to `127.0.0.1`, never `0.0.0.0`.
@@ -79,6 +106,12 @@ The expected implementation is a small wrapper around:
 ```sh
 python3 -m http.server 8090 --bind 127.0.0.1 --directory /usr/games/Drydock/game
 ```
+
+Current VPS note: the live public route at
+`https://vinyltin.duckdns.org/drydock/` depends on a manually started origin on
+`127.0.0.1:8090`. That is acceptable for the current proof-of-concept, but it will not
+survive reboot or process exit. The next hardening step is a systemd-managed Drydock
+origin.
 
 ## Iterate vs Release
 
@@ -101,6 +134,14 @@ curl -sI https://drydock.example.com/src/main.js      # expect 200 once it exist
 curl -sI https://drydock.example.com/../AGENTS.md     # expect 404
 curl -sI https://drydock.example.com/.git/config      # expect 404
 curl -sI https://drydock.example.com/package.json     # expect 404
+```
+
+For path-mounted testing, replace the host root with the mounted path:
+
+```sh
+curl -sI https://existing.example.com/drydock/              # expect 200
+curl -sI https://existing.example.com/drydock/src/main.js   # expect 200
+curl -sI https://existing.example.com/drydock/package.json  # expect 404
 ```
 
 Local listener checks should show the origin on localhost only:

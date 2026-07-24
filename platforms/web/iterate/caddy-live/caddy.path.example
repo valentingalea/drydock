@@ -1,0 +1,15 @@
+existing.example.com {
+	encode gzip zstd
+
+	redir /drydock /drydock/ 308
+	handle_path /drydock/* {
+		@drydock_allowed path / /index.html /host-bridge.js /src/* /assets/* /vendor/*
+		handle @drydock_allowed {
+			reverse_proxy 127.0.0.1:8090
+		}
+
+		handle {
+			respond 404
+		}
+	}
+}
