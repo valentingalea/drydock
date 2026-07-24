@@ -103,11 +103,30 @@ pnpm --filter @drydock/web-static build -- \
 # PACKAGE / PUBLISH: install clean static output and reload Caddy.
 pnpm --filter @drydock/channel-vps run publish -- \
   out/web-static/drydock-artifact.json
+
+# VERIFY: confirm public runtime paths load and repo/internal paths are denied.
+pnpm --filter @drydock/channel-vps run verify -- \
+  --live-url https://vinyltin.duckdns.org/drydock/ \
+  --release-url https://vinyltin.duckdns.org/drydock-release/
 ```
 
 The VPS channel must deploy the packaged `out/web-static/` output, not the repo root and
 not the live iteration origin. It should validate the Caddy config before reload and run
 public checks for allowed runtime paths and denied repo paths.
+
+When Caddy config changes, validate before reload:
+
+```sh
+sudo caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+Use Playwright for render-level smoke after route checks:
+
+```sh
+pnpm smoke:web -- https://vinyltin.duckdns.org/drydock/
+pnpm smoke:web -- https://vinyltin.duckdns.org/drydock-release/
+```
 
 Current proof-of-concept routes on this VPS:
 

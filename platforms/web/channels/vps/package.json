@@ -6,6 +6,7 @@
   "scripts": {
     "package": "node publish.js --dry-run",
     "publish": "node publish.js",
+    "verify": "node verify.js",
     "test": "node --test test/*.test.js"
   }
 }

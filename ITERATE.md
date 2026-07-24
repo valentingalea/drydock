@@ -108,10 +108,23 @@ python3 -m http.server 8090 --bind 127.0.0.1 --directory /usr/games/Drydock/game
 ```
 
 Current VPS note: the live public route at
-`https://vinyltin.duckdns.org/drydock/` depends on a manually started origin on
-`127.0.0.1:8090`. That is acceptable for the current proof-of-concept, but it will not
-survive reboot or process exit. The next hardening step is a systemd-managed Drydock
-origin.
+`https://vinyltin.duckdns.org/drydock/` is meant to be backed by
+`platforms/web/iterate/caddy-live/systemd/drydock-web-iterate.service.example` installed
+as a local systemd service. Until that unit is installed and enabled, the route depends on
+a manually started origin on `127.0.0.1:8090` and will not survive reboot or process exit.
+
+Example install flow:
+
+```sh
+sudo cp platforms/web/iterate/caddy-live/systemd/drydock-web-iterate.service.example \
+  /etc/systemd/system/drydock-web-iterate.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now drydock-web-iterate.service
+systemctl status drydock-web-iterate.service
+```
+
+Adjust `User=`, `Group=`, and repo paths before installing on a host that does not match
+`/usr/games/Drydock`.
 
 ## Iterate vs Release
 

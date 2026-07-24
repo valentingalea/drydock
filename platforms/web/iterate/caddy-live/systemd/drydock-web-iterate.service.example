@@ -1,0 +1,29 @@
+[Unit]
+Description=Drydock live web iteration origin
+Documentation=file:/usr/games/Drydock/ITERATE.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/games/Drydock
+ExecStart=/usr/games/Drydock/platforms/web/iterate/caddy-live/start.sh --port 8090
+Restart=on-failure
+RestartSec=2
+
+# Replace with an unprivileged local account that can read /usr/games/Drydock/game.
+User=drydock
+Group=drydock
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

@@ -35,6 +35,7 @@ drydock/
 │  │  │     ├─ start.sh
 │  │  │     ├─ caddy.example
 │  │  │     ├─ caddy.path.example
+│  │  │     ├─ systemd/
 │  │  │     └─ test/
 │  │  ├─ build/
 │  │  │  └─ static/               # copy runtime files into out/web-static/
@@ -45,6 +46,8 @@ drydock/
 │  │     └─ vps/                  # deploy packaged web artifact through Caddy
 │  │        ├─ package.json
 │  │        ├─ publish.js
+│  │        ├─ verify.js
+│  │        ├─ README.md
 │  │        ├─ caddy.example
 │  │        ├─ caddy.path.example
 │  │        └─ test/

@@ -1,8 +1,8 @@
 # Roadmap
 
-Status: **planning / proof-of-concept scaffold**. No build pipeline exists yet. The first
-goal is not broad platform coverage; it is one real vertical slice that proves the
-contracts.
+Status: **proof-of-concept scaffold with a web vertical slice**. The VPS web path can
+iterate live and publish a packaged static artifact; desktop, mobile, and store channels
+remain unbuilt.
 
 ## Build Order
 
@@ -38,6 +38,15 @@ Do these in sequence. Each step should leave something executable or enforceable
       the live iterate origin.
 - [x] VPS channel config validates Caddy before reload and runs public allow/deny checks.
 - [x] The release manifest includes the `vps` channel.
+
+### 3.5. VPS Platform Hardening
+
+- [x] The live iterate origin has a repo-owned systemd service template.
+- [x] `platforms/web/channels/vps/` has a repeatable public verifier for live and release
+      routes.
+- [x] VPS docs identify external deploy state under `/etc/caddy`, `/var/www/drydock`,
+      and the live localhost origin.
+- [x] Render-level Playwright smoke checks remain separate from HTTP allow/deny checks.
 
 ### 4. Desktop Build Adapter: Electron
 

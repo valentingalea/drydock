@@ -45,6 +45,19 @@ test("path-mounted caddy example uses handle_path for existing domains", async (
   assert.doesNotMatch(caddy, /file_server/);
 });
 
+test("systemd example runs the localhost-only live origin with basic sandboxing", async () => {
+  const unit = await readFile(
+    resolve(import.meta.dirname, "../systemd/drydock-web-iterate.service.example"),
+    "utf8"
+  );
+
+  assert.match(unit, /ExecStart=\/usr\/games\/Drydock\/platforms\/web\/iterate\/caddy-live\/start\.sh --port 8090/);
+  assert.match(unit, /IPAddressAllow=localhost/);
+  assert.match(unit, /NoNewPrivileges=true/);
+  assert.match(unit, /ProtectSystem=strict/);
+  assert.doesNotMatch(unit, /0\.0\.0\.0/);
+});
+
 test("port parsing defaults and validates explicit ports", () => {
   assert.equal(parsePort([]), 8090);
   assert.equal(parsePort(["--port", "9000"]), 9000);
