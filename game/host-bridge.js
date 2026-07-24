@@ -12,10 +12,34 @@ export { HOST_PROTOCOL_VERSION };
 
 export async function connectHost() {
   if (!hostPromise) {
-    hostPromise = Promise.resolve(createDevHost({ storage: createBrowserStorageAdapter() }));
+    hostPromise = Promise.resolve(getInjectedHost() ?? createDevHost({
+      storage: createBrowserStorageAdapter()
+    }));
   }
 
   return hostPromise;
+}
+
+function getInjectedHost() {
+  const host = globalThis.drydockHost;
+
+  if (!isHostLike(host)) {
+    return null;
+  }
+
+  return host;
+}
+
+function isHostLike(host) {
+  return host
+    && typeof host === "object"
+    && host.protocolVersion === HOST_PROTOCOL_VERSION
+    && typeof host.capabilities === "function"
+    && host.storage
+    && typeof host.storage.save === "function"
+    && typeof host.storage.load === "function"
+    && typeof host.storage.remove === "function"
+    && typeof host.storage.list === "function";
 }
 
 function createBrowserStorageAdapter() {

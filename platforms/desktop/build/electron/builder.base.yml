@@ -1,0 +1,18 @@
+appId: dev.drydock.placeholder
+productName: Drydock Payload
+executableName: drydock-placeholder
+asar: true
+npmRebuild: false
+files:
+  - package.json
+  - main.js
+  - preload.js
+  - protocol.js
+  - host-provider.js
+  - game/**/*
+mac:
+  target: dir
+win:
+  target: dir
+linux:
+  target: dir

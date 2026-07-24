@@ -1,0 +1,37 @@
+# Electron Build Adapter
+
+This adapter wraps the portable `game/` payload in a store-neutral Electron shell.
+Store-specific SDKs and upload behavior belong in desktop channel folders, not here.
+
+## Build
+
+```sh
+pnpm --filter @drydock/desktop-electron build -- \
+  --release releases/1.4.0.yaml \
+  --platform linux \
+  --arch x64
+```
+
+The default output is `out/<platform>-<arch>/`, using manifest platform names such as
+`linux`, `windows`, and `macos`.
+
+The build stages a minimal Electron app, copies only runtime payload files into that
+stage, runs `electron-builder --dir`, and writes `drydock-artifact.json` next to the
+unpacked output.
+
+## Runtime Contract
+
+- `main.js` registers a privileged `app://drydock` protocol.
+- `protocol.js` serves only runtime payload paths and adds CSP/security headers.
+- `preload.js` exposes `window.drydockHost` only.
+- `host-provider.js` validates all IPC and implements local file-backed storage.
+
+The base Electron host claims only local `storage`. Achievements, identity, purchases,
+telemetry, overlays, cloud save, and entitlement checks remain unsupported until a desktop
+channel supplies them.
+
+## Current Caveat
+
+`pnpm-workspace.yaml` explicitly denies the transitive `electron-winstaller` build script.
+That is fine for the current Linux unpacked proof and keeps the dependency install surface
+tighter. Revisit it only when a Windows installer target actually needs that package.

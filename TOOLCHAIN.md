@@ -37,10 +37,11 @@ Run package scripts with filters:
 pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 pnpm --filter @drydock/web-static build -- --release releases/1.4.0.yaml
 pnpm --filter @drydock/channel-vps run publish -- out/web-static/drydock-artifact.json
-pnpm --filter @drydock/desktop-electron build -- --platform win32 --arch x64
-pnpm --filter @drydock/channel-steam integrate -- out/win32-x64/drydock-artifact.json
-pnpm --filter @drydock/channel-steam package -- out/win32-x64/drydock-artifact.json
-pnpm --filter @drydock/channel-steam run publish -- out/win32-x64/drydock-artifact.json
+pnpm --filter @drydock/desktop-electron build -- --platform windows --arch x64
+curl -I https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-1.4.0-windows-x64.zip
+pnpm --filter @drydock/channel-steam integrate -- out/windows-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-steam package -- out/windows-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-steam run publish -- out/windows-x64/drydock-artifact.json
 ```
 
 pnpm's content-addressed store keeps installs disk-efficient without merging dependency
@@ -105,6 +106,8 @@ Iteration packages must not:
   `tools/fetch-sdk-<name>.sh` script against a fixed version.
 - Signing keys and channel credentials use SOPS+age. Packagers read environment variables
   only; they do not know how secrets were decrypted.
+- The initial Electron proof explicitly denies the transitive `electron-winstaller` build
+  script in `pnpm-workspace.yaml`; revisit only when a Windows installer target needs it.
 
 ## Build Outputs
 

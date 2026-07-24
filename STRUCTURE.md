@@ -56,11 +56,21 @@ drydock/
 │  │  ├─ build/
 │  │  │  ├─ electron/             # engine/runtime build adapter
 │  │  │  │  ├─ package.json       # electron + electron-builder only
+│  │  │  │  ├─ build.js           # stage payload, run electron-builder, emit manifest
 │  │  │  │  ├─ main.js            # app:// protocol, GPU config, window setup
 │  │  │  │  ├─ preload.js         # typed host bridge over validated IPC
-│  │  │  │  └─ builder.base.yml   # shared electron-builder config
+│  │  │  │  ├─ protocol.js        # app:// file serving and CSP/security headers
+│  │  │  │  ├─ host-provider.js   # base local-storage host provider + IPC validation
+│  │  │  │  ├─ builder.base.yml   # shared electron-builder config
+│  │  │  │  ├─ README.md
+│  │  │  │  └─ test/
 │  │  │  └─ unreal/               # future UE desktop build via RunUAT
 │  │  └─ channels/
+│  │     ├─ downloads/           # temporary unsigned direct-download test packages
+│  │     │  ├─ package.json
+│  │     │  ├─ caddy.path.example
+│  │     │  ├─ README.md
+│  │     │  └─ test/
 │  │     ├─ steam/
 │  │     │  ├─ package.json       # steam channel-only deps
 │  │     │  ├─ integrate.sh       # SDK/redistributable/runtime integration

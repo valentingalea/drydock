@@ -1,5 +1,6 @@
 version: 1.4.0
 build:
+  desktop: 10400
   vps: 10400
   steam: 10400
   epic: 10400

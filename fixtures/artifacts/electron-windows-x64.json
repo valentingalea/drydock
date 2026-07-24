@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "gameId": "drydock-placeholder",
+  "version": "1.4.0",
+  "buildNumber": 10400,
+  "engine": "electron",
+  "platform": "windows",
+  "arch": "x64",
+  "artifactRoot": "win-unpacked",
+  "executable": "win-unpacked/drydock-placeholder.exe",
+  "bundleId": "dev.drydock.placeholder",
+  "packageId": null,
+  "signing": {
+    "status": "unsigned"
+  },
+  "capabilities": [
+    "storage"
+  ],
+  "checksums": [],
+  "extensions": {
+    "drydock": {
+      "buildAdapter": "@drydock/desktop-electron",
+      "buildKey": "desktop",
+      "release": "releases/1.4.0.yaml"
+    },
+    "electron": {
+      "builder": "electron-builder",
+      "productName": "Drydock Payload",
+      "executableName": "drydock-placeholder",
+      "protocol": "app://drydock"
+    }
+  }
+}

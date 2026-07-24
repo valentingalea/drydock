@@ -43,6 +43,7 @@ candidate:
 ```yaml
 version: 1.4.0
 build:
+  desktop: 10400
   vps: 10400
   steam: 10400
   epic: 10400
@@ -134,10 +135,35 @@ Current proof-of-concept routes on this VPS:
 - Packaged release artifact: `https://vinyltin.duckdns.org/drydock-release/` ->
   `/var/www/drydock`
 
+## Desktop Example: Direct Downloads
+
+Direct downloads are a temporary manual-testing path for unsigned Electron artifacts. They
+are useful before a real store channel exists, but they do not replace Steam/Epic/GOG/itch
+package/sign/publish stages.
+
+Current proof package:
+
+- `https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-1.4.0-windows-x64.zip`
+- `https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-1.4.0-windows-x64.zip.sha256`
+
+Build the Windows x64 artifact:
+
+```sh
+pnpm --filter @drydock/desktop-electron build -- \
+  --release releases/1.4.0.yaml \
+  --platform windows \
+  --arch x64
+```
+
+The current VPS route serves only the package archive, checksum, and index page from
+`/var/www/drydock-downloads`. It should remain a testing channel until it has a
+manifest-consuming package/publish script.
+
 ## Desktop Example: Steam
 
 One-time setup:
 
+- Electron base dependencies are installed through `platforms/desktop/build/electron/`.
 - Steamworks partner account and least-privilege builder account.
 - AppID and depot IDs committed in `platforms/desktop/channels/steam/metadata/`.
 - Steamworks SDK fetch script pinned to an exact version.
@@ -150,21 +176,21 @@ Per release:
 ```sh
 # BUILD: raw Electron artifact + drydock-artifact.json.
 pnpm --filter @drydock/desktop-electron build -- \
-  --platform win32 \
+  --platform windows \
   --arch x64 \
   --release releases/1.4.0.yaml
 
 # INTEGRATE: Steam SDK/runtime provider/depot inputs.
 pnpm --filter @drydock/channel-steam integrate -- \
-  out/win32-x64/drydock-artifact.json
+  out/windows-x64/drydock-artifact.json
 
 # PACKAGE / SIGN: produce the Steam-ready depot layout.
 pnpm --filter @drydock/channel-steam package -- \
-  out/win32-x64/drydock-artifact.json
+  out/windows-x64/drydock-artifact.json
 
 # PUBLISH: decrypt only Steam secrets and upload.
 sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-steam run publish -- out/win32-x64/drydock-artifact.json'
+  'pnpm --filter @drydock/channel-steam run publish -- out/windows-x64/drydock-artifact.json'
 ```
 
 Final step is manual: set the uploaded build live on its Steam branch in the Steamworks

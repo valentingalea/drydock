@@ -4,3 +4,5 @@ packages:
   - "platforms/*/iterate/*"
   - "platforms/*/build/*"
   - "platforms/*/channels/*"
+allowBuilds:
+  electron-winstaller: false

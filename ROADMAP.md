@@ -1,8 +1,8 @@
 # Roadmap
 
-Status: **proof-of-concept scaffold with a web vertical slice**. The VPS web path can
-iterate live and publish a packaged static artifact; desktop, mobile, and store channels
-remain unbuilt.
+Status: **proof-of-concept scaffold with web and Electron build slices**. The VPS web
+path can iterate live and publish a packaged static artifact; the Electron adapter can
+produce an unpacked desktop artifact. Store channels and mobile remain unbuilt.
 
 ## Build Order
 
@@ -50,14 +50,22 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ### 4. Desktop Build Adapter: Electron
 
-- [ ] `platforms/desktop/build/electron/` exists with `main.js`, `preload.js`,
+- [x] `platforms/desktop/build/electron/` exists with `main.js`, `preload.js`,
       `builder.base.yml`, and `package.json`.
-- [ ] Register a secure `app://` protocol serving `game/`.
-- [ ] Enforce Electron security defaults: context isolation, no node integration,
+- [x] Register a secure `app://` protocol serving `game/`.
+- [x] Enforce Electron security defaults: context isolation, no node integration,
       sandboxed renderer, strict IPC allowlist, CSP.
-- [ ] `preload.js` exposes only the typed host bridge over validated IPC.
-- [ ] Produce an unpacked build.
-- [ ] Emit and validate `out/<target>/drydock-artifact.json`.
+- [x] `preload.js` exposes only the typed host bridge over validated IPC.
+- [x] Produce an unpacked build.
+- [x] Emit and validate `out/<target>/drydock-artifact.json`.
+
+### 4.5. Direct Download Test Packages
+
+- [x] A Windows x64 Electron artifact can be built on the VPS for manual testing.
+- [x] A Caddy route exposes only packaged archives, checksums, and an index page under
+      `/drydock-downloads/`.
+- [ ] If this remains useful, promote it from manual proof to a channel-owned
+      package/publish script.
 
 ### 5. First Desktop Store Channel: Steam
 
