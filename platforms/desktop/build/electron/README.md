@@ -15,9 +15,9 @@ pnpm --filter @drydock/desktop-electron build -- \
 The default output is `artifacts/build/<platform>-<arch>/`, using manifest platform names such as
 `linux`, `windows`, and `macos`.
 
-The build stages a minimal Electron app, copies only runtime payload files into that
-stage, runs `electron-builder --dir`, and writes `drydock-artifact.json` next to the
-unpacked output.
+The build stages a minimal Electron app, copies only runtime payload files including
+`game/vendor/` into that stage, runs `electron-builder --dir`, and writes
+`drydock-artifact.json` next to the unpacked output.
 
 ## Runtime Contract
 

@@ -30,6 +30,7 @@ The root should contain `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and
 ```sh
 corepack enable pnpm
 pnpm install
+pnpm run vendor
 ```
 
 Run package scripts with filters:
@@ -50,6 +51,16 @@ pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/
 
 pnpm's content-addressed store keeps installs disk-efficient without merging dependency
 graphs.
+
+## Runtime Vendoring
+
+The payload can use package-managed runtime libraries, but browser/Electron imports must
+resolve to local files under `game/vendor/`. For example, `@drydock/game` depends on
+`three`, and `pnpm run vendor` copies the Three module files, license, and metadata into
+`game/vendor/three/`.
+
+Release builds and Electron staging copy `game/vendor/` recursively. They do not read
+runtime code from `node_modules`, CDNs, or package-manager caches.
 
 ## Workspace Rules
 

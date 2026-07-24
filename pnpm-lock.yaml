@@ -18,13 +18,16 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
 
+  contracts/host-bridge: {}
+
   game:
     dependencies:
       '@drydock/host-bridge':
         specifier: workspace:*
         version: link:../contracts/host-bridge
-
-  contracts/host-bridge: {}
+      three:
+        specifier: 0.185.1
+        version: 0.185.1
 
   platforms/desktop/build/electron:
     devDependencies:
@@ -997,6 +1000,9 @@ packages:
   temp@0.9.4:
     resolution: {integrity: sha512-yYrrsWnrXMcdsnu/7YMYAofM1ktpL5By7vZhf15CrXijWWrEYZks5AXBudalfSWJLlnen/QUJUB5aoB0kqZUGA==}
     engines: {node: '>=6.0.0'}
+
+  three@0.185.1:
+    resolution: {integrity: sha512-5aojFCXKwnjBRZvUnt3WFfEcvUJgkN5LlijRFN95hMy8WVkG4I0QNcJE+OuWvuJ0bOdStrbfXn0pkd6/QyiAlg==}
 
   tiny-async-pool@1.3.0:
     resolution: {integrity: sha512-01EAw5EDrcVrdgyCLgoSPvqznC0sVxDSVeiOz09FUpjh71G79VCqneOr+xvt7T1r76CF6ZZfPjHorN2+d+3mqA==}
@@ -2199,6 +2205,8 @@ snapshots:
     dependencies:
       mkdirp: 0.5.6
       rimraf: 2.6.3
+
+  three@0.185.1: {}
 
   tiny-async-pool@1.3.0:
     dependencies:

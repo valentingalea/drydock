@@ -1,65 +1,33 @@
+import * as THREE from "../vendor/three/three.module.min.js";
 import { HOST_PROTOCOL_VERSION, connectHost } from "../host-bridge.js";
-
-const vertexShaderSource = `
-  attribute vec2 a_position;
-  attribute vec3 a_color;
-  uniform float u_rotation;
-  uniform float u_aspect;
-  varying vec3 v_color;
-
-  void main() {
-    float c = cos(u_rotation);
-    float s = sin(u_rotation);
-    vec2 rotated = vec2(
-      a_position.x * c - a_position.y * s,
-      a_position.x * s + a_position.y * c
-    );
-
-    rotated.x = rotated.x / max(u_aspect, 0.0001);
-    gl_Position = vec4(rotated, 0.0, 1.0);
-    v_color = a_color;
-  }
-`;
-
-const fragmentShaderSource = `
-  precision mediump float;
-  varying vec3 v_color;
-
-  void main() {
-    gl_FragColor = vec4(v_color, 1.0);
-  }
-`;
 
 const canvas = document.querySelector("#stage");
 const status = document.querySelector("#status");
-const gl = canvas.getContext("webgl", {
-  antialias: true,
-  alpha: false,
-  preserveDrawingBuffer: true
-});
 
-if (!gl) {
+let renderer;
+
+try {
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    canvas,
+    alpha: false,
+    preserveDrawingBuffer: true
+  });
+} catch (error) {
   status.textContent = "WebGL unavailable";
-  throw new Error("WebGL unavailable");
+  throw error;
 }
 
-const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
-const positionLocation = gl.getAttribLocation(program, "a_position");
-const colorLocation = gl.getAttribLocation(program, "a_color");
-const rotationLocation = gl.getUniformLocation(program, "u_rotation");
-const aspectLocation = gl.getUniformLocation(program, "u_aspect");
+renderer.setClearColor(0x0d1010, 1);
+renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio || 1, 2));
 
-const vertexBuffer = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-gl.bufferData(
-  gl.ARRAY_BUFFER,
-  new Float32Array([
-    0.0, 0.62, 0.1, 0.85, 0.74,
-    -0.58, -0.42, 0.94, 0.58, 0.28,
-    0.58, -0.42, 0.42, 0.66, 1.0
-  ]),
-  gl.STATIC_DRAW
-);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+camera.position.set(0, 0, 4);
+
+const spinner = createSpinner();
+scene.add(spinner);
+scene.add(createLights());
 
 await initializeHostStatus();
 requestAnimationFrame(render);
@@ -69,74 +37,84 @@ async function initializeHostStatus() {
   const capabilities = await host.capabilities();
   const storageResult = await host.storage.save("web-iterate-smoke", {
     at: new Date().toISOString(),
-    protocolVersion: HOST_PROTOCOL_VERSION
+    protocolVersion: HOST_PROTOCOL_VERSION,
+    renderer: `three-r${THREE.REVISION}`
   });
 
   const storageText = storageResult.ok ? capabilities.storage : storageResult.code;
-  status.textContent = `Host v${HOST_PROTOCOL_VERSION}; storage: ${storageText}; achievements: ${capabilities.achievements}`;
+  status.textContent = `Host v${HOST_PROTOCOL_VERSION}; Three r${THREE.REVISION}; storage: ${storageText}; achievements: ${capabilities.achievements}`;
 }
 
 function render(now) {
-  resizeCanvas();
+  resizeRenderer();
 
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.clearColor(0.05, 0.06, 0.06, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.useProgram(program);
+  const time = now * 0.001;
+  spinner.rotation.z = time * 0.8;
+  spinner.rotation.x = Math.sin(time * 0.7) * 0.26;
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-  gl.enableVertexAttribArray(positionLocation);
-  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 20, 0);
-  gl.enableVertexAttribArray(colorLocation);
-  gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 20, 8);
+  for (const [index, child] of spinner.children.entries()) {
+    child.rotation.y += 0.012 + index * 0.002;
+  }
 
-  gl.uniform1f(rotationLocation, now * 0.001);
-  gl.uniform1f(aspectLocation, canvas.width / canvas.height);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
-
+  renderer.render(scene, camera);
   requestAnimationFrame(render);
 }
 
-function resizeCanvas() {
-  const scale = Math.min(globalThis.devicePixelRatio || 1, 2);
-  const width = Math.max(1, Math.floor(canvas.clientWidth * scale));
-  const height = Math.max(1, Math.floor(canvas.clientHeight * scale));
+function resizeRenderer() {
+  const width = Math.max(1, canvas.clientWidth);
+  const height = Math.max(1, canvas.clientHeight);
+  const pixelRatio = Math.min(globalThis.devicePixelRatio || 1, 2);
+  const pixelWidth = Math.floor(width * pixelRatio);
+  const pixelHeight = Math.floor(height * pixelRatio);
 
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
   }
 }
 
-function createProgram(context, vertexSource, fragmentSource) {
-  const vertexShader = createShader(context, context.VERTEX_SHADER, vertexSource);
-  const fragmentShader = createShader(context, context.FRAGMENT_SHADER, fragmentSource);
-  const linkedProgram = context.createProgram();
+function createSpinner() {
+  const group = new THREE.Group();
+  const ringMaterial = new THREE.MeshStandardMaterial({
+    color: 0x4fd1c5,
+    emissive: 0x123d3a,
+    metalness: 0.34,
+    roughness: 0.28
+  });
+  const bladeMaterials = [
+    new THREE.MeshStandardMaterial({ color: 0xf59e6b, emissive: 0x3b1808, roughness: 0.42 }),
+    new THREE.MeshStandardMaterial({ color: 0x9ed36a, emissive: 0x1d3210, roughness: 0.42 }),
+    new THREE.MeshStandardMaterial({ color: 0x76a9ff, emissive: 0x10213d, roughness: 0.42 })
+  ];
 
-  context.attachShader(linkedProgram, vertexShader);
-  context.attachShader(linkedProgram, fragmentShader);
-  context.linkProgram(linkedProgram);
+  group.add(new THREE.Mesh(
+    new THREE.TorusGeometry(0.9, 0.055, 16, 96),
+    ringMaterial
+  ));
 
-  if (!context.getProgramParameter(linkedProgram, context.LINK_STATUS)) {
-    const message = context.getProgramInfoLog(linkedProgram);
-    context.deleteProgram(linkedProgram);
-    throw new Error(`WebGL program link failed: ${message}`);
+  for (let index = 0; index < 3; index += 1) {
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 0.72, 0.08),
+      bladeMaterials[index]
+    );
+    const angle = index * (Math.PI * 2 / 3);
+
+    blade.position.set(Math.cos(angle) * 0.42, Math.sin(angle) * 0.42, 0.04);
+    blade.rotation.z = angle - Math.PI / 2;
+    group.add(blade);
   }
 
-  return linkedProgram;
+  return group;
 }
 
-function createShader(context, type, source) {
-  const shader = context.createShader(type);
+function createLights() {
+  const group = new THREE.Group();
+  const key = new THREE.DirectionalLight(0xffffff, 2.4);
+  const fill = new THREE.AmbientLight(0x7da7a4, 0.75);
 
-  context.shaderSource(shader, source);
-  context.compileShader(shader);
-
-  if (!context.getShaderParameter(shader, context.COMPILE_STATUS)) {
-    const message = context.getShaderInfoLog(shader);
-    context.deleteShader(shader);
-    throw new Error(`WebGL shader compile failed: ${message}`);
-  }
-
-  return shader;
+  key.position.set(2.4, 2.8, 4);
+  group.add(key, fill);
+  return group;
 }

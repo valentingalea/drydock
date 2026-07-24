@@ -22,6 +22,8 @@ test("runtime allowlist exposes only expected paths", () => {
   assert.equal(runtimePathAllowed("/src/main.js"), true);
   assert.equal(runtimePathAllowed("/assets/sprite.png"), true);
   assert.equal(runtimePathAllowed("/vendor/drydock-host-bridge/index.js"), true);
+  assert.equal(runtimePathAllowed("/vendor/three/three.module.min.js"), true);
+  assert.equal(runtimePathAllowed("/vendor/three/three.core.min.js"), true);
 
   assert.equal(runtimePathAllowed("/package.json"), false);
   assert.equal(runtimePathAllowed("/../AGENTS.md"), false);
@@ -77,6 +79,8 @@ test("server allows runtime files and denies repo files", async () => {
 
     assert.equal((await fetch(`${root}/`)).status, 200);
     assert.equal((await fetch(`${root}/src/main.js`)).status, 200);
+    assert.equal((await fetch(`${root}/vendor/three/three.module.min.js`)).status, 200);
+    assert.equal((await fetch(`${root}/vendor/three/three.core.min.js`)).status, 200);
     assert.equal((await fetch(`${root}/package.json`)).status, 404);
     assert.equal((await fetch(`${root}/.git/config`)).status, 404);
   } finally {

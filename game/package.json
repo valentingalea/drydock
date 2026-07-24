@@ -8,6 +8,7 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@drydock/host-bridge": "workspace:*"
+    "@drydock/host-bridge": "workspace:*",
+    "three": "0.185.1"
   }
 }

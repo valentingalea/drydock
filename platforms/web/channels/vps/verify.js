@@ -7,7 +7,9 @@ const runtimeAllowedPaths = [
   "/index.html",
   "/host-bridge.js",
   "/src/main.js",
-  "/vendor/drydock-host-bridge/index.js"
+  "/vendor/drydock-host-bridge/index.js",
+  "/vendor/three/three.module.min.js",
+  "/vendor/three/three.core.min.js"
 ];
 
 const deniedPaths = [

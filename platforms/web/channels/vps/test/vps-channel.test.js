@@ -117,7 +117,7 @@ test("VPS verifier checks public allow and deny paths for both route mounts", as
       timeoutMs: 1000
     });
 
-    assert.equal(results.length, 18);
+    assert.equal(results.length, 22);
     assert.equal(results.filter((result) => result.status === 404).length, 8);
   } finally {
     await new Promise((resolveClose) => server.close(resolveClose));

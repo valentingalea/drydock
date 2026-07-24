@@ -66,6 +66,10 @@ test("stages Electron shell and runtime payload without repo-only files", async 
   await stat(join(stageDir, "game/index.html"));
   await stat(join(stageDir, "game/src/main.js"));
   await stat(join(stageDir, "game/vendor/drydock-host-bridge/index.js"));
+  await stat(join(stageDir, "game/vendor/three/three.module.min.js"));
+  await stat(join(stageDir, "game/vendor/three/three.core.min.js"));
+  await stat(join(stageDir, "game/vendor/three/LICENSE"));
+  await stat(join(stageDir, "game/vendor/three/package.json"));
 
   await assert.rejects(stat(join(stageDir, "game/package.json")), { code: "ENOENT" });
   await assert.rejects(stat(join(stageDir, "game/test/game.test.js")), { code: "ENOENT" });

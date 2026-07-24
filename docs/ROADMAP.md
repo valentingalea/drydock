@@ -18,8 +18,8 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ### 2. Payload + Web Iterate
 
-- [x] `game/index.html` renders a minimal WebGL scene.
-- [x] Runtime dependencies are vendored locally; no CDN references.
+- [x] `game/index.html` renders a Three.js WebGL spinner.
+- [x] Runtime dependencies such as Three.js are vendored locally; no CDN references.
 - [x] `game/host-bridge.js` uses the shared bridge contract with honest web/dev
       capabilities.
 - [x] `platforms/web/iterate/caddy-live/` serves `game/` directly as the document root.

@@ -27,6 +27,8 @@ test("Electron protocol allowlist mirrors runtime-only payload paths", () => {
   assert.equal(runtimePathAllowed("/src/main.js"), true);
   assert.equal(runtimePathAllowed("/assets/sprite.png"), true);
   assert.equal(runtimePathAllowed("/vendor/drydock-host-bridge/index.js"), true);
+  assert.equal(runtimePathAllowed("/vendor/three/three.module.min.js"), true);
+  assert.equal(runtimePathAllowed("/vendor/three/three.core.min.js"), true);
 
   assert.equal(runtimePathAllowed("/package.json"), false);
   assert.equal(runtimePathAllowed("/drydock-artifact.json"), false);

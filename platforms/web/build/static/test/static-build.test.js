@@ -28,6 +28,10 @@ test("static build copies runtime files and emits schema-valid artifact", async 
   await stat(join(out, "host-bridge.js"));
   await stat(join(out, "src/main.js"));
   await stat(join(out, "vendor/drydock-host-bridge/index.js"));
+  await stat(join(out, "vendor/three/three.module.min.js"));
+  await stat(join(out, "vendor/three/three.core.min.js"));
+  await stat(join(out, "vendor/three/LICENSE"));
+  await stat(join(out, "vendor/three/package.json"));
 
   await assert.rejects(stat(join(out, "package.json")), { code: "ENOENT" });
   await assert.rejects(stat(join(out, "test/game.test.js")), { code: "ENOENT" });

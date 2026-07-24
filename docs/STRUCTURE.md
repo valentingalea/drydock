@@ -10,7 +10,7 @@ drydock/
 │  ├─ package.json
 │  ├─ src/
 │  ├─ test/
-│  ├─ vendor/                     # vendored runtime deps, offline-safe
+│  ├─ vendor/                     # vendored runtime deps such as host bridge + Three.js
 │  └─ host-bridge.js              # payload-facing bridge shim
 │
 ├─ platforms/                     # build adapters, iteration paths, release channels

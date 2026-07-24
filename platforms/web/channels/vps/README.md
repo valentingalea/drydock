@@ -46,8 +46,8 @@ pnpm smoke:web -- https://vinyltin.duckdns.org/drydock/
 pnpm smoke:web -- https://vinyltin.duckdns.org/drydock-release/
 ```
 
-The verifier expects runtime paths to return `200` and repo/internal paths to return
-`404`.
+The verifier expects runtime paths, including nested vendored module files such as
+`/vendor/three/three.core.min.js`, to return `200` and repo/internal paths to return `404`.
 
 ## Caddy Templates
 
