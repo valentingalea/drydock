@@ -31,7 +31,7 @@ function formatErrors(errors) {
     .join("\n");
 }
 
-const [releasePath] = process.argv.slice(2);
+const [releasePath] = process.argv.slice(2).filter((arg) => arg !== "--");
 
 if (!releasePath) {
   usage();

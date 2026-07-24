@@ -8,7 +8,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "test": "node --test packages/host-bridge/test/*.test.js game/test/*.test.js platforms/web/iterate/caddy-live/test/*.test.js",
+    "test": "node --test packages/host-bridge/test/*.test.js game/test/*.test.js platforms/web/iterate/caddy-live/test/*.test.js platforms/web/build/static/test/*.test.js platforms/web/channels/vps/test/*.test.js",
     "vendor": "node tools/vendor-host-bridge.js",
     "smoke:web": "node skills/playwright-web-smoke/scripts/smoke.mjs",
     "validate": "node tools/validate-artifact.js fixtures/artifacts/electron-win32-x64.json && node tools/validate-release.js releases/1.4.0.yaml",

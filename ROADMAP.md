@@ -27,17 +27,17 @@ Do these in sequence. Each step should leave something executable or enforceable
       repo root.
 - [x] Caddy allowlist exposes only runtime paths such as `/`, `/index.html`,
       `/host-bridge.js`, `/src/*`, `/assets/*`, and `/vendor/*`.
-- [ ] Public browser refresh reflects edits to `game/` without a build or deploy step.
+- [x] Public browser refresh reflects edits to `game/` without a build or deploy step.
 
 ### 3. Web Static Build + VPS Channel
 
-- [ ] `platforms/web/build/static/` copies only runtime files from `game/` into
+- [x] `platforms/web/build/static/` copies only runtime files from `game/` into
       `out/web-static/`.
-- [ ] The static build emits and validates `out/web-static/drydock-artifact.json`.
-- [ ] `platforms/web/channels/vps/` deploys the packaged `out/web-static/` artifact, not
+- [x] The static build emits and validates `out/web-static/drydock-artifact.json`.
+- [x] `platforms/web/channels/vps/` deploys the packaged `out/web-static/` artifact, not
       the live iterate origin.
-- [ ] VPS channel config validates Caddy before reload and runs public allow/deny checks.
-- [ ] The release manifest includes the `vps` channel.
+- [x] VPS channel config validates Caddy before reload and runs public allow/deny checks.
+- [x] The release manifest includes the `vps` channel.
 
 ### 4. Desktop Build Adapter: Electron
 

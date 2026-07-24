@@ -101,13 +101,19 @@ pnpm --filter @drydock/web-static build -- \
   --release releases/1.4.0.yaml
 
 # PACKAGE / PUBLISH: install clean static output and reload Caddy.
-pnpm --filter @drydock/channel-vps publish -- \
+pnpm --filter @drydock/channel-vps run publish -- \
   out/web-static/drydock-artifact.json
 ```
 
 The VPS channel must deploy the packaged `out/web-static/` output, not the repo root and
 not the live iteration origin. It should validate the Caddy config before reload and run
 public checks for allowed runtime paths and denied repo paths.
+
+Current proof-of-concept routes on this VPS:
+
+- Live iteration: `https://vinyltin.duckdns.org/drydock/` -> `127.0.0.1:8090`
+- Packaged release artifact: `https://vinyltin.duckdns.org/drydock-release/` ->
+  `/var/www/drydock`
 
 ## Desktop Example: Steam
 
@@ -139,7 +145,7 @@ pnpm --filter @drydock/channel-steam package -- \
 
 # PUBLISH: decrypt only Steam secrets and upload.
 sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-steam publish -- out/win32-x64/drydock-artifact.json'
+  'pnpm --filter @drydock/channel-steam run publish -- out/win32-x64/drydock-artifact.json'
 ```
 
 Final step is manual: set the uploaded build live on its Steam branch in the Steamworks
@@ -165,7 +171,7 @@ pnpm --filter @drydock/mobile-capacitor build:ios -- \
 
 # PACKAGE / SIGN + PUBLISH through the App Store channel.
 sops exec-env platforms/mobile/channels/appstore/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-appstore publish -- out/ios/drydock-artifact.json'
+  'pnpm --filter @drydock/channel-appstore run publish -- out/ios/drydock-artifact.json'
 ```
 
 The App Store channel lane should archive/sign the `.ipa`, upload to App Store Connect,
@@ -191,7 +197,7 @@ pnpm --filter @drydock/mobile-capacitor build:android -- \
 
 # PACKAGE / SIGN + PUBLISH through the Play channel.
 sops exec-env platforms/mobile/channels/play/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-play publish -- out/android/drydock-artifact.json'
+  'pnpm --filter @drydock/channel-play run publish -- out/android/drydock-artifact.json'
 ```
 
 The Play channel lane should build a signed `.aab` and upload to the track selected by the

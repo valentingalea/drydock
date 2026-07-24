@@ -24,7 +24,7 @@ function formatErrors(errors) {
     .join("\n");
 }
 
-const [manifestPath] = process.argv.slice(2);
+const [manifestPath] = process.argv.slice(2).filter((arg) => arg !== "--");
 
 if (!manifestPath) {
   usage();

@@ -192,7 +192,7 @@ integrates and packages it:
 BUILD:      pnpm --filter @drydock/desktop-electron build --platform win32 --arch x64
 INTEGRATE:  pnpm --filter @drydock/channel-steam integrate out/win32-x64/drydock-artifact.json
 PACKAGE:    pnpm --filter @drydock/channel-steam package out/win32-x64/drydock-artifact.json
-PUBLISH:    pnpm --filter @drydock/channel-steam publish out/win32-x64/drydock-artifact.json
+PUBLISH:    pnpm --filter @drydock/channel-steam run publish -- out/win32-x64/drydock-artifact.json
 ```
 
 The selected channel may add redistributables, SDK bootstrap code, metadata, depot layout,

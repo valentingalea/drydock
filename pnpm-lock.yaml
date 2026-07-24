@@ -26,6 +26,14 @@ importers:
 
   packages/host-bridge: {}
 
+  platforms/web/build/static:
+    dependencies:
+      '@drydock/host-bridge':
+        specifier: workspace:*
+        version: link:../../../../packages/host-bridge
+
+  platforms/web/channels/vps: {}
+
   platforms/web/iterate/caddy-live: {}
 
 packages:

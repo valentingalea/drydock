@@ -1,0 +1,11 @@
+{
+  "name": "@drydock/channel-vps",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "package": "node publish.js --dry-run",
+    "publish": "node publish.js",
+    "test": "node --test test/*.test.js"
+  }
+}

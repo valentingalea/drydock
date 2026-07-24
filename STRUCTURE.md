@@ -38,13 +38,16 @@ drydock/
 │  │  │     └─ test/
 │  │  ├─ build/
 │  │  │  └─ static/               # copy runtime files into out/web-static/
-│  │  │     └─ package.json
+│  │  │     ├─ package.json
+│  │  │     ├─ build.js
+│  │  │     └─ test/
 │  │  └─ channels/
 │  │     └─ vps/                  # deploy packaged web artifact through Caddy
 │  │        ├─ package.json
-│  │        ├─ package.sh
-│  │        ├─ publish.sh
-│  │        └─ caddy.example
+│  │        ├─ publish.js
+│  │        ├─ caddy.example
+│  │        ├─ caddy.path.example
+│  │        └─ test/
 │  │
 │  ├─ desktop/
 │  │  ├─ build/

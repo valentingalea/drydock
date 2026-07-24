@@ -1,0 +1,19 @@
+drydock.example.com {
+	encode gzip zstd
+
+	root * /var/www/drydock
+
+	@allowed path / /index.html /host-bridge.js /src/* /assets/* /vendor/*
+	handle @allowed {
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle {
+		respond 404
+	}
+
+	log {
+		output file /var/log/caddy/drydock-release-access.log
+	}
+}

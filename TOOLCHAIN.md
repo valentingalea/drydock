@@ -36,11 +36,11 @@ Run package scripts with filters:
 ```sh
 pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 pnpm --filter @drydock/web-static build -- --release releases/1.4.0.yaml
-pnpm --filter @drydock/channel-vps publish -- out/web-static/drydock-artifact.json
+pnpm --filter @drydock/channel-vps run publish -- out/web-static/drydock-artifact.json
 pnpm --filter @drydock/desktop-electron build -- --platform win32 --arch x64
 pnpm --filter @drydock/channel-steam integrate -- out/win32-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-steam package -- out/win32-x64/drydock-artifact.json
-pnpm --filter @drydock/channel-steam publish -- out/win32-x64/drydock-artifact.json
+pnpm --filter @drydock/channel-steam run publish -- out/win32-x64/drydock-artifact.json
 ```
 
 pnpm's content-addressed store keeps installs disk-efficient without merging dependency
