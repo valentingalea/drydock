@@ -1,11 +1,11 @@
-version: 1.4.0
+version: 0.1.0
 build:
-  desktop: 10400
-  vps: 10400
-  steam: 10400
-  epic: 10400
-  appstore: 87
-  play: 1040087
+  desktop: 100
+  vps: 100
+  steam: 100
+  epic: 100
+  appstore: 1
+  play: 100
 channels:
   vps:
     host: drydock.example.com

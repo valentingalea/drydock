@@ -41,14 +41,14 @@ Do not rely on one scalar version to cover every store. Use one release manifest
 candidate:
 
 ```yaml
-version: 1.4.0
+version: 0.1.0
 build:
-  desktop: 10400
-  vps: 10400
-  steam: 10400
-  epic: 10400
-  appstore: 87
-  play: 1040087
+  desktop: 100
+  vps: 100
+  steam: 100
+  epic: 100
+  appstore: 1
+  play: 100
 channels:
   vps:
     host: drydock.example.com
@@ -73,7 +73,7 @@ and generate platform-specific manifest changes from it.
 corepack enable pnpm
 pnpm install
 pnpm run vendor
-pnpm run release:prepare -- contracts/releases/1.4.0.yaml
+pnpm run release:prepare -- contracts/releases/0.1.0.yaml
 ```
 
 `release:prepare` should eventually validate:
@@ -99,7 +99,7 @@ Per release:
 ```sh
 # BUILD: copy only runtime files from game/ into artifacts/build/web-static and emit manifest.
 pnpm --filter @drydock/web-static build -- \
-  --release contracts/releases/1.4.0.yaml
+  --release contracts/releases/0.1.0.yaml
 
 # PACKAGE / PUBLISH: install clean static output and reload Caddy.
 pnpm --filter @drydock/channel-vps run publish -- \
@@ -143,14 +143,14 @@ stages.
 
 Current proof package:
 
-- `https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-1.4.0-windows-x64.zip`
-- `https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-1.4.0-windows-x64.zip.sha256`
+- `https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-0.1.0-windows-x64.zip`
+- `https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-0.1.0-windows-x64.zip.sha256`
 
 Build the Windows x64 artifact:
 
 ```sh
 pnpm --filter @drydock/desktop-electron build -- \
-  --release contracts/releases/1.4.0.yaml \
+  --release contracts/releases/0.1.0.yaml \
   --platform windows \
   --arch x64
 
@@ -200,7 +200,7 @@ Per release:
 pnpm --filter @drydock/desktop-electron build -- \
   --platform windows \
   --arch x64 \
-  --release contracts/releases/1.4.0.yaml
+  --release contracts/releases/0.1.0.yaml
 
 # INTEGRATE: Steam SDK/runtime provider/depot inputs.
 pnpm --filter @drydock/channel-steam integrate -- \
@@ -241,7 +241,7 @@ Per release:
 ```sh
 # BUILD: sync payload into the native iOS project and emit artifact manifest.
 pnpm --filter @drydock/mobile-capacitor build:ios -- \
-  --release contracts/releases/1.4.0.yaml
+  --release contracts/releases/0.1.0.yaml
 
 # PACKAGE / SIGN + PUBLISH through the App Store channel.
 sops exec-env platforms/mobile/channels/appstore/secrets.enc.yaml \
@@ -267,7 +267,7 @@ Per release:
 ```sh
 # BUILD: sync payload into the native Android project and emit artifact manifest.
 pnpm --filter @drydock/mobile-capacitor build:android -- \
-  --release contracts/releases/1.4.0.yaml
+  --release contracts/releases/0.1.0.yaml
 
 # PACKAGE / SIGN + PUBLISH through the Play channel.
 sops exec-env platforms/mobile/channels/play/secrets.enc.yaml \
@@ -292,10 +292,10 @@ Releases should be tag-triggered or workflow-dispatched per channel. Each workfl
 Example tags:
 
 ```sh
-git tag steam-v1.4.0
-git tag appstore-v1.4.0
-git tag play-v1.4.0
-git push origin steam-v1.4.0 appstore-v1.4.0 play-v1.4.0
+git tag steam-v0.1.0
+git tag appstore-v0.1.0
+git tag play-v0.1.0
+git push origin steam-v0.1.0 appstore-v0.1.0 play-v0.1.0
 ```
 
 The remaining manual step is the store dashboard action that legally publishes or submits

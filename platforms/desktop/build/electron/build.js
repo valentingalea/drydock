@@ -8,7 +8,7 @@ const YAML = require("yaml");
 
 const repoRoot = resolve(__dirname, "../../../..");
 const packageRoot = __dirname;
-const defaultRelease = "contracts/releases/1.4.0.yaml";
+const defaultRelease = "contracts/releases/0.1.0.yaml";
 const defaultBuildKey = "desktop";
 const productName = "Drydock Payload";
 const executableName = "drydock-placeholder";

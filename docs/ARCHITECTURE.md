@@ -80,7 +80,7 @@ Minimum schema:
 {
   "schemaVersion": 1,
   "gameId": "example",
-  "version": "1.4.0",
+  "version": "0.1.0",
   "buildNumber": 42,
   "engine": "electron",
   "platform": "windows",

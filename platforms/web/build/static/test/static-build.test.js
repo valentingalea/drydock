@@ -20,7 +20,7 @@ test("parses static build arguments", () => {
 test("static build copies runtime files and emits schema-valid artifact", async () => {
   const out = await mkdtemp(join(tmpdir(), "drydock-web-static-"));
   const { manifest } = await buildStaticWeb({
-    release: "contracts/releases/1.4.0.yaml",
+    release: "contracts/releases/0.1.0.yaml",
     out
   });
 
@@ -41,6 +41,6 @@ test("static build copies runtime files and emits schema-valid artifact", async 
   assert.equal(validate(manifest), true, JSON.stringify(validate.errors, null, 2));
   assert.equal(manifest.platform, "web");
   assert.equal(manifest.engine, "web-static");
-  assert.equal(manifest.buildNumber, 10400);
+  assert.equal(manifest.buildNumber, 100);
   assert.equal(manifest.extensions.drydock.channelConfig.root, "/var/www/drydock");
 });

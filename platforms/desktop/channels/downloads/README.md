@@ -32,7 +32,7 @@ repo files, or directory browsing.
 
 ```sh
 pnpm --filter @drydock/desktop-electron build -- \
-  --release contracts/releases/1.4.0.yaml \
+  --release contracts/releases/0.1.0.yaml \
   --platform windows \
   --arch x64
 

@@ -15,8 +15,8 @@ import {
 const manifest = {
   schemaVersion: 1,
   gameId: "drydock-placeholder",
-  version: "1.4.0",
-  buildNumber: 10400,
+  version: "0.1.0",
+  buildNumber: 100,
   engine: "electron",
   platform: "windows",
   arch: "x64",
@@ -51,11 +51,11 @@ test("parses downloads channel arguments", () => {
     "--out",
     "artifacts/channels/downloads",
     "--name",
-    "drydock-placeholder-1.4.0-windows-x64.zip"
+    "drydock-placeholder-0.1.0-windows-x64.zip"
   ]), {
     _: ["artifacts/build/windows-x64/drydock-artifact.json"],
     out: "artifacts/channels/downloads",
-    name: "drydock-placeholder-1.4.0-windows-x64.zip"
+    name: "drydock-placeholder-0.1.0-windows-x64.zip"
   });
 
   assert.deepEqual(parseArgs([], {
@@ -71,7 +71,7 @@ test("parses downloads channel arguments", () => {
 test("default download zip name comes from artifact identity", () => {
   assert.equal(
     defaultZipName(manifest),
-    "drydock-placeholder-1.4.0-windows-x64.zip"
+    "drydock-placeholder-0.1.0-windows-x64.zip"
   );
 });
 
@@ -105,17 +105,17 @@ test("downloads package and publish scripts handle a valid artifact root", async
     out
   });
 
-  assert.equal(result.zipName, "drydock-placeholder-1.4.0-windows-x64.zip");
+  assert.equal(result.zipName, "drydock-placeholder-0.1.0-windows-x64.zip");
   await stat(join(out, result.zipName));
   await stat(join(out, `${result.zipName}.sha256`));
   await stat(join(out, "index.html"));
   assert.match(
     await readFile(join(out, result.zipName), "utf8"),
-    /drydock-placeholder-1\.4\.0-windows-x64\/win-unpacked\/drydock-placeholder\.exe/
+    /drydock-placeholder-0\.1\.0-windows-x64\/win-unpacked\/drydock-placeholder\.exe/
   );
 
   const checksum = await readFile(join(out, `${result.zipName}.sha256`), "utf8");
-  assert.match(checksum, /^[a-f0-9]{64}  drydock-placeholder-1\.4\.0-windows-x64\.zip\n$/);
+  assert.match(checksum, /^[a-f0-9]{64}  drydock-placeholder-0\.1\.0-windows-x64\.zip\n$/);
 
   await publishDownloads({
     _: [out],
@@ -133,8 +133,8 @@ test("downloads route verifier checks public package files and denied internal f
   const responses = new Map([
     ["/", 200],
     ["/index.html", 200],
-    ["/drydock-placeholder-1.4.0-windows-x64.zip", 200],
-    ["/drydock-placeholder-1.4.0-windows-x64.zip.sha256", 200],
+    ["/drydock-placeholder-0.1.0-windows-x64.zip", 200],
+    ["/drydock-placeholder-0.1.0-windows-x64.zip.sha256", 200],
     ["/drydock-artifact.json", 404],
     ["/package.json", 404],
     ["/.git/config", 404],

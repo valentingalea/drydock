@@ -101,7 +101,7 @@ export async function verifyDownloads(options = {}) {
 
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? 5000;
-  const zipName = options.name ?? "drydock-placeholder-1.4.0-windows-x64.zip";
+  const zipName = options.name ?? "drydock-placeholder-0.1.0-windows-x64.zip";
   const checks = [
     { path: "/", status: 200 },
     { path: "/index.html", status: 200 },

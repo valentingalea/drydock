@@ -11,7 +11,7 @@
     "test": "node --test contracts/host-bridge/test/*.test.js game/test/*.test.js platforms/web/iterate/caddy-live/test/*.test.js platforms/web/build/static/test/*.test.js platforms/web/channels/vps/test/*.test.js platforms/desktop/build/electron/test/*.test.js platforms/desktop/channels/downloads/test/*.test.js",
     "vendor": "node tools/scripts/vendor-host-bridge.js",
     "smoke:web": "node tools/skills/playwright-web-smoke/scripts/smoke.mjs",
-    "validate": "node tools/scripts/validate-artifact.js contracts/fixtures/artifacts/electron-windows-x64.json && node tools/scripts/validate-release.js contracts/releases/1.4.0.yaml",
+    "validate": "node tools/scripts/validate-artifact.js contracts/fixtures/artifacts/electron-windows-x64.json && node tools/scripts/validate-release.js contracts/releases/0.1.0.yaml",
     "validate:artifact": "node tools/scripts/validate-artifact.js",
     "validate:release": "node tools/scripts/validate-release.js"
   },

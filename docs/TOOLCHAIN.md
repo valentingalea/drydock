@@ -36,13 +36,13 @@ Run package scripts with filters:
 
 ```sh
 pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
-pnpm --filter @drydock/web-static build -- --release contracts/releases/1.4.0.yaml
+pnpm --filter @drydock/web-static build -- --release contracts/releases/0.1.0.yaml
 pnpm --filter @drydock/channel-vps run publish -- artifacts/build/web-static/drydock-artifact.json
 pnpm --filter @drydock/desktop-electron build -- --platform windows --arch x64
 pnpm --filter @drydock/channel-downloads run package -- artifacts/build/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-downloads run publish -- artifacts/channels/downloads
 pnpm --filter @drydock/channel-downloads run verify -- --base-url https://vinyltin.duckdns.org/drydock-downloads/
-curl -I https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-1.4.0-windows-x64.zip
+curl -I https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-0.1.0-windows-x64.zip
 pnpm --filter @drydock/channel-steam integrate -- artifacts/build/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-steam package -- artifacts/build/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/drydock-artifact.json

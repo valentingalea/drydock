@@ -56,7 +56,7 @@ test("stages Electron shell and runtime payload without repo-only files", async 
 
   await prepareStagedApp({
     stageDir,
-    release: { version: "1.4.0" }
+    release: { version: "0.1.0" }
   });
 
   await stat(join(stageDir, "main.js"));
@@ -78,7 +78,7 @@ test("stages Electron shell and runtime payload without repo-only files", async 
 test("Electron build emits a schema-valid artifact manifest", async () => {
   const out = await mkdtemp(join(tmpdir(), "drydock-electron-out-"));
   const { manifest } = await buildElectron({
-    release: "contracts/releases/1.4.0.yaml",
+    release: "contracts/releases/0.1.0.yaml",
     out,
     platform: "linux",
     arch: "x64",
@@ -93,7 +93,7 @@ test("Electron build emits a schema-valid artifact manifest", async () => {
   assert.equal(manifest.arch, "x64");
   assert.equal(manifest.artifactRoot, "linux-unpacked");
   assert.equal(manifest.executable, "linux-unpacked/drydock-placeholder");
-  assert.equal(manifest.buildNumber, 10400);
+  assert.equal(manifest.buildNumber, 100);
   assert.deepEqual(manifest.capabilities, ["storage"]);
   assert.equal(manifest.extensions.electron.protocol, "app://drydock");
 });
