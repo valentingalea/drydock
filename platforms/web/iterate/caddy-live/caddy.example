@@ -1,7 +1,7 @@
 drydock.example.com {
 	encode gzip zstd
 
-	@allowed path / /index.html /host-bridge.js /src/* /assets/* /vendor/*
+	@allowed path / /index.html /host-bridge.js /vendor/drydock-host-bridge/* /engine/mock-game/ /engine/mock-game/index.html /engine/mock-game/src/* /engine/mock-game/style/* /engine/src/* /engine/style/* /engine/lib/*
 	handle @allowed {
 		reverse_proxy 127.0.0.1:8090
 	}

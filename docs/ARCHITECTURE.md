@@ -15,9 +15,32 @@ Drydock is organized around three ownership layers that change for different rea
     channel-specific integration, package/sign, and publish tooling
 ```
 
-The payload must not know which engine shell or store is active. The channel is allowed to
-affect the binary when the store requires it, but that work happens in a channel-owned
-stage and is described by explicit contracts.
+The payload must not know which platform shell or store is active. Runtime libraries such
+as Line Engine are payload dependencies, distinct from Drydock build adapters such as
+Electron. The channel is allowed to affect the binary when the store requires it, but
+that work happens in a channel-owned stage and is described by explicit contracts.
+
+## Payload Composition
+
+The current payload is Line Engine's canonical `mock-game/`, pinned at `engine/` as a git
+submodule. Drydock does not own a second mock. `game/drydock-payload.json` is the source
+composition contract: it declares identity, the entrypoint, exact runtime source/target
+mappings and the one allowed overlay.
+
+```text
+game/drydock-payload.json
+  + engine/mock-game/             # canonical mock
+  + engine/src, style, lib        # Line Engine runtime + Three.js r160
+  + game/host-bridge.js           # Drydock browser bridge
+  + game/overlays/platform-host.js
+  -> composed runtime tree
+```
+
+Line Engine's standalone `mock-game/src/platform-host.js` supplies local browser behavior.
+Drydock replaces that module at the same runtime URL with its bridge adapter. No other
+Line Engine mock file is transformed or copied into source control. Line Engine remains
+usable standalone, while the embedded mock exercises Drydock protocol version 1 and
+storage.
 
 ## Release Stages
 
@@ -51,18 +74,20 @@ The clean boundary is therefore:
 Iteration is intentionally outside the release pipeline:
 
 ```text
-EDIT game/  ->  localhost origin rooted at game/  ->  Caddy allowlist  ->  browser
+EDIT engine/mock-game or engine/src
+  -> descriptor-resolved localhost origin
+  -> Caddy allowlist
+  -> browser
 ```
 
 For web payload work, `platforms/web/iterate/caddy-live/` owns the fast feedback path.
-It serves the live `game/` tree directly so changes to HTML, JS, shaders, assets, and
-styling appear on the public Caddy URL after a browser refresh. It does not copy source,
-does not create symlink mirrors, does not emit `drydock-artifact.json`, and does not
-publish anything.
+It resolves the payload descriptor directly against the live `game/` integration files
+and `engine/` submodule so changes appear after refresh. It does not copy source, create
+symlink mirrors, emit `drydock-artifact.json`, or publish anything.
 
-The live origin must bind to `127.0.0.1` and use `game/` as its document root. Caddy is
-the public boundary and must allowlist only runtime paths such as `/`, `/index.html`,
-`/host-bridge.js`, `/src/*`, `/assets/*`, and `/vendor/*`.
+The live origin must bind to `127.0.0.1` and expose only descriptor-selected files. Caddy
+is the public boundary and mirrors the runtime prefixes under `/engine/`, plus the root
+launcher and host bridge. It must deny submodule metadata, docs, tests and package files.
 
 This path optimizes latency. Release channels optimize reproducibility.
 
@@ -175,10 +200,11 @@ platforms/web/build/static/         # copies runtime files into artifacts/build/
 platforms/web/channels/vps/         # deploys the packaged static artifact to the VPS
 ```
 
-The static build adapter consumes `game/`, copies only runtime files into
-`artifacts/build/web-static/`, and emits `drydock-artifact.json`. The VPS channel consumes that
-manifest, installs the clean output under a stable webroot or localhost origin root,
-validates the Caddy config, reloads Caddy, and performs public allow/deny checks.
+The static build adapter consumes `game/drydock-payload.json`, copies only its selected
+and overlaid runtime files into `artifacts/build/web-static/`, and emits
+`drydock-artifact.json`. The manifest records the Line Engine remote, commit and Three.js
+revision. The VPS channel consumes that manifest, installs the clean output under a stable
+webroot, validates Caddy, reloads it, and performs public allow/deny checks.
 
 The iteration path may serve live source for speed. The VPS channel must deploy a
 packaged artifact for reproducibility.

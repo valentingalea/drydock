@@ -26,15 +26,21 @@ test("static build copies runtime files and emits schema-valid artifact", async 
 
   await stat(join(out, "index.html"));
   await stat(join(out, "host-bridge.js"));
-  await stat(join(out, "src/main.js"));
   await stat(join(out, "vendor/drydock-host-bridge/index.js"));
-  await stat(join(out, "vendor/three/three.module.min.js"));
-  await stat(join(out, "vendor/three/three.core.min.js"));
-  await stat(join(out, "vendor/three/LICENSE"));
-  await stat(join(out, "vendor/three/package.json"));
+  await stat(join(out, "engine/mock-game/index.html"));
+  await stat(join(out, "engine/mock-game/src/bootstrap.js"));
+  await stat(join(out, "engine/mock-game/src/boot-guard.js"));
+  await stat(join(out, "engine/mock-game/src/game.js"));
+  await stat(join(out, "engine/mock-game/src/platform-host.js"));
+  await stat(join(out, "engine/mock-game/style/mock.css"));
+  await stat(join(out, "engine/src/core/scope.js"));
+  await stat(join(out, "engine/style/hud.css"));
+  await stat(join(out, "engine/lib/three.module.js"));
 
   await assert.rejects(stat(join(out, "package.json")), { code: "ENOENT" });
   await assert.rejects(stat(join(out, "test/game.test.js")), { code: "ENOENT" });
+  await assert.rejects(stat(join(out, "engine/AGENTS.md")), { code: "ENOENT" });
+  await assert.rejects(stat(join(out, "engine/package.json")), { code: "ENOENT" });
 
   const schema = JSON.parse(
     await readFile(resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json"), "utf8")
@@ -45,6 +51,9 @@ test("static build copies runtime files and emits schema-valid artifact", async 
   assert.equal(validate(manifest), true, JSON.stringify(validate.errors, null, 2));
   assert.equal(manifest.platform, "web");
   assert.equal(manifest.engine, "web-static");
+  assert.equal(manifest.gameId, "line-engine-calibration");
   assert.equal(manifest.buildNumber, 100);
+  assert.equal(manifest.extensions.drydock.entrypoint, "engine/mock-game/index.html");
+  assert.match(manifest.extensions.drydock.engineRevision.commit, /^[a-f0-9]{40}$/);
   assert.equal(manifest.extensions.drydock.channelConfig.root, "/var/www/drydock");
 });

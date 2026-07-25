@@ -1,6 +1,6 @@
-appId: dev.drydock.placeholder
-productName: Drydock Payload
-executableName: drydock-placeholder
+appId: dev.drydock.line-engine-calibration
+productName: Line Engine Calibration
+executableName: line-engine-calibration
 asar: true
 npmRebuild: false
 files:

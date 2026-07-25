@@ -5,7 +5,7 @@ existing.example.com {
 	handle_path /drydock-release/* {
 		root * /var/www/drydock
 
-		@drydock_release_allowed path / /index.html /host-bridge.js /src/* /assets/* /vendor/*
+		@drydock_release_allowed path / /index.html /host-bridge.js /vendor/drydock-host-bridge/* /engine/mock-game/ /engine/mock-game/index.html /engine/mock-game/src/* /engine/mock-game/style/* /engine/src/* /engine/style/* /engine/lib/*
 		handle @drydock_release_allowed {
 			try_files {path} /index.html
 			file_server

@@ -5,12 +5,14 @@ of by implementation accident.
 
 ```text
 drydock/
-├─ game/                          # portable payload - the one source of truth
-│  ├─ index.html                  # placeholder: minimal WebGL render
+├─ engine/                        # Line Engine git submodule; owns the canonical mock
+├─ game/                          # Drydock payload composition and host integration
+│  ├─ drydock-payload.json        # identity, entrypoint, runtime mappings, overlays
+│  ├─ index.html                  # launcher to engine/mock-game/
 │  ├─ package.json
-│  ├─ src/
 │  ├─ test/
-│  ├─ vendor/                     # vendored runtime deps such as host bridge + Three.js
+│  ├─ overlays/platform-host.js   # replaces Line Engine's documented host extension
+│  ├─ vendor/                     # vendored Drydock host bridge only
 │  └─ host-bridge.js              # payload-facing bridge shim
 │
 ├─ platforms/                     # build adapters, iteration paths, release channels
@@ -76,7 +78,8 @@ install state and stays ignored.
 
 | Path | Owns | Must not |
 |---|---|---|
-| `game/` | The whole payload + host bridge calls | Reference any channel, store, or engine |
+| `engine/` | Pinned Line Engine runtime and sole canonical mock | Contain Drydock/channel changes outside its documented extension contract |
+| `game/` | Payload descriptor, launcher, and Drydock host adapter | Duplicate Line Engine mock presentation or gameplay |
 | `platforms/*/iterate/<mode>/` | Fast feedback loops such as Caddy-backed web iteration | Emit release artifacts or read secrets |
 | `platforms/*/build/<engine>/` | Engine/runtime build adapter | Hard-code release channels |
 | `platforms/*/channels/<channel>/` | Channel SDK integration, metadata, package/sign scripts, publish tooling | Reach into engine internals without going through `drydock-artifact.json` |
@@ -93,10 +96,11 @@ install state and stays ignored.
 
 ## Invariants
 
-- `game/` exists exactly once. Every target consumes it by reference or generated runtime
-  copy; the repo never gains a second canonical copy of the payload.
-- Web iteration serves `game/` directly as the document root. It must not duplicate the
-  source tree or symlink a second source mirror.
+- `engine/mock-game/` is the only canonical mock. Drydock never copies it into `game/`.
+- Every target consumes `game/drydock-payload.json`; runtime source mappings and overlays
+  must not be reimplemented independently by adapters.
+- Web iteration resolves live descriptor-selected files without copying or symlinking a
+  second source mirror.
 - Public live iteration origins bind to `127.0.0.1` and rely on Caddy allowlists. They do
   not serve the repo root.
 - Every build adapter emits `drydock-artifact.json` under `artifacts/build/<target>/` and

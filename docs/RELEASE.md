@@ -11,9 +11,9 @@ already configured.
 
 ## Iteration Is Separate
 
-The fast web path is not a release. `platforms/web/iterate/caddy-live/` serves the live
-`game/` directory through a localhost-bound origin and Caddy allowlist so browser refreshes
-reflect source edits immediately.
+The fast web path is not a release. `platforms/web/iterate/caddy-live/` resolves the live
+Line Engine mock and Drydock host overlay through a localhost-bound origin and Caddy
+allowlist so browser refreshes reflect source edits immediately.
 
 Use it for feel, rendering, controls, and device smoke checks:
 
@@ -70,9 +70,11 @@ and generate platform-specific manifest changes from it.
 ## Shared Prep
 
 ```sh
+git submodule update --init --recursive
 corepack enable pnpm
 pnpm install
 pnpm run vendor
+pnpm run validate:submodule
 pnpm run release:prepare -- contracts/releases/0.1.0.yaml
 ```
 
@@ -90,14 +92,15 @@ One-time setup:
 
 - Public domain or subdomain points at the VPS.
 - Caddy is installed, enabled, and serving TLS.
-- The live iteration origin, if enabled, serves only `game/` from `127.0.0.1`.
+- The live iteration origin, if enabled, serves only descriptor-selected payload files
+  from `127.0.0.1`.
 - The release channel has a stable deploy root such as `/var/www/drydock`.
 - Caddy config is generated or templated from `platforms/web/channels/vps/caddy.example`.
 
 Per release:
 
 ```sh
-# BUILD: copy only runtime files from game/ into artifacts/build/web-static and emit manifest.
+# BUILD: compose the pinned Line Engine mock + Drydock host adapter and emit a manifest.
 pnpm --filter @drydock/web-static build -- \
   --release contracts/releases/0.1.0.yaml
 
@@ -143,8 +146,8 @@ stages.
 
 Current proof package:
 
-- `https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-0.1.0-windows-x64.zip`
-- `https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-0.1.0-windows-x64.zip.sha256`
+- `https://vinyltin.duckdns.org/drydock-downloads/line-engine-calibration-0.1.0-windows-x64.zip`
+- `https://vinyltin.duckdns.org/drydock-downloads/line-engine-calibration-0.1.0-windows-x64.zip.sha256`
 
 Build the Windows x64 artifact:
 

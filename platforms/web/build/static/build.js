@@ -1,23 +1,22 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
+import {
+  loadPayload,
+  readEngineRevision,
+  stagePayload,
+  verifyPayloadSubmodule
+} from "../../../../tools/scripts/payload.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const defaultRelease = "contracts/releases/0.1.0.yaml";
 const defaultOut = "artifacts/build/web-static";
-const runtimeEntries = [
-  "index.html",
-  "host-bridge.js",
-  "src",
-  "vendor",
-  "assets"
-];
-
 if (import.meta.url === `file://${process.argv[1]}`) {
   const options = parseArgs(process.argv.slice(2));
+  await verifyPayloadSubmodule(repoRoot);
   await buildStaticWeb(options);
 }
 
@@ -27,6 +26,8 @@ export async function buildStaticWeb(options = {}) {
   const channel = options.channel ?? "vps";
   const release = YAML.parse(await readFile(releasePath, "utf8"));
   const buildNumber = release?.build?.[channel];
+  const payload = await loadPayload(repoRoot);
+  const engineRevision = await readEngineRevision(repoRoot, payload);
 
   if (!Number.isInteger(buildNumber)) {
     throw new Error(`release manifest does not define build.${channel}`);
@@ -35,19 +36,7 @@ export async function buildStaticWeb(options = {}) {
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
-  const copied = [];
-
-  for (const entry of runtimeEntries) {
-    const source = resolve(repoRoot, "game", entry);
-
-    if (!(await exists(source))) {
-      continue;
-    }
-
-    const target = resolve(outDir, entry);
-    await cp(source, target, { recursive: true, dereference: true });
-    copied.push(entry);
-  }
+  await stagePayload(payload, outDir);
 
   const filePaths = await listFiles(outDir);
   const checksums = [];
@@ -62,7 +51,7 @@ export async function buildStaticWeb(options = {}) {
 
   const manifest = {
     schemaVersion: 1,
-    gameId: "drydock-placeholder",
+    gameId: payload.gameId,
     version: String(release.version),
     buildNumber,
     engine: "web-static",
@@ -83,9 +72,11 @@ export async function buildStaticWeb(options = {}) {
       drydock: {
         buildAdapter: "@drydock/web-static",
         channel,
-        copied,
+        entrypoint: payload.entrypoint,
+        payload: payload.descriptorPath,
         release: relative(repoRoot, releasePath).split("\\").join("/"),
-        channelConfig: release.channels?.[channel] ?? {}
+        channelConfig: release.channels?.[channel] ?? {},
+        engineRevision
       }
     }
   };
@@ -129,19 +120,6 @@ function requireValue(argv, index, flag) {
   }
 
   return value;
-}
-
-async function exists(path) {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return false;
-    }
-
-    throw error;
-  }
 }
 
 async function listFiles(root) {

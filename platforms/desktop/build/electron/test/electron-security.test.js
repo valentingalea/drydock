@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const { createHash } = require("node:crypto");
 const { mkdir, mkdtemp, readFile, stat, writeFile } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
 const { join, resolve } = require("node:path");
@@ -24,15 +25,32 @@ test("Electron protocol allowlist mirrors runtime-only payload paths", () => {
   assert.equal(runtimePathAllowed("/"), true);
   assert.equal(runtimePathAllowed("/index.html"), true);
   assert.equal(runtimePathAllowed("/host-bridge.js"), true);
-  assert.equal(runtimePathAllowed("/src/main.js"), true);
-  assert.equal(runtimePathAllowed("/assets/sprite.png"), true);
   assert.equal(runtimePathAllowed("/vendor/drydock-host-bridge/index.js"), true);
-  assert.equal(runtimePathAllowed("/vendor/three/three.module.min.js"), true);
-  assert.equal(runtimePathAllowed("/vendor/three/three.core.min.js"), true);
+  assert.equal(runtimePathAllowed("/engine/mock-game/"), true);
+  assert.equal(runtimePathAllowed("/engine/mock-game/index.html"), true);
+  assert.equal(runtimePathAllowed("/engine/mock-game/src/bootstrap.js"), true);
+  assert.equal(runtimePathAllowed("/engine/mock-game/style/mock.css"), true);
+  assert.equal(runtimePathAllowed("/engine/src/core/scope.js"), true);
+  assert.equal(runtimePathAllowed("/engine/style/hud.css"), true);
+  assert.equal(runtimePathAllowed("/engine/lib/three.module.js"), true);
 
   assert.equal(runtimePathAllowed("/package.json"), false);
   assert.equal(runtimePathAllowed("/drydock-artifact.json"), false);
   assert.equal(runtimePathAllowed("/.git/config"), false);
+  assert.equal(runtimePathAllowed("/engine/AGENTS.md"), false);
+  assert.equal(runtimePathAllowed("/engine/package.json"), false);
+});
+
+test("Electron CSP authorizes the exact Line Engine import map", async () => {
+  const html = await readFile(resolve(repoRoot, "engine/mock-game/index.html"), "utf8");
+  const importMap = html.match(/<script type="importmap">([\s\S]*?)<\/script>/)?.[1];
+
+  assert.ok(importMap, "Line Engine mock import map is missing");
+  const hash = createHash("sha256").update(importMap).digest("base64");
+  assert.match(contentSecurityPolicy, new RegExp(`sha256-${hash.replace(/[+/=]/g, "\\$&")}`));
+  const scriptPolicy = contentSecurityPolicy.split("; ")
+    .find((directive) => directive.startsWith("script-src "));
+  assert.doesNotMatch(scriptPolicy, /unsafe-inline/);
 });
 
 test("Electron protocol denies path traversal and sends security headers", async () => {
@@ -48,6 +66,7 @@ test("Electron protocol denies path traversal and sends security headers", async
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get("Content-Security-Policy"), /default-src 'self'/);
   assert.match(contentSecurityPolicy, /object-src 'none'/);
+  assert.match(contentSecurityPolicy, /sha256-DV2rnjt8VaGp9BWYzkk/);
 
   const denied = await serveAppRequest({ url: "app://drydock/package.json", method: "GET" }, { gameRoot });
   assert.equal(denied.status, 404);

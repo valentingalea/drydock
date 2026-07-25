@@ -10,7 +10,7 @@ Expected package shape:
 
 | Package | Folder | Purpose |
 |---|---|---|
-| `@drydock/game` | `game/` | Portable payload package |
+| `@drydock/game` | `game/` | Payload composition + Drydock host adapter |
 | `@drydock/host-bridge` | `contracts/host-bridge/` | Typed host API + conformance tests |
 | `@drydock/web-iterate-caddy-live` | `platforms/web/iterate/caddy-live/` | Live Caddy-backed browser iteration |
 | `@drydock/web-static` | `platforms/web/build/static/` | Static web build adapter |
@@ -28,9 +28,11 @@ The root should contain `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and
 `packageManager` field.
 
 ```sh
+git submodule update --init --recursive
 corepack enable pnpm
 pnpm install
 pnpm run vendor
+pnpm run validate:submodule
 ```
 
 Run package scripts with filters:
@@ -43,7 +45,7 @@ pnpm --filter @drydock/desktop-electron build -- --platform windows --arch x64
 pnpm --filter @drydock/channel-downloads run package -- artifacts/build/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-downloads run publish -- artifacts/channels/downloads
 pnpm --filter @drydock/channel-downloads run verify -- --base-url https://vinyltin.duckdns.org/drydock-downloads/
-curl -I https://vinyltin.duckdns.org/drydock-downloads/drydock-placeholder-0.1.0-windows-x64.zip
+curl -I https://vinyltin.duckdns.org/drydock-downloads/line-engine-calibration-0.1.0-windows-x64.zip
 pnpm --filter @drydock/channel-steam integrate -- artifacts/build/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-steam package -- artifacts/build/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/drydock-artifact.json
@@ -52,22 +54,22 @@ pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/
 pnpm's content-addressed store keeps installs disk-efficient without merging dependency
 graphs.
 
-## Runtime Vendoring
+## Runtime Sources And Vendoring
 
-The payload can use package-managed runtime libraries, but browser/Electron imports must
-resolve to local files under `game/vendor/`. For example, `@drydock/game` depends on
-`three`, and `pnpm run vendor` copies the Three module files, license, and metadata into
-`game/vendor/three/`.
+Line Engine owns and pins Three.js r160 under `engine/lib/`; Drydock must not install or
+vendor a second Three.js copy. `pnpm run vendor` copies only the shared Drydock host
+contract into `game/vendor/drydock-host-bridge/`.
 
-Release builds and Electron staging copy `game/vendor/` recursively. They do not read
-runtime code from `node_modules`, CDNs, or package-manager caches.
+Release builds and Electron staging consume `game/drydock-payload.json`. They copy the
+exact Line Engine runtime directories and apply the declared platform-host overlay. They
+do not read runtime code from `node_modules`, CDNs, or package-manager caches.
 
 ## Workspace Rules
 
-- The payload can depend on `@drydock/host-bridge`, but not on platform or channel
-  packages.
-- Iterate packages may serve `game/` directly for fast feedback, but they do not emit
-  artifacts, read secrets, or act as release inputs.
+- The Drydock platform-host overlay can depend on `@drydock/host-bridge`, but neither it
+  nor Line Engine may depend on channel packages.
+- Iterate packages may resolve the live payload composition for fast feedback, but they
+  do not emit artifacts, read secrets, or act as release inputs.
 - Build adapters can depend on `@drydock/game` and `@drydock/host-bridge`, but not on
   concrete channel packages.
 - Channel packages can depend on `@drydock/host-bridge` and consume artifact manifests.
@@ -106,13 +108,13 @@ The web iteration path is deliberately lighter than a release:
 pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 ```
 
-It should start a localhost-only origin rooted at `game/`, with no-cache headers and no
+It starts a localhost-only descriptor-resolved origin with no-cache headers and no
 artifact output. Caddy exposes that origin through a tight allowlist. This is the right
 path for fast rendering, controls, layout, and device checks.
 
 Iteration packages must not:
 
-- copy `game/src` into another canonical source tree;
+- copy `engine/mock-game` into another canonical source tree;
 - symlink a second source mirror;
 - serve the repo root;
 - read SOPS secrets;

@@ -16,23 +16,25 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [x] `tools/scripts/validate-artifact.js` validates `drydock-artifact.json`.
 - [x] Root `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and lockfile exist.
 
-### 2. Payload + Web Iterate
+### 2. Line Engine Payload + Web Iterate
 
-- [x] `game/index.html` renders a Three.js WebGL spinner.
-- [x] Runtime dependencies such as Three.js are vendored locally; no CDN references.
-- [x] `game/host-bridge.js` uses the shared bridge contract with honest web/dev
-      capabilities.
-- [x] `platforms/web/iterate/caddy-live/` serves `game/` directly as the document root.
-- [x] The live origin binds to `127.0.0.1`, sends no-cache headers, and never serves the
-      repo root.
-- [x] Caddy allowlist exposes only runtime paths such as `/`, `/index.html`,
-      `/host-bridge.js`, `/src/*`, `/assets/*`, and `/vendor/*`.
-- [x] Public browser refresh reflects edits to `game/` without a build or deploy step.
+- [x] Line Engine is pinned as the root `engine/` git submodule.
+- [x] `engine/mock-game/` is the sole canonical mock; Drydock's spinner was removed.
+- [x] `game/drydock-payload.json` declares identity, entrypoint, runtime mappings and the
+      Drydock platform-host overlay.
+- [x] Line Engine owns Three.js r160; Drydock does not vendor a second copy.
+- [x] The mock calls protocol-v1 host capabilities and storage through its replaceable
+      platform-host module.
+- [x] `platforms/web/iterate/caddy-live/` resolves live descriptor files without copying
+      or serving the repository root.
+- [x] Caddy exposes only the composed runtime and denies Line Engine metadata/docs/tests.
 
 ### 3. Web Static Build + VPS Channel
 
-- [x] `platforms/web/build/static/` copies only runtime files from `game/` into
+- [x] `platforms/web/build/static/` stages only descriptor-selected runtime files into
       `artifacts/build/web-static/`.
+- [x] Artifact extensions record the Line Engine origin, pinned commit and Three.js
+      revision.
 - [x] The static build emits and validates `artifacts/build/web-static/drydock-artifact.json`.
 - [x] `platforms/web/channels/vps/` deploys the packaged `artifacts/build/web-static/` artifact, not
       the live iterate origin.
@@ -52,7 +54,7 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 - [x] `platforms/desktop/build/electron/` exists with `main.js`, `preload.js`,
       `builder.base.yml`, and `package.json`.
-- [x] Register a secure `app://` protocol serving `game/`.
+- [x] Register a secure `app://` protocol serving the composed payload.
 - [x] Enforce Electron security defaults: context isolation, no node integration,
       sandboxed renderer, strict IPC allowlist, CSP.
 - [x] `preload.js` exposes only the typed host bridge over validated IPC.
@@ -119,8 +121,8 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ## Definition Of Done For The Template
 
-- Live Caddy-backed web iteration serves `game/` directly without duplicate source or repo
-  root exposure.
+- Live Caddy-backed iteration serves Line Engine's sole mock without duplicate source or
+  repository-root exposure.
 - One release manifest plus channel tags can produce uploads to the VPS web channel,
   Steam, App Store, and Play.
 - Every build adapter emits a valid `drydock-artifact.json`.

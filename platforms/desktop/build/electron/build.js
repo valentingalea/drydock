@@ -3,32 +3,35 @@ const { createHash } = require("node:crypto");
 const { spawn } = require("node:child_process");
 const { cp, mkdir, readdir, readFile, rm, stat, writeFile } = require("node:fs/promises");
 const { dirname, join, relative, resolve } = require("node:path");
+const { pathToFileURL } = require("node:url");
 const Ajv2020 = require("ajv/dist/2020");
 const YAML = require("yaml");
 
 const repoRoot = resolve(__dirname, "../../../..");
 const packageRoot = __dirname;
+const payloadDefinition = require(resolve(repoRoot, "game/drydock-payload.json"));
 const defaultRelease = "contracts/releases/0.1.0.yaml";
 const defaultBuildKey = "desktop";
-const productName = "Drydock Payload";
-const executableName = "drydock-placeholder";
-const bundleId = "dev.drydock.placeholder";
-const runtimeEntries = [
-  "index.html",
-  "host-bridge.js",
-  "src",
-  "vendor",
-  "assets"
-];
+const productName = payloadDefinition.productName;
+const executableName = payloadDefinition.executableName;
+const bundleId = payloadDefinition.appId;
 
 if (require.main === module) {
-  buildElectron(parseArgs(process.argv.slice(2))).catch((error) => {
+  const options = parseArgs(process.argv.slice(2));
+  options.verifySubmodule = true;
+  buildElectron(options).catch((error) => {
     console.error(error.message);
     process.exitCode = 1;
   });
 }
 
 async function buildElectron(options = {}) {
+  const payloadTools = await loadPayloadTools();
+  if (options.verifySubmodule) {
+    await payloadTools.verifyPayloadSubmodule(repoRoot);
+  }
+  const payload = await payloadTools.loadPayload(repoRoot);
+  const engineRevision = await payloadTools.readEngineRevision(repoRoot, payload);
   const target = resolveBuildTarget(options);
   const releasePath = resolve(repoRoot, options.release ?? defaultRelease);
   const outDir = resolve(
@@ -53,7 +56,7 @@ async function buildElectron(options = {}) {
   await rm(outDir, { recursive: true, force: true });
   await rm(stageDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
-  await prepareStagedApp({ stageDir, release });
+  await prepareStagedApp({ payload, payloadTools, stageDir, release });
 
   if (!options.skipPackage) {
     await runElectronBuilder({ stageDir, outDir, target });
@@ -73,7 +76,9 @@ async function buildElectron(options = {}) {
     outDir,
     release,
     releasePath,
-    target
+    target,
+    payload,
+    engineRevision
   });
 
   await validateArtifactManifest(manifest);
@@ -86,7 +91,9 @@ async function buildElectron(options = {}) {
   return { outDir, manifest };
 }
 
-async function prepareStagedApp({ stageDir, release }) {
+async function prepareStagedApp({ stageDir, release, payload, payloadTools }) {
+  const tools = payloadTools ?? await loadPayloadTools();
+  const selectedPayload = payload ?? await tools.loadPayload(repoRoot);
   await mkdir(stageDir, { recursive: true });
 
   for (const file of ["main.js", "preload.js", "protocol.js", "host-provider.js"]) {
@@ -98,27 +105,15 @@ async function prepareStagedApp({ stageDir, release }) {
     `${JSON.stringify(createStagedPackage(release), null, 2)}\n`
   );
 
-  const copied = [];
-
-  for (const entry of runtimeEntries) {
-    const source = resolve(repoRoot, "game", entry);
-
-    if (!(await exists(source))) {
-      continue;
-    }
-
-    await cp(source, resolve(stageDir, "game", entry), { recursive: true, dereference: true });
-    copied.push(entry);
-  }
-
-  return { copied };
+  await tools.stagePayload(selectedPayload, resolve(stageDir, "game"));
+  return { entrypoint: selectedPayload.entrypoint };
 }
 
 function createStagedPackage(release) {
   return {
-    name: "drydock-placeholder-electron-app",
+    name: `${payloadDefinition.executableName}-electron-app`,
     version: String(release.version),
-    description: "Drydock placeholder payload wrapped by the Electron build adapter.",
+    description: "Line Engine calibration payload wrapped by the Drydock Electron adapter.",
     author: "Drydock",
     private: true,
     type: "commonjs",
@@ -216,7 +211,17 @@ function executableForTarget(target) {
   return join("linux-unpacked", executableName);
 }
 
-async function createArtifactManifest({ artifactRoot, buildKey, buildNumber, outDir, release, releasePath, target }) {
+async function createArtifactManifest({
+  artifactRoot,
+  buildKey,
+  buildNumber,
+  engineRevision,
+  outDir,
+  payload,
+  release,
+  releasePath,
+  target
+}) {
   const artifactRootPath = resolve(outDir, artifactRoot);
   const checksums = [];
 
@@ -232,7 +237,7 @@ async function createArtifactManifest({ artifactRoot, buildKey, buildNumber, out
 
   return {
     schemaVersion: 1,
-    gameId: "drydock-placeholder",
+    gameId: payload.gameId,
     version: String(release.version),
     buildNumber,
     engine: "electron",
@@ -253,6 +258,9 @@ async function createArtifactManifest({ artifactRoot, buildKey, buildNumber, out
       drydock: {
         buildAdapter: "@drydock/desktop-electron",
         buildKey,
+        entrypoint: payload.entrypoint,
+        payload: payload.descriptorPath,
+        engineRevision,
         release: relative(repoRoot, releasePath).split("\\").join("/")
       },
       electron: {
@@ -263,6 +271,10 @@ async function createArtifactManifest({ artifactRoot, buildKey, buildNumber, out
       }
     }
   };
+}
+
+async function loadPayloadTools() {
+  return import(pathToFileURL(resolve(repoRoot, "tools/scripts/payload.js")).href);
 }
 
 async function validateArtifactManifest(manifest) {

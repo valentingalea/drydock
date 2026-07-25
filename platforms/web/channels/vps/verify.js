@@ -6,15 +6,32 @@ const runtimeAllowedPaths = [
   "/",
   "/index.html",
   "/host-bridge.js",
-  "/src/main.js",
   "/vendor/drydock-host-bridge/index.js",
-  "/vendor/three/three.module.min.js",
-  "/vendor/three/three.core.min.js"
+  "/engine/mock-game/",
+  "/engine/mock-game/index.html",
+  "/engine/mock-game/src/bootstrap.js",
+  "/engine/mock-game/src/boot-guard.js",
+  "/engine/mock-game/src/game.js",
+  "/engine/mock-game/src/platform-host.js",
+  "/engine/mock-game/style/mock.css",
+  "/engine/src/core/app-state.js",
+  "/engine/src/core/clock.js",
+  "/engine/src/core/scope.js",
+  "/engine/src/dev/debug-panel.js",
+  "/engine/src/dev/fps.js",
+  "/engine/src/ui/status-line.js",
+  "/engine/style/debug.css",
+  "/engine/style/hud.css",
+  "/engine/lib/three.module.js"
 ];
 
 const deniedPaths = [
   "/package.json",
   "/.git/config",
+  "/engine/.git",
+  "/engine/AGENTS.md",
+  "/engine/package.json",
+  "/engine/test/unit/scope.test.js",
   "/drydock-artifact.json",
   "/.drydock-channel"
 ];

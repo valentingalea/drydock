@@ -2,13 +2,20 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
-import { extname, relative, resolve, sep } from "node:path";
+import { extname, resolve } from "node:path";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import {
+  loadPayload,
+  resolvePayloadRequest
+} from "../../../../tools/scripts/payload.js";
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
-const gameRoot = resolve(repoRoot, "game");
+const payload = await loadPayload(repoRoot);
 const defaultPort = 8090;
 const host = "127.0.0.1";
+const execFileAsync = promisify(execFile);
 
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -25,17 +32,12 @@ const contentTypes = new Map([
   [".mp3", "audio/mpeg"]
 ]);
 
-export function getGameRoot() {
-  return gameRoot;
+export function getPayloadEntrypoint() {
+  return payload.entrypoint;
 }
 
 export function runtimePathAllowed(pathname) {
-  return pathname === "/"
-    || pathname === "/index.html"
-    || pathname === "/host-bridge.js"
-    || pathname.startsWith("/src/")
-    || pathname.startsWith("/assets/")
-    || pathname.startsWith("/vendor/");
+  return resolvePayloadRequest(payload, pathname) !== null;
 }
 
 export function createServer() {
@@ -54,7 +56,13 @@ export function createServer() {
         return;
       }
 
-      const filePath = resolveSafeRuntimePath(pathname);
+      const filePath = resolvePayloadRequest(payload, pathname);
+
+      if (!filePath) {
+        respond(response, 404, "not found");
+        return;
+      }
+
       const fileStat = await stat(filePath);
 
       if (!fileStat.isFile()) {
@@ -102,18 +110,6 @@ export function parsePort(argv) {
   return value;
 }
 
-function resolveSafeRuntimePath(pathname) {
-  const normalizedPath = pathname === "/" ? "/index.html" : pathname;
-  const filePath = resolve(gameRoot, `.${normalizedPath}`);
-  const pathWithinGame = relative(gameRoot, filePath);
-
-  if (pathWithinGame.startsWith("..") || pathWithinGame.includes(`..${sep}`)) {
-    throw Object.assign(new Error("path escapes game root"), { code: "ENOENT" });
-  }
-
-  return filePath;
-}
-
 function respond(response, status, body) {
   response.writeHead(status, {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
@@ -123,12 +119,21 @@ function respond(response, status, body) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  await verifySubmoduleForStart();
   const port = parsePort(process.argv.slice(2));
   const server = createServer();
 
   server.listen(port, host, () => {
     console.log(`Drydock live origin: http://${host}:${port}/`);
-    console.log(`Document root: ${gameRoot}`);
+    console.log(`Payload entrypoint: ${payload.entrypoint}`);
     console.log("Public access should go through Caddy; do not bind this origin publicly.");
   });
+}
+
+async function verifySubmoduleForStart() {
+  const verifier = resolve(repoRoot, "engine/tools/verify-submodule.sh");
+  const { stdout, stderr } = await execFileAsync(verifier, ["--start"]);
+
+  if (stdout.trim()) console.log(stdout.trim());
+  if (stderr.trim()) console.error(stderr.trim());
 }

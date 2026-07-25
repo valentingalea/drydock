@@ -14,15 +14,15 @@ import {
 
 const manifest = {
   schemaVersion: 1,
-  gameId: "drydock-placeholder",
+  gameId: "line-engine-calibration",
   version: "0.1.0",
   buildNumber: 100,
   engine: "electron",
   platform: "windows",
   arch: "x64",
   artifactRoot: "win-unpacked",
-  executable: "win-unpacked/drydock-placeholder.exe",
-  bundleId: "dev.drydock.placeholder",
+  executable: "win-unpacked/line-engine-calibration.exe",
+  bundleId: "dev.drydock.line-engine-calibration",
   packageId: null,
   signing: {
     status: "unsigned"
@@ -51,11 +51,11 @@ test("parses downloads channel arguments", () => {
     "--out",
     "artifacts/channels/downloads",
     "--name",
-    "drydock-placeholder-0.1.0-windows-x64.zip"
+    "line-engine-calibration-0.1.0-windows-x64.zip"
   ]), {
     _: ["artifacts/build/windows-x64/drydock-artifact.json"],
     out: "artifacts/channels/downloads",
-    name: "drydock-placeholder-0.1.0-windows-x64.zip"
+    name: "line-engine-calibration-0.1.0-windows-x64.zip"
   });
 
   assert.deepEqual(parseArgs([], {
@@ -71,7 +71,7 @@ test("parses downloads channel arguments", () => {
 test("default download zip name comes from artifact identity", () => {
   assert.equal(
     defaultZipName(manifest),
-    "drydock-placeholder-0.1.0-windows-x64.zip"
+    "line-engine-calibration-0.1.0-windows-x64.zip"
   );
 });
 
@@ -98,24 +98,24 @@ test("downloads package and publish scripts handle a valid artifact root", async
   await writeFile(join(artifact, "drydock-artifact.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(join(root, "stale.zip"), "old");
   await mkdir(join(artifact, "win-unpacked"), { recursive: true });
-  await writeFile(join(artifact, "win-unpacked/drydock-placeholder.exe"), "fake exe\n");
+  await writeFile(join(artifact, "win-unpacked/line-engine-calibration.exe"), "fake exe\n");
 
   const result = await packageDownloads({
     _: [join(artifact, "drydock-artifact.json")],
     out
   });
 
-  assert.equal(result.zipName, "drydock-placeholder-0.1.0-windows-x64.zip");
+  assert.equal(result.zipName, "line-engine-calibration-0.1.0-windows-x64.zip");
   await stat(join(out, result.zipName));
   await stat(join(out, `${result.zipName}.sha256`));
   await stat(join(out, "index.html"));
   assert.match(
     await readFile(join(out, result.zipName), "utf8"),
-    /drydock-placeholder-0\.1\.0-windows-x64\/win-unpacked\/drydock-placeholder\.exe/
+    /line-engine-calibration-0\.1\.0-windows-x64\/win-unpacked\/line-engine-calibration\.exe/
   );
 
   const checksum = await readFile(join(out, `${result.zipName}.sha256`), "utf8");
-  assert.match(checksum, /^[a-f0-9]{64}  drydock-placeholder-0\.1\.0-windows-x64\.zip\n$/);
+  assert.match(checksum, /^[a-f0-9]{64}  line-engine-calibration-0\.1\.0-windows-x64\.zip\n$/);
 
   await publishDownloads({
     _: [out],
@@ -133,8 +133,8 @@ test("downloads route verifier checks public package files and denied internal f
   const responses = new Map([
     ["/", 200],
     ["/index.html", 200],
-    ["/drydock-placeholder-0.1.0-windows-x64.zip", 200],
-    ["/drydock-placeholder-0.1.0-windows-x64.zip.sha256", 200],
+    ["/line-engine-calibration-0.1.0-windows-x64.zip", 200],
+    ["/line-engine-calibration-0.1.0-windows-x64.zip.sha256", 200],
     ["/drydock-artifact.json", 404],
     ["/package.json", 404],
     ["/.git/config", 404],

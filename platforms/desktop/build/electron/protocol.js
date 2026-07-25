@@ -6,7 +6,7 @@ const appHost = "drydock";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' 'sha256-DV2rnjt8VaGp9BWYzkk/F9naieRwafKYVsxAf3g4gsQ='",
   "style-src 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self'",
@@ -36,9 +36,14 @@ function runtimePathAllowed(pathname) {
   return pathname === "/"
     || pathname === "/index.html"
     || pathname === "/host-bridge.js"
-    || pathname.startsWith("/src/")
-    || pathname.startsWith("/assets/")
-    || pathname.startsWith("/vendor/");
+    || pathname === "/engine/mock-game/"
+    || pathname === "/engine/mock-game/index.html"
+    || pathname.startsWith("/engine/mock-game/src/")
+    || pathname.startsWith("/engine/mock-game/style/")
+    || pathname.startsWith("/engine/src/")
+    || pathname.startsWith("/engine/style/")
+    || pathname.startsWith("/engine/lib/")
+    || pathname.startsWith("/vendor/drydock-host-bridge/");
 }
 
 function createAppProtocolHandler(options = {}) {
@@ -98,7 +103,11 @@ async function serveAppRequest(request, options) {
 }
 
 function resolveSafeRuntimePath(gameRoot, pathname) {
-  const normalizedPath = pathname === "/" ? "/index.html" : pathname;
+  const normalizedPath = pathname === "/"
+    ? "/index.html"
+    : pathname.endsWith("/")
+      ? `${pathname}index.html`
+      : pathname;
   const filePath = resolve(gameRoot, `.${normalizedPath}`);
   const pathWithinGame = relative(gameRoot, filePath);
 

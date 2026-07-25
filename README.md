@@ -6,5 +6,12 @@ The goal is to ship one portable payload to many release channels - Steam, Epic,
 itch, the App Store, and Google Play - without letting store logic leak into game code.
 It also keeps fast web iteration separate from reproducible releases.
 
+The current payload is Line Engine's canonical calibration mock, pinned at `engine/` as a
+git submodule. Initialize it after cloning:
+
+```sh
+git submodule update --init --recursive
+```
+
 **Start with [`AGENTS.md`](./AGENTS.md)** - it describes the project and indexes the
 docs under [`docs/`](./docs/).

@@ -2,116 +2,91 @@
 
 Fast iteration is a first-class workflow, but it is not a release channel.
 
-The purpose is immediate on-device feedback for web payload work: edit `game/index.html`
-or `game/src/*.js`, refresh the public Caddy URL, and see the change without a build or
-deploy step.
+The current payload is Line Engine's canonical calibration mock. Edit
+`engine/mock-game/`, `engine/src/`, or `engine/style/`, refresh the public Caddy URL, and
+see the change without a build or deploy step. Drydock does not maintain a copied mock.
 
 ## Model
 
 ```text
-game/                         # canonical source
-platforms/web/iterate/caddy-live/
-  start.sh                    # localhost-only origin serving game/
-  caddy.example               # public TLS route + tight allowlist
+game/drydock-payload.json
+  ├─ game/index.html
+  ├─ game/host-bridge.js
+  ├─ game/overlays/platform-host.js
+  └─ engine/{mock-game,src,style,lib}
+           |
+           v
+descriptor-resolved origin on 127.0.0.1:8090
+           |
+           v
+Caddy runtime allowlist
 ```
 
-The live origin serves `game/` directly as its document root:
+The origin maps URL paths directly to the declared live source files. The Drydock
+platform-host overlay is served at
+`/engine/mock-game/src/platform-host.js`; all other mock files come directly from the
+submodule. There is no runtime copy or symlink mirror.
 
-```text
-127.0.0.1:8090 -> /usr/games/Drydock/game
-```
-
-Caddy is the public boundary:
-
-```text
-https://drydock.example.com -> Caddy allowlist -> 127.0.0.1:8090 -> game/
-```
-
-There is no copied source folder and no symlinked mirror. `game/` remains the only source
-of truth.
+The root launcher redirects relatively to `./engine/mock-game/index.html`, so both
+hostname-root and path-mounted routes work.
 
 ## Why Not Serve The Repo Root?
 
-Do not serve `/usr/games/Drydock` directly. Serve `/usr/games/Drydock/game`.
+The origin is a resolver, not a general file server. It returns a file only when
+`game/drydock-payload.json` maps the requested runtime path.
 
-Mudline's current deployment safely exposes a repo root by using strict Caddy allowlists,
-but Drydock should start from a tighter default: if the origin root is `game/`, a bad
-allowlist cannot expose `.git/`, project docs, release manifests, schemas, tooling, or
-future channel scaffolding.
+This prevents `.git/`, release manifests, docs, tooling, secrets, Line Engine tests, and
+submodule metadata from becoming public even before Caddy applies its second allowlist.
 
 ## Caddy Allowlist
 
-The live Caddy route should allow only runtime paths:
+The maintained examples allow:
 
-```caddy
-drydock.example.com {
-    encode gzip zstd
-
-    @allowed path / /index.html /host-bridge.js /src/* /assets/* /vendor/*
-    handle @allowed {
-        reverse_proxy 127.0.0.1:8090
-    }
-
-    handle {
-        respond 404
-    }
-
-    log {
-        output file /var/log/caddy/drydock-access.log
-    }
-}
+```text
+/
+/index.html
+/host-bridge.js
+/vendor/drydock-host-bridge/*
+/engine/mock-game/
+/engine/mock-game/index.html
+/engine/mock-game/src/*
+/engine/mock-game/style/*
+/engine/src/*
+/engine/style/*
+/engine/lib/*
 ```
 
-Expand the allowlist only when the payload actually imports a new runtime path such as
-`/wasm/*`, `/audio/*`, or `/textures/*`.
+They deny everything else. In particular, these must remain unavailable:
 
-## No Spare Domain
-
-A dedicated subdomain is cleanest, but it is not required. If no DuckDNS domains are
-available, mount Drydock under a path on an existing domain:
-
-```caddy
-existing.example.com {
-    encode gzip zstd
-
-    redir /drydock /drydock/ 308
-    handle_path /drydock/* {
-        @allowed path / /index.html /host-bridge.js /src/* /assets/* /vendor/*
-        handle @allowed {
-            reverse_proxy 127.0.0.1:8090
-        }
-
-        handle {
-            respond 404
-        }
-    }
-}
+```text
+/engine/.git
+/engine/AGENTS.md
+/engine/package.json
+/engine/test/*
+/drydock-artifact.json
 ```
 
-This keeps the current domains intact and avoids hijacking a whole hostname. The payload
-must use relative imports and asset URLs so it works both at `/` and under `/drydock/`.
-Temporary whole-domain hijacks should be a last resort.
+Expand both the descriptor and Caddy allowlist only when the payload imports a real new
+runtime path.
 
 ## Origin Rules
 
 - Bind to `127.0.0.1`, never `0.0.0.0`.
-- Serve `game/` as the document root, not the repo root.
-- Send no-cache headers so browser refreshes reflect source edits immediately.
+- Resolve only descriptor-selected runtime files.
+- Send no-cache headers.
+- Run `engine/tools/verify-submodule.sh --start` and warn on dirty/stale pins.
 - Do not read SOPS secrets.
 - Do not emit `drydock-artifact.json`.
 - Do not become an input to release verification.
 
-The expected implementation is a small wrapper around:
+Start it with:
 
 ```sh
-python3 -m http.server 8090 --bind 127.0.0.1 --directory /usr/games/Drydock/game
+pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 ```
 
-Current VPS note: the live public route at
-`https://vinyltin.duckdns.org/drydock/` is meant to be backed by
-`platforms/web/iterate/caddy-live/systemd/drydock-web-iterate.service.example` installed
-as a local systemd service. Until that unit is installed and enabled, the route depends on
-a manually started origin on `127.0.0.1:8090` and will not survive reboot or process exit.
+The live public route at `https://vinyltin.duckdns.org/drydock/` is meant to be backed by
+`platforms/web/iterate/caddy-live/systemd/drydock-web-iterate.service.example`.
 
 Example install flow:
 
@@ -123,41 +98,33 @@ sudo systemctl enable --now drydock-web-iterate.service
 systemctl status drydock-web-iterate.service
 ```
 
-Adjust `User=`, `Group=`, and repo paths before installing on a host that does not match
-`/usr/games/Drydock`.
+Adjust `User=`, `Group=`, and repository paths on other hosts.
 
 ## Iterate vs Release
 
-| Workflow | Optimizes for | Source | Output | Public route |
-|---|---|---|---|---|
-| `platforms/web/iterate/caddy-live/` | Latency | Live `game/` tree | None | Caddy allowlist to localhost origin |
-| `platforms/web/build/static/` + `platforms/web/channels/vps/` | Reproducibility | Release manifest + `game/` | `artifacts/build/web-static/` + artifact manifest | Caddy route to clean packaged output |
+| Workflow | Source | Output |
+|---|---|---|
+| `platforms/web/iterate/caddy-live/` | Live descriptor mappings | None |
+| `platforms/web/build/static/` + VPS channel | Pinned submodule + release manifest + descriptor | Clean static artifact + manifest |
 
-Use iteration for feel, UI, rendering, and device smoke checks. Use the VPS release
-channel when the result needs to be archived, compared, promoted, or reproduced.
+The release build stages the same URL layout, applies the same host overlay, records the
+Line Engine commit in `drydock-artifact.json`, and copies no repository-only files.
 
 ## Verification
 
-Public checks should include both allowed and denied paths:
-
 ```sh
-curl -sI https://drydock.example.com/                 # expect 200
-curl -sI https://drydock.example.com/index.html       # expect 200
-curl -sI https://drydock.example.com/src/main.js      # expect 200 once it exists
-curl -sI https://drydock.example.com/../AGENTS.md     # expect 404
-curl -sI https://drydock.example.com/.git/config      # expect 404
-curl -sI https://drydock.example.com/package.json     # expect 404
+curl -sI https://example.com/drydock/engine/mock-game/index.html       # 200
+curl -sI https://example.com/drydock/engine/src/core/scope.js          # 200
+curl -sI https://example.com/drydock/engine/lib/three.module.js         # 200
+curl -sI https://example.com/drydock/engine/AGENTS.md                   # 404
+curl -sI https://example.com/drydock/engine/package.json                # 404
+curl -sI https://example.com/drydock/.git/config                        # 404
 ```
 
-For path-mounted testing, replace the host root with the mounted path:
+Render-level smoke must load the menu, report `host v1`, click Play, reach
+`data-line-state="play"`, and find one calibration canvas.
 
-```sh
-curl -sI https://existing.example.com/drydock/              # expect 200
-curl -sI https://existing.example.com/drydock/src/main.js   # expect 200
-curl -sI https://existing.example.com/drydock/package.json  # expect 404
-```
-
-Local listener checks should show the origin on localhost only:
+Local listener checks should show localhost only:
 
 ```sh
 ss -tlnp | grep ':8090'

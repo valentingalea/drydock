@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "gameId": "drydock-placeholder",
+  "gameId": "line-engine-calibration",
   "version": "0.1.0",
   "buildNumber": 100,
   "engine": "electron",
   "platform": "windows",
   "arch": "x64",
   "artifactRoot": "win-unpacked",
-  "executable": "win-unpacked/drydock-placeholder.exe",
-  "bundleId": "dev.drydock.placeholder",
+  "executable": "win-unpacked/line-engine-calibration.exe",
+  "bundleId": "dev.drydock.line-engine-calibration",
   "packageId": null,
   "signing": {
     "status": "unsigned"
@@ -25,8 +25,8 @@
     },
     "electron": {
       "builder": "electron-builder",
-      "productName": "Drydock Payload",
-      "executableName": "drydock-placeholder",
+      "productName": "Line Engine Calibration",
+      "executableName": "line-engine-calibration",
       "protocol": "app://drydock"
     }
   }
