@@ -23,6 +23,12 @@ Use this skill to turn "blank page" reports into concrete browser evidence.
 5. If localhost fails, fix the app/runtime before touching Caddy.
 6. If localhost passes but the public URL fails, compare request URLs and response
    statuses. For path-mounted Caddy routes, verify the app uses relative imports.
+7. For the current Line Engine payload, a successful navigation is only the first check:
+   verify the menu reports `host v1`, activate `[data-line-action="play"]`, wait for
+   `[data-line-state="play"]`, and require exactly one calibration canvas.
+8. Test both composed forms after an embedding or host-overlay change:
+   `https://vinyltin.duckdns.org/drydock/` for live descriptor resolution and
+   `https://vinyltin.duckdns.org/drydock-release/` for the packaged static artifact.
 
 ## Script Options
 
@@ -49,6 +55,10 @@ Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium` if Playwright cannot find
 - A public URL failing while localhost passes points at Caddy path handling, allowlists,
   base URLs, HTTPS-only behavior, or domain routing.
 - A localhost blank page with page errors is an app bug. Fix that first.
+- The menu loading while the Play transition fails points at Line Engine initialization,
+  Three.js imports, or the platform-host overlay rather than Caddy routing alone.
+- `host v1` proves that Drydock's overlay replaced Line Engine's standalone host at the
+  intended runtime URL.
 
 Do not use this skill to mutate `/etc/caddy/Caddyfile`; gather evidence first, then make
 the smallest config change separately.

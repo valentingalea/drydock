@@ -5,6 +5,9 @@ Fast iteration is a first-class workflow, but it is not a release channel.
 The current payload is Line Engine's canonical calibration mock. Edit
 `engine/mock-game/`, `engine/src/`, or `engine/style/`, refresh the public Caddy URL, and
 see the change without a build or deploy step. Drydock does not maintain a copied mock.
+Commit engine changes through the two-repository workflow in
+[`PAYLOAD.md`](./PAYLOAD.md); live iteration deliberately permits an in-progress dirty
+submodule only to shorten this edit/refresh loop.
 
 ## Model
 
@@ -128,6 +131,18 @@ curl -sI https://example.com/drydock/.git/config                        # 404
 
 Render-level smoke must load the menu, report `host v1`, click Play, reach
 `data-line-state="play"`, and find one calibration canvas.
+
+The generic smoke command checks navigation, requests, console output, DOM, and
+screenshots:
+
+```sh
+pnpm smoke:web -- https://vinyltin.duckdns.org/drydock/
+pnpm smoke:web -- https://vinyltin.duckdns.org/drydock-release/
+```
+
+For a pin or host-overlay change, also perform the interactive Play transition described
+in `tools/skills/playwright-web-smoke/SKILL.md`; a menu-only response does not prove that
+Line Engine initialized its rendering state.
 
 Local listener checks should show localhost only:
 

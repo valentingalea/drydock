@@ -1,10 +1,14 @@
 # Toolchain
 
-## Rule: each package owns its dependency graph
+## Rule: Each Repository And Package Owns Its Dependency Graph
 
 Nothing relies on a shared `node_modules`. The Electron adapter, each release channel,
 the Capacitor adapter, and the shared host bridge are separate packages with their own
 manifests and scripts.
+
+Line Engine is a separate repository as well as a submodule. Its `npm` development
+dependencies and lockfile belong under `engine/`; it owns Three.js as a checked-in runtime
+dependency. Drydock's pnpm workspace does not install or hoist Line Engine dependencies.
 
 Expected package shape:
 
@@ -24,15 +28,16 @@ Expected package shape:
 | `@drydock/channel-play` | `platforms/mobile/channels/play/` | Google Play package/publish tooling |
 
 The root should contain `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and
-`pnpm-lock.yaml`. Corepack pins the package manager through the root
-`packageManager` field.
+`pnpm-lock.yaml`. The root `packageManager` field pins pnpm 11.17.0. Corepack honors that
+pin when it is available; the current VPS Node 25 distribution does not include Corepack,
+so install the exact pnpm version directly there.
 
 ```sh
 git submodule update --init --recursive
-corepack enable pnpm
+npm install --global pnpm@11.17.0
 pnpm install
 pnpm run vendor
-pnpm run validate:submodule
+pnpm run validate
 ```
 
 Run package scripts with filters:
@@ -54,6 +59,37 @@ pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/
 pnpm's content-addressed store keeps installs disk-efficient without merging dependency
 graphs.
 
+## Updating The Engine Pin
+
+An engine update crosses two repositories in a fixed order:
+
+```sh
+cd engine
+git switch main
+git pull --ff-only
+npm ci
+tools/test.sh
+git add <engine-files>
+git commit -m "<Line Engine change>"
+git push origin main
+
+cd ..
+git add engine game/drydock-payload.json
+pnpm run validate:submodule
+pnpm test
+pnpm run validate
+git commit -m "Embed Line Engine vX.Y.Z"
+```
+
+Push a Line Engine release tag before referring to it from the descriptor. Strict
+submodule validation checks that the checkout is clean, exactly matches Drydock's staged
+gitlink, and is reachable from Line Engine's origin. The live iteration server uses the
+weaker `--start` check so active engine edits produce warnings instead of blocking the
+feedback loop.
+
+See [`PAYLOAD.md`](./PAYLOAD.md) for tagging, descriptor changes, composition rules, and
+the full browser verification contract.
+
 ## Runtime Sources And Vendoring
 
 Line Engine owns and pins Three.js r160 under `engine/lib/`; Drydock must not install or
@@ -63,6 +99,11 @@ contract into `game/vendor/drydock-host-bridge/`.
 Release builds and Electron staging consume `game/drydock-payload.json`. They copy the
 exact Line Engine runtime directories and apply the declared platform-host overlay. They
 do not read runtime code from `node_modules`, CDNs, or package-manager caches.
+
+`tools/scripts/payload.js` is the one shared descriptor implementation. It validates
+safe repository-relative mappings, resolves live requests, stages packaged trees, reads
+the engine revision, and runs the submodule verifier. Build adapters must import it
+instead of recreating those rules.
 
 ## Workspace Rules
 

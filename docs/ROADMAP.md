@@ -1,8 +1,10 @@
 # Roadmap
 
-Status: **proof-of-concept scaffold with web and Electron build slices**. The VPS web
-path can iterate live and publish a packaged static artifact; the Electron adapter can
-produce an unpacked desktop artifact. Store channels and mobile remain unbuilt.
+Status: **Line Engine embedding proven across web and Electron**. The sole calibration
+mock lives in the pinned Line Engine submodule; live web iteration, packaged static web,
+and Electron all consume one Drydock payload descriptor and host overlay. The VPS serves
+both live and packaged routes, and the direct-download channel publishes a Windows x64
+proof package. Store channels, signing, and mobile remain unbuilt.
 
 ## Build Order
 
@@ -28,6 +30,8 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [x] `platforms/web/iterate/caddy-live/` resolves live descriptor files without copying
       or serving the repository root.
 - [x] Caddy exposes only the composed runtime and denies Line Engine metadata/docs/tests.
+- [x] `docs/PAYLOAD.md` defines the two-repository commit/tag, descriptor, host overlay,
+      and verification contract.
 
 ### 3. Web Static Build + VPS Channel
 
@@ -68,6 +72,8 @@ Do these in sequence. Each step should leave something executable or enforceable
       `/drydock-downloads/`.
 - [x] The downloads channel consumes `drydock-artifact.json`, packages a zip/checksum,
       publishes the webroot, and verifies public allow/deny behavior.
+- [x] The current proof package is
+      `line-engine-calibration-0.1.0-windows-x64.zip`.
 - [ ] Windows code signing is wired through SOPS-provided signing inputs.
 
 ### 5. First Desktop Store Channel: Steam
@@ -89,7 +95,8 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [x] `contracts/schemas/release-manifest.schema.json` exists.
 - [x] `contracts/releases/<version>.yaml` example exists.
 - [x] Shared marketing version and per-channel build numbers are represented.
-- [ ] Build/package scripts consume the release manifest.
+- [x] Static web and Electron build scripts consume the release manifest; channel
+      packagers consume the resulting artifact manifest.
 - [ ] Platform manifests are generated from the release manifest where needed.
 
 ### 7. Mobile: Capacitor + App Store / Play Channels
@@ -111,7 +118,7 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [ ] Any required shared contract changes are documented as artifact/host schema
       improvements, not ad hoc engine path access.
 
-### 9. Second Engine Adapter: Unreal
+### 9. Native Engine Build Adapter: Unreal
 
 - [ ] `platforms/desktop/build/unreal/` wraps `RunUAT BuildCookRun`.
 - [ ] Unreal emits the same artifact manifest schema.
@@ -123,6 +130,8 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 - Live Caddy-backed iteration serves Line Engine's sole mock without duplicate source or
   repository-root exposure.
+- A Line Engine change is committed and pushed in its own repository before Drydock
+  records the reachable revision as a separate gitlink commit.
 - One release manifest plus channel tags can produce uploads to the VPS web channel,
   Steam, App Store, and Play.
 - Every build adapter emits a valid `drydock-artifact.json`.
@@ -130,7 +139,7 @@ Do these in sequence. Each step should leave something executable or enforceable
   capabilities.
 - SOPS+age is the only documented secret storage path for channel credentials.
 - Adding a channel primarily adds one `channels/<channel>/` folder and one workflow.
-- Swapping the payload or engine adapter does not require payload code to know about a
+- Swapping the payload runtime or build adapter does not require payload code to know about a
   store/channel.
 - Console support is described only as a future/private extension until a real adapter and
   certification workflow exist.

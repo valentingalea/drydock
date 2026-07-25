@@ -3,6 +3,12 @@
 This channel publishes a packaged web artifact to a Caddy-served directory. It is the
 release path, not the live iteration path.
 
+The static adapter has already resolved `game/drydock-payload.json`, applied Drydock's
+platform-host overlay, and recorded the Line Engine revision before this channel sees the
+artifact. The VPS publisher consumes the manifest and packaged tree only; it never reads
+or serves the submodule directly. See
+[`docs/PAYLOAD.md`](../../../../docs/PAYLOAD.md) for the composition contract.
+
 ## External State
 
 The repo owns the scripts and templates. The VPS owns the runtime state:

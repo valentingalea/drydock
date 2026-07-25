@@ -21,6 +21,10 @@ Drydock's platform host at Line Engine's extension point, runs `electron-builder
 and writes `drydock-artifact.json` next to the unpacked output. The manifest records the
 pinned Line Engine revision.
 
+The CLI performs strict submodule verification before staging. It refuses a dirty,
+uninitialized, locally unreachable, or mismatched engine pin. Follow
+[`docs/PAYLOAD.md`](../../../../docs/PAYLOAD.md) to advance the Line Engine revision.
+
 ## Runtime Contract
 
 - `main.js` registers a privileged `app://drydock` protocol.

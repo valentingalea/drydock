@@ -6,6 +6,7 @@ of by implementation accident.
 ```text
 drydock/
 ├─ engine/                        # Line Engine git submodule; owns the canonical mock
+├─ .gitmodules                    # canonical Line Engine remote + submodule path
 ├─ game/                          # Drydock payload composition and host integration
 │  ├─ drydock-payload.json        # identity, entrypoint, runtime mappings, overlays
 │  ├─ index.html                  # launcher to engine/mock-game/
@@ -18,7 +19,7 @@ drydock/
 ├─ platforms/                     # build adapters, iteration paths, release channels
 │  ├─ web/
 │  │  ├─ iterate/
-│  │  │  └─ caddy-live/           # live game/ origin for immediate browser feedback
+│  │  │  └─ caddy-live/           # live descriptor resolver for browser feedback
 │  │  ├─ build/
 │  │  │  └─ static/               # copies runtime files into artifacts/build/web-static/
 │  │  └─ channels/
@@ -58,7 +59,9 @@ drydock/
 │  └─ tmp/                        # staging directories
 │
 ├─ tools/                         # utilities and repo-local agent workflows
-│  ├─ scripts/                    # validators, vendoring, fetch helpers
+│  ├─ scripts/
+│  │  ├─ payload.js               # shared descriptor loader/resolver/stager
+│  │  └─ ...                      # validators, vendoring, fetch helpers
 │  └─ skills/                     # Codex skills future agents can reuse
 │
 ├─ docs/                          # project design, release, and workflow docs
@@ -81,7 +84,7 @@ install state and stays ignored.
 | `engine/` | Pinned Line Engine runtime and sole canonical mock | Contain Drydock/channel changes outside its documented extension contract |
 | `game/` | Payload descriptor, launcher, and Drydock host adapter | Duplicate Line Engine mock presentation or gameplay |
 | `platforms/*/iterate/<mode>/` | Fast feedback loops such as Caddy-backed web iteration | Emit release artifacts or read secrets |
-| `platforms/*/build/<engine>/` | Engine/runtime build adapter | Hard-code release channels |
+| `platforms/*/build/<adapter>/` | Platform shell/compiler and artifact build adapter | Hard-code release channels or duplicate descriptor mappings |
 | `platforms/*/channels/<channel>/` | Channel SDK integration, metadata, package/sign scripts, publish tooling | Reach into engine internals without going through `drydock-artifact.json` |
 | `platforms/mobile/native/{ios,android}/` | OS-native generated projects and durable native extension points | Hold App Store / Play release metadata directly |
 | `contracts/host-bridge/` | Typed bridge API, error model, conformance tests | Contain platform SDK code |
@@ -97,6 +100,8 @@ install state and stays ignored.
 ## Invariants
 
 - `engine/mock-game/` is the only canonical mock. Drydock never copies it into `game/`.
+- Line Engine source changes are committed and pushed in the Line Engine repository
+  before Drydock records the new `engine/` gitlink.
 - Every target consumes `game/drydock-payload.json`; runtime source mappings and overlays
   must not be reimplemented independently by adapters.
 - Web iteration resolves live descriptor-selected files without copying or symlinking a
@@ -110,7 +115,9 @@ install state and stays ignored.
 - A new channel should add one `channels/<channel>/` folder and one workflow. Shared
   contract changes are allowed only when the existing artifact or host bridge contract
   cannot express a real requirement.
-- A new engine adds one `build/<engine>/` folder and must prove compatibility with at
-  least one existing channel.
+- A new native compiler/runtime that cannot use an existing shell adds one
+  `build/<adapter>/` folder and must prove compatibility with at least one existing
+  channel. A browser payload runtime may reuse the current web/Electron adapters through
+  the descriptor contract.
 - SOPS encrypted files may be committed. Plaintext secrets, signing material, SDK caches,
   generated build outputs, and personal credentials are ignored.

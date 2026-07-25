@@ -18,8 +18,8 @@ passes through four stages:
 BUILD  ->  INTEGRATE  ->  PACKAGE / SIGN  ->  PUBLISH
 ```
 
-- **BUILD** is engine-specific. It turns the payload into a raw native artifact and writes
-  a `drydock-artifact.json` manifest describing the output.
+- **BUILD** is payload/build-adapter-specific. It stages, compiles, or wraps the payload
+  into a raw artifact and writes a `drydock-artifact.json` manifest describing it.
 - **INTEGRATE** is channel-specific runtime work. It wires in store SDKs, overlays,
   entitlement checks, achievement providers, cloud-save providers, and other channel
   capabilities.
@@ -43,6 +43,7 @@ Read in this order.
 | File | Purpose |
 |---|---|
 | `docs/ARCHITECTURE.md` | The layered model, release stages, artifact manifest, host bridge. Read first. |
+| `docs/PAYLOAD.md` | Canonical Line Engine embedding, update, composition, and verification workflow. |
 | `docs/STRUCTURE.md` | Canonical folder tree and what each directory owns. |
 | `docs/TOOLCHAIN.md` | Package management, dependency isolation, SDK & signing handling. |
 | `docs/ITERATE.md` | The fast Caddy-backed web iteration path and its safety rules. |
@@ -56,8 +57,9 @@ Read in this order.
 1. **The payload never references a channel or store.** Payload runtime dependencies such
    as Line Engine are explicit and pinned; platform services are accessed only through
    the host bridge.
-2. **Every platform or channel package owns its own dependency manifest.** Nothing relies
-   on a shared `node_modules`.
+2. **Every repository and Drydock package owns its dependency graph.** Line Engine keeps
+   its npm development dependencies; every Drydock platform/channel package keeps its own
+   manifest. Nothing relies on a shared `node_modules`.
 3. **Every build adapter emits `drydock-artifact.json`.** Channel tooling consumes the
    manifest, not engine-specific paths.
 4. **Adding a channel should add a channel folder + workflow.** If shared code changes,
@@ -67,7 +69,9 @@ Read in this order.
    packaged artifacts.
 6. **Line Engine's `mock-game/` is the only mock game.** Drydock may overlay its documented
    `platform-host.js` extension point, but must not copy or fork the mock.
-7. **Secrets use SOPS+age by default.** Encrypted files may be committed; plaintext keys,
+7. **Engine and harness changes are separate commits.** Push a reachable Line Engine
+   commit/tag first, then commit the updated `engine/` gitlink and descriptor in Drydock.
+8. **Secrets use SOPS+age by default.** Encrypted files may be committed; plaintext keys,
    signing material, SDK caches, and personal credentials never enter the repo.
-8. Prefer conventional tools (pnpm, electron-builder, fastlane, steamcmd) over bespoke
+9. Prefer conventional tools (pnpm, electron-builder, fastlane, steamcmd) over bespoke
    scripting, so any agent or engineer can pick the work up cold.

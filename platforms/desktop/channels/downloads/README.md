@@ -10,6 +10,11 @@ It is still not a store release path:
 - no store metadata;
 - no store upload.
 
+The package contains the descriptor-composed Line Engine calibration client and Drydock
+host bridge produced by the Electron adapter. This channel never reads `engine/` or
+recomposes the payload; it packages only the artifact named by
+`drydock-artifact.json`.
+
 ## Current VPS Route
 
 `https://vinyltin.duckdns.org/drydock-downloads/` serves files from:
@@ -27,6 +32,11 @@ The current Caddy route only exposes:
 
 It deliberately does not expose `drydock-artifact.json`, unpacked build directories,
 repo files, or directory browsing.
+
+Current proof files:
+
+- `line-engine-calibration-0.1.0-windows-x64.zip`
+- `line-engine-calibration-0.1.0-windows-x64.zip.sha256`
 
 ## Package Flow
 
@@ -49,6 +59,10 @@ pnpm --filter @drydock/channel-downloads run verify -- \
 The package script consumes `drydock-artifact.json`, preserves the artifact root inside
 the zip, writes a SHA-256 checksum, and renders `index.html`. The publish script replaces
 `/var/www/drydock-downloads` with only public package files.
+
+The input manifest preserves `extensions.drydock.engineRevision`, so the download can be
+traced to the Line Engine release and commit selected by Drydock. The embedding workflow
+is documented in [`docs/PAYLOAD.md`](../../../../docs/PAYLOAD.md).
 
 ## Windows Signing
 

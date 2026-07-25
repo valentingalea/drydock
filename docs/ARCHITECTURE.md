@@ -6,19 +6,20 @@ Drydock is organized around three ownership layers that change for different rea
 
 ```
   GAME / PAYLOAD
-    portable game code; calls the host bridge only
+    Line Engine runtime + game; portable across shells and channels
 
   BUILD ADAPTER
-    engine-specific; produces a raw native artifact and manifest
+    platform shell/compiler; produces a raw artifact and manifest
 
   RELEASE CHANNEL
     channel-specific integration, package/sign, and publish tooling
 ```
 
-The payload must not know which platform shell or store is active. Runtime libraries such
-as Line Engine are payload dependencies, distinct from Drydock build adapters such as
-Electron. The channel is allowed to affect the binary when the store requires it, but
-that work happens in a channel-owned stage and is described by explicit contracts.
+The payload may depend explicitly on Line Engine, but it must not know which platform
+shell or store is active. Runtime libraries such as Line Engine are payload dependencies,
+distinct from Drydock build adapters such as web-static and Electron. The channel is
+allowed to affect the binary when the store requires it, but that work happens in a
+channel-owned stage and is described by explicit contracts.
 
 ## Payload Composition
 
@@ -42,6 +43,9 @@ Line Engine mock file is transformed or copied into source control. Line Engine 
 usable standalone, while the embedded mock exercises Drydock protocol version 1 and
 storage.
 
+The full checkout, update, descriptor, and verification contract is documented in
+[`PAYLOAD.md`](./PAYLOAD.md).
+
 ## Release Stages
 
 A release moves through four stages:
@@ -52,7 +56,7 @@ BUILD  ->  INTEGRATE  ->  PACKAGE / SIGN  ->  PUBLISH
 
 | Stage | Owner | Purpose | Output |
 |---|---|---|---|
-| `BUILD` | `platforms/<family>/build/<engine>/` | Compile or wrap the payload for an OS/arch. | Raw artifact + `drydock-artifact.json` |
+| `BUILD` | `platforms/<family>/build/<adapter>/` | Compile, stage, or wrap the payload for an OS/arch. | Raw artifact + `drydock-artifact.json` |
 | `INTEGRATE` | `platforms/<family>/channels/<channel>/` | Add channel SDK/runtime behavior such as achievements, overlay, auth, IAP, cloud saves, or entitlement checks. | Integrated artifact or updated manifest |
 | `PACKAGE / SIGN` | channel folder, sometimes OS-native project | Produce the store-ready package/depot and apply signing, notarization, entitlements, provisioning, or metadata transforms. | Store-ready package |
 | `PUBLISH` | channel folder + CI workflow | Upload/promote using store tooling. | Draft, beta, internal track, private branch, or production candidate |
@@ -104,24 +108,40 @@ Minimum schema:
 ```json
 {
   "schemaVersion": 1,
-  "gameId": "example",
+  "gameId": "line-engine-calibration",
   "version": "0.1.0",
-  "buildNumber": 42,
+  "buildNumber": 100,
   "engine": "electron",
   "platform": "windows",
   "arch": "x64",
   "artifactRoot": "win-unpacked",
-  "executable": "win-unpacked/Example.exe",
-  "bundleId": null,
+  "executable": "win-unpacked/line-engine-calibration.exe",
+  "bundleId": "dev.drydock.line-engine-calibration",
   "packageId": null,
   "signing": {
     "status": "unsigned"
   },
   "capabilities": [
-    "achievements",
-    "cloudSave"
+    "storage"
   ],
-  "checksums": []
+  "checksums": [],
+  "extensions": {
+    "drydock": {
+      "buildAdapter": "@drydock/desktop-electron",
+      "buildKey": "desktop",
+      "payload": "game/drydock-payload.json",
+      "entrypoint": "engine/mock-game/index.html",
+      "release": "contracts/releases/0.1.0.yaml",
+      "engineRevision": {
+        "name": "line-engine",
+        "path": "engine",
+        "release": "v0.0.0",
+        "commit": "fb962943c58bb909c3223670a49622c0d6acd39a",
+        "remote": "https://github.com/valentingalea/Line-Engine.git",
+        "threeRevision": "r160"
+      }
+    }
+  }
 }
 ```
 
@@ -130,12 +150,18 @@ Rules:
 - Paths are relative to the manifest unless explicitly absolute.
 - Channel tooling reads this manifest first and fails if required fields or capabilities
   are missing.
+- The schema-v1 `engine` field identifies the artifact-producing adapter (`electron`,
+  `web-static`, or a native engine adapter). The payload runtime pin is recorded
+  separately in `extensions.drydock.engineRevision`.
 - The schema is versioned. Breaking changes require a schema bump and migration note.
-- Build adapters may add engine-specific extension fields under `extensions.<engine>`, but
-  channel tooling must not require them unless it explicitly supports that engine.
+- Build adapters may add adapter-specific extension fields such as
+  `extensions.electron`, but channel tooling must not require them unless it explicitly
+  supports that adapter.
 
-The first implementation should also add a JSON Schema file and a validation command so
-CI can reject malformed artifacts before upload.
+`contracts/schemas/drydock-artifact.schema.json` and
+`tools/scripts/validate-artifact.js` implement this boundary today. Both static web and
+Electron also record the exact Line Engine origin and gitlink revision under
+`extensions.drydock.engineRevision`.
 
 ## Host Bridge
 
@@ -195,7 +221,7 @@ Implementations:
 Web has both an iteration path and a release path:
 
 ```text
-platforms/web/iterate/caddy-live/   # live game/ origin for immediate feedback
+platforms/web/iterate/caddy-live/   # live descriptor resolver for immediate feedback
 platforms/web/build/static/         # copies runtime files into artifacts/build/web-static/
 platforms/web/channels/vps/         # deploys the packaged static artifact to the VPS
 ```
@@ -261,16 +287,21 @@ Electron releases must start from secure defaults:
 
 The preload exposes only the typed host bridge.
 
-## Engine Adapters
+## Payload Runtimes And Build Adapters
 
-Engine changes replace build adapters, not the payload or channel contracts:
+Line Engine is the runtime dependency of the current payload. Static web, Electron, and
+future Capacitor packages are build adapters/shells that can all consume the same
+descriptor-selected browser runtime:
 
 - **Web games** use `platforms/web/iterate/caddy-live/` for fast browser iteration,
   `platforms/web/build/static/` + `platforms/web/channels/vps/` for public web releases,
   Electron for desktop, and Capacitor for mobile.
-- **Unreal games** use a `build/unreal` adapter around `RunUAT BuildCookRun`.
-- **Other engines** can be added if they emit the artifact manifest and implement the host
-  bridge.
+- **Native-engine games**, such as Unreal payloads, need a separate build adapter around
+  their compiler/cooker while still emitting the same artifact manifest and implementing
+  the host bridge.
+- **A future browser runtime** may replace Line Engine by changing the payload descriptor
+  and pinning its source explicitly, without changing channel tooling that consumes only
+  the resulting manifest.
 
 Store SDK integration may live in an engine plugin when the engine requires it
 (`OnlineSubsystemSteam`, EOS plugins, native mobile plugins). That is still channel-owned

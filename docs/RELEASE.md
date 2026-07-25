@@ -9,6 +9,11 @@ BUILD -> INTEGRATE -> PACKAGE / SIGN -> PUBLISH
 The commands below assume channel accounts, SDK access, signing setup, and SOPS files are
 already configured.
 
+All current web and Electron builds compose the payload through
+[`game/drydock-payload.json`](../game/drydock-payload.json). Read
+[`PAYLOAD.md`](./PAYLOAD.md) before a release that advances the Line Engine gitlink:
+the engine commit/tag must be pushed first, then the Drydock pin is committed separately.
+
 ## Iteration Is Separate
 
 The fast web path is not a release. `platforms/web/iterate/caddy-live/` resolves the live
@@ -71,14 +76,21 @@ and generate platform-specific manifest changes from it.
 
 ```sh
 git submodule update --init --recursive
-corepack enable pnpm
+npm install --global pnpm@11.17.0
 pnpm install
 pnpm run vendor
-pnpm run validate:submodule
-pnpm run release:prepare -- contracts/releases/0.1.0.yaml
+pnpm run validate
+pnpm run validate:release -- contracts/releases/0.1.0.yaml
 ```
 
-`release:prepare` should eventually validate:
+Corepack can enable the root-pinned pnpm version on Node distributions that provide it.
+The current VPS Node 25 installation does not, so its one-time setup uses the exact global
+pnpm version above.
+
+`pnpm run validate` strictly verifies that the clean `engine/` checkout matches the
+Drydock gitlink and that the commit is reachable from Line Engine's origin. It also
+validates the current artifact and release fixtures. Release preflight should eventually
+grow to validate:
 
 - release manifest shape;
 - artifact schema availability;
@@ -117,6 +129,10 @@ pnpm --filter @drydock/channel-vps run verify -- \
 The VPS channel must deploy the packaged `artifacts/build/web-static/` output, not the repo root and
 not the live iteration origin. It should validate the Caddy config before reload and run
 public checks for allowed runtime paths and denied repo paths.
+
+The build manifest records the exact Line Engine remote, release, commit, and Three.js
+revision under `extensions.drydock.engineRevision`. Preserve that manifest with the
+candidate so the packaged runtime can be traced back to both repository commits.
 
 When Caddy config changes, validate before reload:
 
@@ -166,6 +182,10 @@ pnpm --filter @drydock/channel-downloads run publish -- \
 pnpm --filter @drydock/channel-downloads run verify -- \
   --base-url https://vinyltin.duckdns.org/drydock-downloads/
 ```
+
+Electron stages the same descriptor and host overlay as the web build. The downloads
+channel consumes only its `drydock-artifact.json`; it does not read Line Engine source or
+the payload descriptor.
 
 The current VPS route serves only the package archive, checksum, and index page from
 `/var/www/drydock-downloads`.
