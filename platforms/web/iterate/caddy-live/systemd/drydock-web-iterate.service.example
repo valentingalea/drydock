@@ -1,6 +1,6 @@
 [Unit]
 Description=Drydock live web iteration origin
-Documentation=file:/usr/games/Drydock/ITERATE.md
+Documentation=file:/usr/games/Drydock/docs/ITERATE.md
 After=network-online.target
 Wants=network-online.target
 
@@ -11,7 +11,7 @@ ExecStart=/usr/games/Drydock/platforms/web/iterate/caddy-live/start.sh --port 80
 Restart=on-failure
 RestartSec=2
 
-# Replace with an unprivileged local account that can read /usr/games/Drydock/game.
+# Replace with an unprivileged local account that can read the repo and submodule.
 User=drydock
 Group=drydock
 

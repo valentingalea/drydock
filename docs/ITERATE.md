@@ -100,6 +100,11 @@ systemctl status drydock-web-iterate.service
 
 Adjust `User=`, `Group=`, and repository paths on other hosts.
 
+Current VPS note: Node 25 is installed under root's NVM tree, so the installed unit uses
+that explicit binary path and runs as root with systemd filesystem, capability, address,
+and privilege restrictions. Move Node to a system-readable location and switch the unit
+to an unprivileged `drydock` account when the host toolchain is normalized.
+
 ## Iterate vs Release
 
 | Workflow | Source | Output |
