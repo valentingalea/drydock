@@ -5,8 +5,8 @@
 Drydock is organized around three ownership layers that change for different reasons:
 
 ```
-  GAME / PAYLOAD
-    Line Engine runtime + game; portable across shells and channels
+  PRODUCT / VESSEL
+    complete game repository; owns its engine and Drydock product contract
 
   BUILD ADAPTER
     platform shell/compiler; produces a raw artifact and manifest
@@ -15,36 +15,34 @@ Drydock is organized around three ownership layers that change for different rea
     channel-specific integration, package/sign, and publish tooling
 ```
 
-The payload may depend explicitly on Line Engine, but it must not know which platform
-shell or store is active. Runtime libraries such as Line Engine are payload dependencies,
-distinct from Drydock build adapters such as web-static and Electron. The channel is
-allowed to affect the binary when the store requires it, but that work happens in a
-channel-owned stage and is described by explicit contracts.
+The product owns whatever engine or runtime it uses, but it must not know which release
+channel or store is active. Drydock build adapters such as web-static and Electron
+consume the product contract without inspecting those internals. A channel may affect the
+binary when a store requires it, but that work happens in a channel-owned stage.
 
-## Payload Composition
+## Product Composition
 
-The current payload is Line Engine's canonical `mock-game/`, pinned at `engine/` as a git
-submodule. Drydock does not own a second mock. `game/drydock-payload.json` is the source
-composition contract: it declares identity, the entrypoint, exact runtime source/target
-mappings and the one allowed overlay.
+The complete product repository is pinned at `product/`. It owns a root
+`drydock-product.json` contract containing identity, entrypoint, and exact
+product-relative source/runtime-target mappings. Drydock contributes only its generic
+host runtime.
 
 ```text
-game/drydock-payload.json
-  + engine/mock-game/             # canonical mock
-  + engine/src, style, lib        # Line Engine runtime + Three.js r160
-  + game/host-bridge.js           # Drydock browser bridge
-  + game/overlays/platform-host.js
+product/drydock-product.json
+  + product-selected sources
+  + product-owned Drydock adapter
+  + runtime/web/host-bridge.js
+  + runtime/web/vendor/
   -> composed runtime tree
 ```
 
-Line Engine's standalone `mock-game/src/platform-host.js` supplies local browser behavior.
-Drydock replaces that module at the same runtime URL with its bridge adapter. No other
-Line Engine mock file is transformed or copied into source control. Line Engine remains
-usable standalone, while the embedded mock exercises Drydock protocol version 1 and
-storage.
+Today the product repository is Line Engine and the proof entrypoint is its calibration
+client. Line Engine's contract selects its own `integrations/drydock/platform-host.js`
+adapter. A future full game owns Line Engine internally; Drydock sees only that game's
+product contract and revision.
 
-The full checkout, update, descriptor, and verification contract is documented in
-[`PAYLOAD.md`](./PAYLOAD.md).
+The full checkout, iteration, pinning, and substitution contract is documented in
+[`PRODUCT.md`](./PRODUCT.md).
 
 ## Release Stages
 
@@ -56,7 +54,7 @@ BUILD  ->  INTEGRATE  ->  PACKAGE / SIGN  ->  PUBLISH
 
 | Stage | Owner | Purpose | Output |
 |---|---|---|---|
-| `BUILD` | `platforms/<family>/build/<adapter>/` | Compile, stage, or wrap the payload for an OS/arch. | Raw artifact + `drydock-artifact.json` |
+| `BUILD` | `platforms/<family>/build/<adapter>/` | Compile, stage, or wrap the product for an OS/arch. | Raw artifact + `drydock-artifact.json` |
 | `INTEGRATE` | `platforms/<family>/channels/<channel>/` | Add channel SDK/runtime behavior such as achievements, overlay, auth, IAP, cloud saves, or entitlement checks. | Integrated artifact or updated manifest |
 | `PACKAGE / SIGN` | channel folder, sometimes OS-native project | Produce the store-ready package/depot and apply signing, notarization, entitlements, provisioning, or metadata transforms. | Store-ready package |
 | `PUBLISH` | channel folder + CI workflow | Upload/promote using store tooling. | Draft, beta, internal track, private branch, or production candidate |
@@ -69,8 +67,8 @@ and cloud-save providers all cross the old boundary.
 The clean boundary is therefore:
 
 - build adapters do not hard-code release channels;
-- channel scripts consume the artifact manifest instead of guessing engine paths;
-- game code calls the host bridge instead of store SDKs;
+- channel scripts consume the artifact manifest instead of inspecting product paths;
+- product code calls the host bridge instead of store SDKs;
 - shared contracts change only when a real capability is missing.
 
 ## Iteration Loop
@@ -78,20 +76,20 @@ The clean boundary is therefore:
 Iteration is intentionally outside the release pipeline:
 
 ```text
-EDIT engine/mock-game or engine/src
-  -> descriptor-resolved localhost origin
+EDIT standalone product checkout
+  -> product-contract-resolved localhost origin
   -> Caddy allowlist
   -> browser
 ```
 
-For web payload work, `platforms/web/iterate/caddy-live/` owns the fast feedback path.
-It resolves the payload descriptor directly against the live `game/` integration files
-and `engine/` submodule so changes appear after refresh. It does not copy source, create
-symlink mirrors, emit `drydock-artifact.json`, or publish anything.
+For web product work, `platforms/web/iterate/caddy-live/` owns the fast feedback path.
+It resolves `drydock-product.json` against `DRYDOCK_PRODUCT_ROOT`, or the pinned
+`product/` checkout when no override is set. Changes appear after refresh without a
+copy, symlink mirror, artifact, or publish step.
 
-The live origin must bind to `127.0.0.1` and expose only descriptor-selected files. Caddy
-is the public boundary and mirrors the runtime prefixes under `/engine/`, plus the root
-launcher and host bridge. It must deny submodule metadata, docs, tests and package files.
+The live origin binds to `127.0.0.1` and exposes only contract-selected files. Caddy is
+the public boundary and allows the `/product/` runtime prefix plus the root launcher and
+host bridge. Product metadata, docs, tests and package files remain unavailable.
 
 This path optimizes latency. Release channels optimize reproducibility.
 
@@ -107,11 +105,11 @@ Minimum schema:
 
 ```json
 {
-  "schemaVersion": 1,
-  "gameId": "line-engine-calibration",
+  "schemaVersion": 2,
+  "productId": "line-engine-calibration",
   "version": "0.1.0",
   "buildNumber": 100,
-  "engine": "electron",
+  "buildAdapter": "electron",
   "platform": "windows",
   "arch": "x64",
   "artifactRoot": "win-unpacked",
@@ -127,18 +125,17 @@ Minimum schema:
   "checksums": [],
   "extensions": {
     "drydock": {
-      "buildAdapter": "@drydock/desktop-electron",
+      "adapterPackage": "@drydock/desktop-electron",
       "buildKey": "desktop",
-      "payload": "game/drydock-payload.json",
-      "entrypoint": "engine/mock-game/index.html",
+      "productContract": "product/drydock-product.json",
+      "entrypoint": "product/mock-game/index.html",
       "release": "contracts/releases/0.1.0.yaml",
-      "engineRevision": {
-        "name": "line-engine",
-        "path": "engine",
-        "release": "v0.0.0",
-        "commit": "fb962943c58bb909c3223670a49622c0d6acd39a",
+      "productRevision": {
+        "path": "product",
+        "contract": "product/drydock-product.json",
+        "commit": "52e9ec6a8feb51200a268754a8f08d8777a0992e",
         "remote": "https://github.com/valentingalea/Line-Engine.git",
-        "threeRevision": "r160"
+        "tag": "v0.0.1"
       }
     }
   }
@@ -150,9 +147,8 @@ Rules:
 - Paths are relative to the manifest unless explicitly absolute.
 - Channel tooling reads this manifest first and fails if required fields or capabilities
   are missing.
-- The schema-v1 `engine` field identifies the artifact-producing adapter (`electron`,
-  `web-static`, or a native engine adapter). The payload runtime pin is recorded
-  separately in `extensions.drydock.engineRevision`.
+- Schema v2 separates `productId` from `buildAdapter`; Electron is an adapter, not an
+  engine identity.
 - The schema is versioned. Breaking changes require a schema bump and migration note.
 - Build adapters may add adapter-specific extension fields such as
   `extensions.electron`, but channel tooling must not require them unless it explicitly
@@ -160,13 +156,13 @@ Rules:
 
 `contracts/schemas/drydock-artifact.schema.json` and
 `tools/scripts/validate-artifact.js` implement this boundary today. Both static web and
-Electron also record the exact Line Engine origin and gitlink revision under
-`extensions.drydock.engineRevision`.
+Electron record the exact product origin, contract, tag, and gitlink revision under
+`extensions.drydock.productRevision`.
 
 ## Host Bridge
 
-The host bridge is the runtime contract between the payload and its current shell/channel.
-The payload imports one typed API and asks what is available.
+The host bridge is the runtime contract between the product and its current
+shell/channel. The product imports one typed API and asks what is available.
 
 ```ts
 const host = await DrydockHost.connect();
@@ -226,11 +222,11 @@ platforms/web/build/static/         # copies runtime files into artifacts/build/
 platforms/web/channels/vps/         # deploys the packaged static artifact to the VPS
 ```
 
-The static build adapter consumes `game/drydock-payload.json`, copies only its selected
-and overlaid runtime files into `artifacts/build/web-static/`, and emits
-`drydock-artifact.json`. The manifest records the Line Engine remote, commit and Three.js
-revision. The VPS channel consumes that manifest, installs the clean output under a stable
-webroot, validates Caddy, reloads it, and performs public allow/deny checks.
+The static build adapter consumes `product/drydock-product.json`, stages only selected
+product files plus the Drydock host runtime into `artifacts/build/web-static/`, and emits
+`drydock-artifact.json`. The manifest records the product contract and revision. The VPS
+channel consumes that manifest, installs the clean output under a stable webroot,
+validates Caddy, reloads it, and performs public allow/deny checks.
 
 The iteration path may serve live source for speed. The VPS channel must deploy a
 packaged artifact for reproducibility.
@@ -281,27 +277,25 @@ Electron releases must start from secure defaults:
 - strict IPC allowlist
 - runtime validation for every IPC payload
 - secure custom `app://` protocol
-- content security policy for the payload
+- content security policy for the composed product runtime
 - no arbitrary remote content in production
 - no direct store SDK access from renderer code
 
 The preload exposes only the typed host bridge.
 
-## Payload Runtimes And Build Adapters
+## Product Runtimes And Build Adapters
 
-Line Engine is the runtime dependency of the current payload. Static web, Electron, and
-future Capacitor packages are build adapters/shells that can all consume the same
-descriptor-selected browser runtime:
+Static web, Electron, and future Capacitor packages are build adapters/shells that can
+consume the same contract-selected browser product:
 
 - **Web games** use `platforms/web/iterate/caddy-live/` for fast browser iteration,
   `platforms/web/build/static/` + `platforms/web/channels/vps/` for public web releases,
   Electron for desktop, and Capacitor for mobile.
-- **Native-engine games**, such as Unreal payloads, need a separate build adapter around
+- **Native-engine games**, such as Unreal products, need a separate build adapter around
   their compiler/cooker while still emitting the same artifact manifest and implementing
   the host bridge.
-- **A future browser runtime** may replace Line Engine by changing the payload descriptor
-  and pinning its source explicitly, without changing channel tooling that consumes only
-  the resulting manifest.
+- **A future full game** replaces the `product/` gitlink and supplies the same product and
+  host contracts. Its internal Line Engine dependency is immaterial to Drydock.
 
 Store SDK integration may live in an engine plugin when the engine requires it
 (`OnlineSubsystemSteam`, EOS plugins, native mobile plugins). That is still channel-owned

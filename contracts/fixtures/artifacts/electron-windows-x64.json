@@ -1,9 +1,9 @@
 {
-  "schemaVersion": 1,
-  "gameId": "line-engine-calibration",
+  "schemaVersion": 2,
+  "productId": "line-engine-calibration",
   "version": "0.1.0",
   "buildNumber": 100,
-  "engine": "electron",
+  "buildAdapter": "electron",
   "platform": "windows",
   "arch": "x64",
   "artifactRoot": "win-unpacked",
@@ -19,8 +19,16 @@
   "checksums": [],
   "extensions": {
     "drydock": {
-      "buildAdapter": "@drydock/desktop-electron",
+      "adapterPackage": "@drydock/desktop-electron",
       "buildKey": "desktop",
+      "productContract": "product/drydock-product.json",
+      "productRevision": {
+        "path": "product",
+        "contract": "product/drydock-product.json",
+        "commit": "52e9ec6a8feb51200a268754a8f08d8777a0992e",
+        "remote": "https://github.com/valentingalea/Line-Engine.git",
+        "tag": "v0.0.1"
+      },
       "release": "contracts/releases/0.1.0.yaml"
     },
     "electron": {

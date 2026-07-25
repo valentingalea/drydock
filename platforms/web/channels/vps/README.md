@@ -3,11 +3,11 @@
 This channel publishes a packaged web artifact to a Caddy-served directory. It is the
 release path, not the live iteration path.
 
-The static adapter has already resolved `game/drydock-payload.json`, applied Drydock's
-platform-host overlay, and recorded the Line Engine revision before this channel sees the
-artifact. The VPS publisher consumes the manifest and packaged tree only; it never reads
-or serves the submodule directly. See
-[`docs/PAYLOAD.md`](../../../../docs/PAYLOAD.md) for the composition contract.
+The static adapter has already resolved `product/drydock-product.json`, added Drydock's
+generic host runtime, and recorded the product revision before this channel sees the
+artifact. The VPS publisher consumes the schema-v2 manifest and packaged tree only; it
+never reads the product checkout. See
+[`docs/PRODUCT.md`](../../../../docs/PRODUCT.md) for the composition contract.
 
 ## External State
 
@@ -52,9 +52,9 @@ pnpm smoke:web -- https://vinyltin.duckdns.org/drydock/
 pnpm smoke:web -- https://vinyltin.duckdns.org/drydock-release/
 ```
 
-The verifier expects the composed Line Engine mock, engine runtime, Three.js r160, and
-Drydock host bridge paths to return `200`. Line Engine metadata, tests, package files and
-other repo/internal paths must return `404`.
+The verifier expects the contract-selected product and Drydock host runtime paths to
+return `200`. Product metadata, tests, package files, and repository internals must return
+`404`.
 
 ## Caddy Templates
 

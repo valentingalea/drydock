@@ -1,28 +1,26 @@
 # Caddy Live Iteration
 
-This package starts the fast web iteration origin. It resolves
-`game/drydock-payload.json` directly against the Line Engine submodule and Drydock host
-overlay, binds to `127.0.0.1`, and relies on Caddy to expose only allowlisted runtime
-paths.
+This package starts the fast web iteration origin. It resolves the product-owned
+`drydock-product.json` from `DRYDOCK_PRODUCT_ROOT`, combines it with Drydock's web host
+runtime, binds to `127.0.0.1`, and relies on Caddy for the public allowlist.
 
 ```sh
-pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
+DRYDOCK_PRODUCT_ROOT=/usr/games/engine \
+  pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 ```
 
-Do not serve the repo root, copy `engine/mock-game/`, or use this path as a release
-artifact.
+Do not serve either repository root, copy the product, or use this path as a release
+artifact. With no override, the resolver falls back to the pinned `product/` submodule.
 
-The server applies overlay entries from the descriptor at request time, so
-`/engine/mock-game/src/platform-host.js` resolves to Drydock's protocol-v1 adapter while
-the rest of the calibration client resolves directly from Line Engine. It warns on a
-dirty or mismatched submodule to support active two-repository development; packaged
-builds reject that state. Follow
-[`docs/PAYLOAD.md`](../../../../docs/PAYLOAD.md) before committing a new engine pin.
+The product owns all its source mappings and its Drydock adapter. Drydock supplies only
+`host-bridge.js` and its vendored runtime contract. Release builds ignore the external
+root and reject a dirty, unreachable, or mismatched pinned product. Follow
+[`docs/PRODUCT.md`](../../../../docs/PRODUCT.md) before advancing or replacing the pin.
 
 If there is no spare DuckDNS hostname, mount this under an existing domain path such as
-`/drydock/` with Caddy `handle_path`. The payload uses relative imports so path-mounted
+`/drydock/` with Caddy `handle_path`. The product uses relative imports so path-mounted
 testing works.
 
 After starting the origin, verify the menu shows `host v1`, select Play, confirm
-`data-line-state="play"` and one canvas, and check that Line Engine metadata such as
-`/engine/package.json` returns `404`.
+`data-line-state="play"` and one canvas, and check that product metadata such as
+`/product/drydock-product.json` returns `404`.

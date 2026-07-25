@@ -27,20 +27,20 @@ test("static build copies runtime files and emits schema-valid artifact", async 
   await stat(join(out, "index.html"));
   await stat(join(out, "host-bridge.js"));
   await stat(join(out, "vendor/drydock-host-bridge/index.js"));
-  await stat(join(out, "engine/mock-game/index.html"));
-  await stat(join(out, "engine/mock-game/src/bootstrap.js"));
-  await stat(join(out, "engine/mock-game/src/boot-guard.js"));
-  await stat(join(out, "engine/mock-game/src/game.js"));
-  await stat(join(out, "engine/mock-game/src/platform-host.js"));
-  await stat(join(out, "engine/mock-game/style/mock.css"));
-  await stat(join(out, "engine/src/core/scope.js"));
-  await stat(join(out, "engine/style/hud.css"));
-  await stat(join(out, "engine/lib/three.module.js"));
+  await stat(join(out, "product/mock-game/index.html"));
+  await stat(join(out, "product/mock-game/src/bootstrap.js"));
+  await stat(join(out, "product/mock-game/src/boot-guard.js"));
+  await stat(join(out, "product/mock-game/src/game.js"));
+  await stat(join(out, "product/mock-game/src/platform-host.js"));
+  await stat(join(out, "product/mock-game/style/mock.css"));
+  await stat(join(out, "product/src/core/scope.js"));
+  await stat(join(out, "product/style/hud.css"));
+  await stat(join(out, "product/lib/three.module.js"));
 
   await assert.rejects(stat(join(out, "package.json")), { code: "ENOENT" });
-  await assert.rejects(stat(join(out, "test/game.test.js")), { code: "ENOENT" });
-  await assert.rejects(stat(join(out, "engine/AGENTS.md")), { code: "ENOENT" });
-  await assert.rejects(stat(join(out, "engine/package.json")), { code: "ENOENT" });
+  await assert.rejects(stat(join(out, "product/AGENTS.md")), { code: "ENOENT" });
+  await assert.rejects(stat(join(out, "product/package.json")), { code: "ENOENT" });
+  await assert.rejects(stat(join(out, "product/drydock-product.json")), { code: "ENOENT" });
 
   const schema = JSON.parse(
     await readFile(resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json"), "utf8")
@@ -50,10 +50,15 @@ test("static build copies runtime files and emits schema-valid artifact", async 
 
   assert.equal(validate(manifest), true, JSON.stringify(validate.errors, null, 2));
   assert.equal(manifest.platform, "web");
-  assert.equal(manifest.engine, "web-static");
-  assert.equal(manifest.gameId, "line-engine-calibration");
+  assert.equal(manifest.schemaVersion, 2);
+  assert.equal(manifest.buildAdapter, "web-static");
+  assert.equal(manifest.productId, "line-engine-calibration");
   assert.equal(manifest.buildNumber, 100);
-  assert.equal(manifest.extensions.drydock.entrypoint, "engine/mock-game/index.html");
-  assert.match(manifest.extensions.drydock.engineRevision.commit, /^[a-f0-9]{40}$/);
+  assert.equal(manifest.extensions.drydock.entrypoint, "product/mock-game/index.html");
+  assert.equal(
+    manifest.extensions.drydock.productContract,
+    "product/drydock-product.json"
+  );
+  assert.match(manifest.extensions.drydock.productRevision.commit, /^[a-f0-9]{40}$/);
   assert.equal(manifest.extensions.drydock.channelConfig.root, "/var/www/drydock");
 });

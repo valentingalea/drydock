@@ -9,7 +9,7 @@ await vendorHostBridge();
 
 async function vendorHostBridge() {
   const source = resolve(repoRoot, "contracts/host-bridge/src/index.js");
-  const target = resolve(repoRoot, "game/vendor/drydock-host-bridge/index.js");
+  const target = resolve(repoRoot, "runtime/web/vendor/drydock-host-bridge/index.js");
 
   await mkdir(dirname(target), { recursive: true });
   await copyFile(source, target);

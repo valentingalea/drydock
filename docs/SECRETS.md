@@ -15,18 +15,18 @@ process environment for local commands or CI jobs.
 Over-protecting identifiers breaks reproducibility. Under-protecting real secrets leaks
 publishing authority.
 
-## Payload And Engine Updates Need No Secrets
+## Product Updates Need No Secrets
 
-Line Engine embedding is public, deterministic source composition. `.gitmodules`,
-`game/drydock-payload.json`, runtime mappings, application identifiers, the engine
-release/commit, and Three.js revision are committed plainly. Building Line Engine,
-running its tests, advancing the Drydock gitlink, and using the browser iteration path
-must not decrypt channel secrets.
+Product composition is public and deterministic. `.gitmodules`,
+`product/drydock-product.json`, runtime mappings, application identifiers, and the
+product revision are committed plainly. Building the product, running its tests,
+advancing the Drydock gitlink, and using the browser iteration path must not decrypt
+channel secrets.
 
 Secrets enter only when a later channel integration, signing, or publishing stage
-requires them. The Line Engine repository must never contain Drydock signing material,
-store credentials, or channel-specific secret names. See [`PAYLOAD.md`](./PAYLOAD.md) for
-the engine update workflow.
+requires them. The product repository must never contain signing material, store
+credentials, or channel-specific secret names. See [`PRODUCT.md`](./PRODUCT.md) for the
+product update workflow.
 
 ## Contract: Packagers Read Env Vars Only
 

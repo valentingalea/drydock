@@ -187,7 +187,7 @@ export function parseArgs(argv, env = {}) {
 
 export function defaultZipName(manifest) {
   return [
-    manifest.gameId,
+    manifest.productId,
     manifest.version,
     manifest.platform,
     manifest.arch
@@ -286,7 +286,7 @@ async function validateManifest(manifest) {
     throw new Error(`invalid artifact manifest: ${JSON.stringify(validate.errors, null, 2)}`);
   }
 
-  if (manifest.engine !== "electron") {
+  if (manifest.buildAdapter !== "electron") {
     throw new Error("downloads channel currently accepts Electron artifacts only");
   }
 }

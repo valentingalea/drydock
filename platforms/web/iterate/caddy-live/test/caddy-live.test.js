@@ -4,15 +4,15 @@ import { resolve } from "node:path";
 import test from "node:test";
 import {
   createServer,
-  getPayloadEntrypoint,
+  getProductEntrypoint,
   parsePort,
   runtimePathAllowed
 } from "../server.js";
 
 const repoRoot = resolve(import.meta.dirname, "../../../../..");
 
-test("live origin selects the Line Engine mock entrypoint", () => {
-  assert.equal(getPayloadEntrypoint(), "engine/mock-game/index.html");
+test("live origin selects the product-owned entrypoint", () => {
+  assert.equal(getProductEntrypoint(), "product/mock-game/index.html");
 });
 
 test("runtime allowlist exposes only expected paths", () => {
@@ -20,27 +20,26 @@ test("runtime allowlist exposes only expected paths", () => {
   assert.equal(runtimePathAllowed("/index.html"), true);
   assert.equal(runtimePathAllowed("/host-bridge.js"), true);
   assert.equal(runtimePathAllowed("/vendor/drydock-host-bridge/index.js"), true);
-  assert.equal(runtimePathAllowed("/engine/mock-game/index.html"), true);
-  assert.equal(runtimePathAllowed("/engine/mock-game/src/bootstrap.js"), true);
-  assert.equal(runtimePathAllowed("/engine/mock-game/src/platform-host.js"), true);
-  assert.equal(runtimePathAllowed("/engine/src/core/scope.js"), true);
-  assert.equal(runtimePathAllowed("/engine/style/hud.css"), true);
-  assert.equal(runtimePathAllowed("/engine/lib/three.module.js"), true);
+  assert.equal(runtimePathAllowed("/product/mock-game/index.html"), true);
+  assert.equal(runtimePathAllowed("/product/mock-game/src/bootstrap.js"), true);
+  assert.equal(runtimePathAllowed("/product/mock-game/src/platform-host.js"), true);
+  assert.equal(runtimePathAllowed("/product/src/core/scope.js"), true);
+  assert.equal(runtimePathAllowed("/product/style/hud.css"), true);
+  assert.equal(runtimePathAllowed("/product/lib/three.module.js"), true);
 
   assert.equal(runtimePathAllowed("/package.json"), false);
   assert.equal(runtimePathAllowed("/../AGENTS.md"), false);
   assert.equal(runtimePathAllowed("/.git/config"), false);
-  assert.equal(runtimePathAllowed("/engine/AGENTS.md"), false);
-  assert.equal(runtimePathAllowed("/engine/package.json"), false);
+  assert.equal(runtimePathAllowed("/product/AGENTS.md"), false);
+  assert.equal(runtimePathAllowed("/product/package.json"), false);
+  assert.equal(runtimePathAllowed("/product/drydock-product.json"), false);
 });
 
 test("caddy example proxies localhost and has no catch-all file access", async () => {
   const caddy = await readFile(resolve(import.meta.dirname, "../caddy.example"), "utf8");
 
   assert.match(caddy, /reverse_proxy 127\.0\.0\.1:8090/);
-  assert.match(caddy, /\/engine\/mock-game\/src\/\*/);
-  assert.match(caddy, /\/engine\/src\/\*/);
-  assert.match(caddy, /\/engine\/lib\/\*/);
+  assert.match(caddy, /\/product\/\*/);
   assert.doesNotMatch(caddy, /file_server/);
 });
 
@@ -60,6 +59,7 @@ test("systemd example runs the localhost-only live origin with basic sandboxing"
   );
 
   assert.match(unit, /ExecStart=\/usr\/games\/Drydock\/platforms\/web\/iterate\/caddy-live\/start\.sh --port 8090/);
+  assert.match(unit, /DRYDOCK_PRODUCT_ROOT/);
   assert.match(unit, /IPAddressAllow=localhost/);
   assert.match(unit, /NoNewPrivileges=true/);
   assert.match(unit, /ProtectSystem=strict/);
@@ -84,14 +84,14 @@ test("server allows runtime files and denies repo files", async () => {
     const root = `http://127.0.0.1:${port}`;
 
     assert.equal((await fetch(`${root}/`)).status, 200);
-    assert.equal((await fetch(`${root}/engine/mock-game/`)).status, 200);
-    assert.equal((await fetch(`${root}/engine/mock-game/src/bootstrap.js`)).status, 200);
-    assert.equal((await fetch(`${root}/engine/mock-game/src/platform-host.js`)).status, 200);
-    assert.equal((await fetch(`${root}/engine/src/core/scope.js`)).status, 200);
-    assert.equal((await fetch(`${root}/engine/lib/three.module.js`)).status, 200);
+    assert.equal((await fetch(`${root}/product/mock-game/`)).status, 200);
+    assert.equal((await fetch(`${root}/product/mock-game/src/bootstrap.js`)).status, 200);
+    assert.equal((await fetch(`${root}/product/mock-game/src/platform-host.js`)).status, 200);
+    assert.equal((await fetch(`${root}/product/src/core/scope.js`)).status, 200);
+    assert.equal((await fetch(`${root}/product/lib/three.module.js`)).status, 200);
     assert.equal((await fetch(`${root}/package.json`)).status, 404);
     assert.equal((await fetch(`${root}/.git/config`)).status, 404);
-    assert.equal((await fetch(`${root}/engine/AGENTS.md`)).status, 404);
+    assert.equal((await fetch(`${root}/product/AGENTS.md`)).status, 404);
   } finally {
     await new Promise((resolveClose) => server.close(resolveClose));
   }

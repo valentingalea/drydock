@@ -21,28 +21,28 @@ const {
 
 const repoRoot = resolve(__dirname, "../../../../..");
 
-test("Electron protocol allowlist mirrors runtime-only payload paths", () => {
+test("Electron protocol allowlist mirrors composed product runtime paths", () => {
   assert.equal(runtimePathAllowed("/"), true);
   assert.equal(runtimePathAllowed("/index.html"), true);
   assert.equal(runtimePathAllowed("/host-bridge.js"), true);
   assert.equal(runtimePathAllowed("/vendor/drydock-host-bridge/index.js"), true);
-  assert.equal(runtimePathAllowed("/engine/mock-game/"), true);
-  assert.equal(runtimePathAllowed("/engine/mock-game/index.html"), true);
-  assert.equal(runtimePathAllowed("/engine/mock-game/src/bootstrap.js"), true);
-  assert.equal(runtimePathAllowed("/engine/mock-game/style/mock.css"), true);
-  assert.equal(runtimePathAllowed("/engine/src/core/scope.js"), true);
-  assert.equal(runtimePathAllowed("/engine/style/hud.css"), true);
-  assert.equal(runtimePathAllowed("/engine/lib/three.module.js"), true);
+  assert.equal(runtimePathAllowed("/product/mock-game/"), true);
+  assert.equal(runtimePathAllowed("/product/mock-game/index.html"), true);
+  assert.equal(runtimePathAllowed("/product/mock-game/src/bootstrap.js"), true);
+  assert.equal(runtimePathAllowed("/product/mock-game/style/mock.css"), true);
+  assert.equal(runtimePathAllowed("/product/src/core/scope.js"), true);
+  assert.equal(runtimePathAllowed("/product/style/hud.css"), true);
+  assert.equal(runtimePathAllowed("/product/lib/three.module.js"), true);
 
   assert.equal(runtimePathAllowed("/package.json"), false);
   assert.equal(runtimePathAllowed("/drydock-artifact.json"), false);
   assert.equal(runtimePathAllowed("/.git/config"), false);
-  assert.equal(runtimePathAllowed("/engine/AGENTS.md"), false);
-  assert.equal(runtimePathAllowed("/engine/package.json"), false);
+  assert.equal(runtimePathAllowed("/AGENTS.md"), false);
+  assert.equal(runtimePathAllowed("/package.json"), false);
 });
 
 test("Electron CSP authorizes the exact Line Engine import map", async () => {
-  const html = await readFile(resolve(repoRoot, "engine/mock-game/index.html"), "utf8");
+  const html = await readFile(resolve(repoRoot, "product/mock-game/index.html"), "utf8");
   const importMap = html.match(/<script type="importmap">([\s\S]*?)<\/script>/)?.[1];
 
   assert.ok(importMap, "Line Engine mock import map is missing");
@@ -54,24 +54,36 @@ test("Electron CSP authorizes the exact Line Engine import map", async () => {
 });
 
 test("Electron protocol denies path traversal and sends security headers", async () => {
-  const gameRoot = await mkdtemp(join(tmpdir(), "drydock-electron-game-"));
-  await mkdir(join(gameRoot, "src"), { recursive: true });
-  await writeFile(join(gameRoot, "index.html"), "<!doctype html><title>Drydock</title>");
-  await writeFile(join(gameRoot, "src/main.js"), "export {};");
+  const runtimeRoot = await mkdtemp(join(tmpdir(), "drydock-electron-runtime-"));
+  await mkdir(join(runtimeRoot, "product"), { recursive: true });
+  await writeFile(join(runtimeRoot, "index.html"), "<!doctype html><title>Drydock</title>");
+  await writeFile(join(runtimeRoot, "product/main.js"), "export {};");
 
-  assert.equal(resolveSafeRuntimePath(gameRoot, "/src/main.js"), join(gameRoot, "src/main.js"));
-  assert.throws(() => resolveSafeRuntimePath(gameRoot, "/../secret.txt"), /path escapes/);
+  assert.equal(
+    resolveSafeRuntimePath(runtimeRoot, "/product/main.js"),
+    join(runtimeRoot, "product/main.js")
+  );
+  assert.throws(() => resolveSafeRuntimePath(runtimeRoot, "/../secret.txt"), /path escapes/);
 
-  const ok = await serveAppRequest({ url: "app://drydock/", method: "GET" }, { gameRoot });
+  const ok = await serveAppRequest(
+    { url: "app://drydock/", method: "GET" },
+    { runtimeRoot }
+  );
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get("Content-Security-Policy"), /default-src 'self'/);
   assert.match(contentSecurityPolicy, /object-src 'none'/);
   assert.match(contentSecurityPolicy, /sha256-DV2rnjt8VaGp9BWYzkk/);
 
-  const denied = await serveAppRequest({ url: "app://drydock/package.json", method: "GET" }, { gameRoot });
+  const denied = await serveAppRequest(
+    { url: "app://drydock/package.json", method: "GET" },
+    { runtimeRoot }
+  );
   assert.equal(denied.status, 404);
 
-  const wrongHost = await serveAppRequest({ url: "app://other/index.html", method: "GET" }, { gameRoot });
+  const wrongHost = await serveAppRequest(
+    { url: "app://other/index.html", method: "GET" },
+    { runtimeRoot }
+  );
   assert.equal(wrongHost.status, 404);
 });
 

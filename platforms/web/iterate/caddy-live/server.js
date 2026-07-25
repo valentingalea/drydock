@@ -7,12 +7,15 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
-  loadPayload,
-  resolvePayloadRequest
-} from "../../../../tools/scripts/payload.js";
+  loadProduct,
+  resolveProductRequest
+} from "../../../../tools/scripts/product.js";
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
-const payload = await loadPayload(repoRoot);
+const productRootOverride = process.env.DRYDOCK_PRODUCT_ROOT;
+const product = await loadProduct(repoRoot, {
+  productRoot: productRootOverride
+});
 const defaultPort = 8090;
 const host = "127.0.0.1";
 const execFileAsync = promisify(execFile);
@@ -32,12 +35,12 @@ const contentTypes = new Map([
   [".mp3", "audio/mpeg"]
 ]);
 
-export function getPayloadEntrypoint() {
-  return payload.entrypoint;
+export function getProductEntrypoint() {
+  return product.entrypoint;
 }
 
 export function runtimePathAllowed(pathname) {
-  return resolvePayloadRequest(payload, pathname) !== null;
+  return resolveProductRequest(product, pathname) !== null;
 }
 
 export function createServer() {
@@ -56,7 +59,7 @@ export function createServer() {
         return;
       }
 
-      const filePath = resolvePayloadRequest(payload, pathname);
+      const filePath = resolveProductRequest(product, pathname);
 
       if (!filePath) {
         respond(response, 404, "not found");
@@ -119,19 +122,25 @@ function respond(response, status, body) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  await verifySubmoduleForStart();
+  await verifyProductForStart();
   const port = parsePort(process.argv.slice(2));
   const server = createServer();
 
   server.listen(port, host, () => {
     console.log(`Drydock live origin: http://${host}:${port}/`);
-    console.log(`Payload entrypoint: ${payload.entrypoint}`);
+    console.log(`Product entrypoint: ${product.entrypoint}`);
+    console.log(`Product root: ${product.productRoot}`);
     console.log("Public access should go through Caddy; do not bind this origin publicly.");
   });
 }
 
-async function verifySubmoduleForStart() {
-  const verifier = resolve(repoRoot, "engine/tools/verify-submodule.sh");
+async function verifyProductForStart() {
+  if (productRootOverride) {
+    console.log("Using iteration-only DRYDOCK_PRODUCT_ROOT override.");
+    return;
+  }
+
+  const verifier = resolve(repoRoot, "tools/scripts/verify-product.sh");
   const { stdout, stderr } = await execFileAsync(verifier, ["--start"]);
 
   if (stdout.trim()) console.log(stdout.trim());

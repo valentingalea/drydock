@@ -95,7 +95,7 @@ async function validateManifest(manifest) {
     throw new Error(`invalid artifact manifest: ${JSON.stringify(validate.errors, null, 2)}`);
   }
 
-  if (manifest.platform !== "web" || manifest.engine !== "web-static") {
+  if (manifest.platform !== "web" || manifest.buildAdapter !== "web-static") {
     throw new Error("VPS channel only accepts web-static artifacts");
   }
 }

@@ -9,16 +9,16 @@ BUILD -> INTEGRATE -> PACKAGE / SIGN -> PUBLISH
 The commands below assume channel accounts, SDK access, signing setup, and SOPS files are
 already configured.
 
-All current web and Electron builds compose the payload through
-[`game/drydock-payload.json`](../game/drydock-payload.json). Read
-[`PAYLOAD.md`](./PAYLOAD.md) before a release that advances the Line Engine gitlink:
-the engine commit/tag must be pushed first, then the Drydock pin is committed separately.
+All current web and Electron builds compose the pinned product through
+[`product/drydock-product.json`](../product/drydock-product.json). Read
+[`PRODUCT.md`](./PRODUCT.md) before advancing or replacing the product gitlink: the
+product commit/tag must be pushed first, then the Drydock pin is committed separately.
 
 ## Iteration Is Separate
 
-The fast web path is not a release. `platforms/web/iterate/caddy-live/` resolves the live
-Line Engine mock and Drydock host overlay through a localhost-bound origin and Caddy
-allowlist so browser refreshes reflect source edits immediately.
+The fast web path is not a release. `platforms/web/iterate/caddy-live/` resolves the
+external `DRYDOCK_PRODUCT_ROOT` contract through a localhost-bound origin and Caddy
+allowlist so browser refreshes reflect product edits immediately.
 
 Use it for feel, rendering, controls, and device smoke checks:
 
@@ -87,8 +87,8 @@ Corepack can enable the root-pinned pnpm version on Node distributions that prov
 The current VPS Node 25 installation does not, so its one-time setup uses the exact global
 pnpm version above.
 
-`pnpm run validate` strictly verifies that the clean `engine/` checkout matches the
-Drydock gitlink and that the commit is reachable from Line Engine's origin. It also
+`pnpm run validate` strictly verifies that the clean `product/` checkout matches the
+Drydock gitlink and that the commit is reachable from the product origin. It also
 validates the current artifact and release fixtures. Release preflight should eventually
 grow to validate:
 
@@ -104,7 +104,7 @@ One-time setup:
 
 - Public domain or subdomain points at the VPS.
 - Caddy is installed, enabled, and serving TLS.
-- The live iteration origin, if enabled, serves only descriptor-selected payload files
+- The live iteration origin, if enabled, serves only product-contract-selected files
   from `127.0.0.1`.
 - The release channel has a stable deploy root such as `/var/www/drydock`.
 - Caddy config is generated or templated from `platforms/web/channels/vps/caddy.example`.
@@ -112,7 +112,7 @@ One-time setup:
 Per release:
 
 ```sh
-# BUILD: compose the pinned Line Engine mock + Drydock host adapter and emit a manifest.
+# BUILD: compose the pinned product + Drydock host runtime and emit a manifest.
 pnpm --filter @drydock/web-static build -- \
   --release contracts/releases/0.1.0.yaml
 
@@ -130,9 +130,9 @@ The VPS channel must deploy the packaged `artifacts/build/web-static/` output, n
 not the live iteration origin. It should validate the Caddy config before reload and run
 public checks for allowed runtime paths and denied repo paths.
 
-The build manifest records the exact Line Engine remote, release, commit, and Three.js
-revision under `extensions.drydock.engineRevision`. Preserve that manifest with the
-candidate so the packaged runtime can be traced back to both repository commits.
+The schema-v2 build manifest records the exact product remote, tag, commit, and contract
+under `extensions.drydock.productRevision`. Preserve that manifest with the candidate so
+the packaged runtime can be traced back to both repository commits.
 
 When Caddy config changes, validate before reload:
 
@@ -183,9 +183,9 @@ pnpm --filter @drydock/channel-downloads run verify -- \
   --base-url https://vinyltin.duckdns.org/drydock-downloads/
 ```
 
-Electron stages the same descriptor and host overlay as the web build. The downloads
-channel consumes only its `drydock-artifact.json`; it does not read Line Engine source or
-the payload descriptor.
+Electron stages the same product contract and Drydock host runtime as the web build. The
+downloads channel consumes only its `drydock-artifact.json`; it does not read product
+source or the product contract.
 
 The current VPS route serves only the package archive, checksum, and index page from
 `/var/www/drydock-downloads`.
@@ -262,7 +262,7 @@ One-time setup:
 Per release:
 
 ```sh
-# BUILD: sync payload into the native iOS project and emit artifact manifest.
+# BUILD: sync the product into the native iOS project and emit an artifact manifest.
 pnpm --filter @drydock/mobile-capacitor build:ios -- \
   --release contracts/releases/0.1.0.yaml
 
@@ -288,7 +288,7 @@ One-time setup:
 Per release:
 
 ```sh
-# BUILD: sync payload into the native Android project and emit artifact manifest.
+# BUILD: sync the product into the native Android project and emit an artifact manifest.
 pnpm --filter @drydock/mobile-capacitor build:android -- \
   --release contracts/releases/0.1.0.yaml
 
@@ -326,7 +326,7 @@ the release, unless the release manifest explicitly opts into automatic submissi
 
 ## Unreal Note
 
-For an Unreal payload, the build stage changes to a `build/unreal` adapter around
+For an Unreal product, the build stage changes to a `build/unreal` adapter around
 `RunUAT BuildCookRun`. Channel work may configure Unreal store plugins, but channel
 scripts still consume the artifact manifest and publish through the same channel-owned
 flow.

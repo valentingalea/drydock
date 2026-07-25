@@ -7,11 +7,13 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/usr/games/Drydock
+# Optional iteration-only checkout; omit to use Drydock's pinned product/ submodule.
+# Environment=DRYDOCK_PRODUCT_ROOT=/usr/games/MyGame
 ExecStart=/usr/games/Drydock/platforms/web/iterate/caddy-live/start.sh --port 8090
 Restart=on-failure
 RestartSec=2
 
-# Replace with an unprivileged local account that can read the repo and submodule.
+# Replace with an unprivileged local account that can read Drydock and the product root.
 User=drydock
 Group=drydock
 

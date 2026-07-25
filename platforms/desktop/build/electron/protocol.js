@@ -36,24 +36,18 @@ function runtimePathAllowed(pathname) {
   return pathname === "/"
     || pathname === "/index.html"
     || pathname === "/host-bridge.js"
-    || pathname === "/engine/mock-game/"
-    || pathname === "/engine/mock-game/index.html"
-    || pathname.startsWith("/engine/mock-game/src/")
-    || pathname.startsWith("/engine/mock-game/style/")
-    || pathname.startsWith("/engine/src/")
-    || pathname.startsWith("/engine/style/")
-    || pathname.startsWith("/engine/lib/")
+    || pathname.startsWith("/product/")
     || pathname.startsWith("/vendor/drydock-host-bridge/");
 }
 
 function createAppProtocolHandler(options = {}) {
-  const gameRoot = options.gameRoot;
+  const runtimeRoot = options.runtimeRoot;
 
-  if (!gameRoot) {
-    throw new Error("gameRoot is required");
+  if (!runtimeRoot) {
+    throw new Error("runtimeRoot is required");
   }
 
-  return (request) => serveAppRequest(request, { gameRoot });
+  return (request) => serveAppRequest(request, { runtimeRoot });
 }
 
 async function serveAppRequest(request, options) {
@@ -74,7 +68,7 @@ async function serveAppRequest(request, options) {
   }
 
   try {
-    const filePath = resolveSafeRuntimePath(options.gameRoot, pathname);
+    const filePath = resolveSafeRuntimePath(options.runtimeRoot, pathname);
     const fileStat = await stat(filePath);
 
     if (!fileStat.isFile()) {
@@ -102,21 +96,21 @@ async function serveAppRequest(request, options) {
   }
 }
 
-function resolveSafeRuntimePath(gameRoot, pathname) {
+function resolveSafeRuntimePath(runtimeRoot, pathname) {
   const normalizedPath = pathname === "/"
     ? "/index.html"
     : pathname.endsWith("/")
       ? `${pathname}index.html`
       : pathname;
-  const filePath = resolve(gameRoot, `.${normalizedPath}`);
-  const pathWithinGame = relative(gameRoot, filePath);
+  const filePath = resolve(runtimeRoot, `.${normalizedPath}`);
+  const pathWithinRuntime = relative(runtimeRoot, filePath);
 
   if (
-    pathWithinGame.startsWith("..")
-    || pathWithinGame.includes(`..${sep}`)
-    || pathWithinGame === ""
+    pathWithinRuntime.startsWith("..")
+    || pathWithinRuntime.includes(`..${sep}`)
+    || pathWithinRuntime === ""
   ) {
-    throw Object.assign(new Error("path escapes game root"), { code: "ENOENT" });
+    throw Object.assign(new Error("path escapes runtime root"), { code: "ENOENT" });
   }
 
   return filePath;

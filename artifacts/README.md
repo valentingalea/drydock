@@ -14,11 +14,11 @@ artifacts/
 ```
 
 Static web and Electron builds stage the runtime selected by
-`game/drydock-payload.json`; their manifests record the exact Line Engine release,
-gitlink commit, remote, and Three.js revision under
-`extensions.drydock.engineRevision`. Channel folders consume those manifests and staged
-artifacts, never live files from `engine/`.
+`product/drydock-product.json`; their schema-v2 manifests record the exact product
+gitlink, remote, tag, and contract under `extensions.drydock.productRevision`. Channel
+folders consume those manifests and staged artifacts, never live files from `product/`
+or an external iteration checkout.
 
 Do not hand-edit or commit generated files from these folders. This README is the only
-tracked file under the artifact root. See [`docs/PAYLOAD.md`](../docs/PAYLOAD.md) for the
-composition and engine-pin workflow.
+tracked file under the artifact root. See [`docs/PRODUCT.md`](../docs/PRODUCT.md) for the
+composition and product-pin workflow.

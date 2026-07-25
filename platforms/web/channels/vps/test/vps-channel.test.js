@@ -37,10 +37,10 @@ test("VPS publish copies a packaged web artifact to the deploy root", async () =
   });
 
   await stat(join(root, "index.html"));
-  await stat(join(root, "engine/mock-game/index.html"));
-  await stat(join(root, "engine/mock-game/src/platform-host.js"));
-  await stat(join(root, "engine/src/core/scope.js"));
-  await stat(join(root, "engine/lib/three.module.js"));
+  await stat(join(root, "product/mock-game/index.html"));
+  await stat(join(root, "product/mock-game/src/platform-host.js"));
+  await stat(join(root, "product/src/core/scope.js"));
+  await stat(join(root, "product/lib/three.module.js"));
   await stat(join(root, "drydock-artifact.json"));
   await stat(join(root, ".drydock-channel"));
   await assert.rejects(stat(join(root, "stale.txt")), { code: "ENOENT" });
@@ -51,12 +51,11 @@ test("VPS Caddy templates keep allowlisted file serving explicit", async () => {
   const pathMounted = await readFile(join(import.meta.dirname, "../caddy.path.example"), "utf8");
 
   assert.match(wholeDomain, /root \* \/var\/www\/drydock/);
-  assert.match(wholeDomain, /\/engine\/mock-game\/src\/\*/);
-  assert.match(wholeDomain, /\/engine\/src\/\*/);
-  assert.match(wholeDomain, /\/engine\/lib\/\*/);
+  assert.match(wholeDomain, /\/product\/\*/);
+  assert.doesNotMatch(wholeDomain, /try_files \{path\} \/index\.html/);
   assert.match(pathMounted, /handle_path \/drydock-release\/\*/);
-  assert.match(pathMounted, /\/engine\/mock-game\/src\/\*/);
-  assert.match(pathMounted, /\/engine\/src\/\*/);
+  assert.match(pathMounted, /\/product\/\*/);
+  assert.doesNotMatch(pathMounted, /try_files \{path\} \/index\.html/);
 });
 
 test("parses VPS verify arguments and env defaults", () => {
@@ -87,8 +86,8 @@ test("parses VPS verify arguments and env defaults", () => {
 
 test("VPS verifier preserves path-mounted route prefixes", () => {
   assert.equal(
-    resolveRouteUrl("https://example.com/drydock", "/engine/mock-game/index.html"),
-    "https://example.com/drydock/engine/mock-game/index.html"
+    resolveRouteUrl("https://example.com/drydock", "/product/mock-game/index.html"),
+    "https://example.com/drydock/product/mock-game/index.html"
   );
   assert.equal(
     resolveRouteUrl("https://example.com/drydock-release/", "/"),
@@ -101,10 +100,11 @@ test("VPS verifier checks public allow and deny paths for both route mounts", as
     const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
     const denied = pathname.endsWith("/package.json")
       || pathname.endsWith("/.git/config")
-      || pathname.endsWith("/engine/.git")
-      || pathname.endsWith("/engine/AGENTS.md")
-      || pathname.endsWith("/engine/package.json")
-      || pathname.endsWith("/engine/test/unit/scope.test.js")
+      || pathname.endsWith("/product/.git")
+      || pathname.endsWith("/product/AGENTS.md")
+      || pathname.endsWith("/product/package.json")
+      || pathname.endsWith("/product/test/unit/scope.test.js")
+      || pathname.endsWith("/product/drydock-product.json")
       || pathname.endsWith("/drydock-artifact.json")
       || pathname.endsWith("/.drydock-channel");
 
@@ -127,8 +127,8 @@ test("VPS verifier checks public allow and deny paths for both route mounts", as
       timeoutMs: 1000
     });
 
-    assert.equal(results.length, 56);
-    assert.equal(results.filter((result) => result.status === 404).length, 16);
+    assert.equal(results.length, 58);
+    assert.equal(results.filter((result) => result.status === 404).length, 18);
   } finally {
     await new Promise((resolveClose) => server.close(resolveClose));
   }

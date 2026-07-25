@@ -1,6 +1,3 @@
-appId: dev.drydock.line-engine-calibration
-productName: Line Engine Calibration
-executableName: line-engine-calibration
 asar: true
 npmRebuild: false
 files:
@@ -9,7 +6,7 @@ files:
   - preload.js
   - protocol.js
   - host-provider.js
-  - game/**/*
+  - runtime/**/*
 mac:
   target: dir
 win:

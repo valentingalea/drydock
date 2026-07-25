@@ -1,10 +1,10 @@
 # Roadmap
 
-Status: **Line Engine embedding proven across web and Electron**. The sole calibration
-mock lives in the pinned Line Engine submodule; live web iteration, packaged static web,
-and Electron all consume one Drydock payload descriptor and host overlay. The VPS serves
-both live and packaged routes, and the direct-download channel publishes a Windows x64
-proof package. Store channels, signing, and mobile remain unbuilt.
+Status: **product/release separation proven across web and Electron**. The complete proof
+product is pinned at `product/` and owns its contract and host adapter. Live iteration
+can read a standalone product checkout, while packaged static web and Electron strictly
+consume the pinned product and emit artifact-schema-v2 manifests. Store channels,
+signing, and mobile remain unbuilt.
 
 ## Build Order
 
@@ -15,30 +15,29 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [x] `contracts/host-bridge/` defines the typed host API, protocol version, capability
       model, error codes, and conformance tests.
 - [x] `contracts/schemas/drydock-artifact.schema.json` defines the artifact manifest contract.
+- [x] `contracts/schemas/drydock-product.schema.json` defines the product-owned
+      composition contract.
 - [x] `tools/scripts/validate-artifact.js` validates `drydock-artifact.json`.
 - [x] Root `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and lockfile exist.
 
-### 2. Line Engine Payload + Web Iterate
+### 2. Product Contract + Web Iterate
 
-- [x] Line Engine is pinned as the root `engine/` git submodule.
-- [x] `engine/mock-game/` is the sole canonical mock; Drydock's spinner was removed.
-- [x] `game/drydock-payload.json` declares identity, entrypoint, runtime mappings and the
-      Drydock platform-host overlay.
-- [x] Line Engine owns Three.js r160; Drydock does not vendor a second copy.
-- [x] The mock calls protocol-v1 host capabilities and storage through its replaceable
-      platform-host module.
-- [x] `platforms/web/iterate/caddy-live/` resolves live descriptor files without copying
-      or serving the repository root.
-- [x] Caddy exposes only the composed runtime and denies Line Engine metadata/docs/tests.
-- [x] `docs/PAYLOAD.md` defines the two-repository commit/tag, descriptor, host overlay,
-      and verification contract.
+- [x] The complete proof product is pinned as the root `product/` git submodule.
+- [x] `product/drydock-product.json` owns identity, entrypoint, runtime mappings, and the
+      product-side host adapter.
+- [x] Drydock owns only the generic `runtime/web/` host implementation.
+- [x] `game/` and Drydock's product-specific overlay were removed.
+- [x] `DRYDOCK_PRODUCT_ROOT` enables immediate iteration from a standalone checkout.
+- [x] Release builds ignore that override and strictly verify the pinned product gitlink.
+- [x] Caddy exposes only the composed runtime and denies product metadata/docs/tests.
+- [x] `docs/PRODUCT.md` defines product substitution, iteration, pinning, and verification.
 
 ### 3. Web Static Build + VPS Channel
 
-- [x] `platforms/web/build/static/` stages only descriptor-selected runtime files into
+- [x] `platforms/web/build/static/` stages only contract-selected runtime files into
       `artifacts/build/web-static/`.
-- [x] Artifact extensions record the Line Engine origin, pinned commit and Three.js
-      revision.
+- [x] Artifact schema v2 separates `productId` from `buildAdapter` and records the product
+      contract, origin, tag, and commit.
 - [x] The static build emits and validates `artifacts/build/web-static/drydock-artifact.json`.
 - [x] `platforms/web/channels/vps/` deploys the packaged `artifacts/build/web-static/` artifact, not
       the live iterate origin.
@@ -58,7 +57,7 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 - [x] `platforms/desktop/build/electron/` exists with `main.js`, `preload.js`,
       `builder.base.yml`, and `package.json`.
-- [x] Register a secure `app://` protocol serving the composed payload.
+- [x] Register a secure `app://` protocol serving the composed product runtime.
 - [x] Enforce Electron security defaults: context isolation, no node integration,
       sandboxed renderer, strict IPC allowlist, CSP.
 - [x] `preload.js` exposes only the typed host bridge over validated IPC.
@@ -114,7 +113,7 @@ Do these in sequence. Each step should leave something executable or enforceable
 ### 8. Second Desktop Store Channel: Epic
 
 - [ ] `platforms/desktop/channels/epic/` proves the channel pattern generalizes.
-- [ ] Epic adds channel folder + workflow without changing payload code.
+- [ ] Epic adds channel folder + workflow without changing product code.
 - [ ] Any required shared contract changes are documented as artifact/host schema
       improvements, not ad hoc engine path access.
 
@@ -128,10 +127,10 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ## Definition Of Done For The Template
 
-- Live Caddy-backed iteration serves Line Engine's sole mock without duplicate source or
-  repository-root exposure.
-- A Line Engine change is committed and pushed in its own repository before Drydock
-  records the reachable revision as a separate gitlink commit.
+- Live Caddy-backed iteration reads a standalone product checkout without duplicate
+  source or repository-root exposure.
+- A product change is committed and pushed in its own repository before Drydock records
+  the reachable revision as a separate gitlink commit.
 - One release manifest plus channel tags can produce uploads to the VPS web channel,
   Steam, App Store, and Play.
 - Every build adapter emits a valid `drydock-artifact.json`.
@@ -139,7 +138,7 @@ Do these in sequence. Each step should leave something executable or enforceable
   capabilities.
 - SOPS+age is the only documented secret storage path for channel credentials.
 - Adding a channel primarily adds one `channels/<channel>/` folder and one workflow.
-- Swapping the payload runtime or build adapter does not require payload code to know about a
-  store/channel.
+- Swapping the complete product or build adapter does not require product code to know
+  about a store/channel.
 - Console support is described only as a future/private extension until a real adapter and
   certification workflow exist.

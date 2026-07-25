@@ -5,18 +5,18 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import {
-  loadPayload,
-  readEngineRevision,
-  stagePayload,
-  verifyPayloadSubmodule
-} from "../../../../tools/scripts/payload.js";
+  loadProduct,
+  readProductRevision,
+  stageProduct,
+  verifyPinnedProduct
+} from "../../../../tools/scripts/product.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const defaultRelease = "contracts/releases/0.1.0.yaml";
 const defaultOut = "artifacts/build/web-static";
 if (import.meta.url === `file://${process.argv[1]}`) {
   const options = parseArgs(process.argv.slice(2));
-  await verifyPayloadSubmodule(repoRoot);
+  await verifyPinnedProduct(repoRoot);
   await buildStaticWeb(options);
 }
 
@@ -26,8 +26,8 @@ export async function buildStaticWeb(options = {}) {
   const channel = options.channel ?? "vps";
   const release = YAML.parse(await readFile(releasePath, "utf8"));
   const buildNumber = release?.build?.[channel];
-  const payload = await loadPayload(repoRoot);
-  const engineRevision = await readEngineRevision(repoRoot, payload);
+  const product = await loadProduct(repoRoot);
+  const productRevision = await readProductRevision(repoRoot, product);
 
   if (!Number.isInteger(buildNumber)) {
     throw new Error(`release manifest does not define build.${channel}`);
@@ -36,7 +36,7 @@ export async function buildStaticWeb(options = {}) {
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
-  await stagePayload(payload, outDir);
+  await stageProduct(product, outDir);
 
   const filePaths = await listFiles(outDir);
   const checksums = [];
@@ -50,11 +50,11 @@ export async function buildStaticWeb(options = {}) {
   checksums.sort((a, b) => a.path.localeCompare(b.path));
 
   const manifest = {
-    schemaVersion: 1,
-    gameId: payload.gameId,
+    schemaVersion: 2,
+    productId: product.productId,
     version: String(release.version),
     buildNumber,
-    engine: "web-static",
+    buildAdapter: "web-static",
     platform: "web",
     arch: "wasm",
     artifactRoot: ".",
@@ -70,13 +70,13 @@ export async function buildStaticWeb(options = {}) {
     checksums,
     extensions: {
       drydock: {
-        buildAdapter: "@drydock/web-static",
+        adapterPackage: "@drydock/web-static",
         channel,
-        entrypoint: payload.entrypoint,
-        payload: payload.descriptorPath,
+        entrypoint: product.entrypoint,
+        productContract: product.contractPath,
+        productRevision,
         release: relative(repoRoot, releasePath).split("\\").join("/"),
-        channelConfig: release.channels?.[channel] ?? {},
-        engineRevision
+        channelConfig: release.channels?.[channel] ?? {}
       }
     }
   };

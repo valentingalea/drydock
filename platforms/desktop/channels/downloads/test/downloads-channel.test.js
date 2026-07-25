@@ -13,11 +13,11 @@ import {
 } from "../package.js";
 
 const manifest = {
-  schemaVersion: 1,
-  gameId: "line-engine-calibration",
+  schemaVersion: 2,
+  productId: "line-engine-calibration",
   version: "0.1.0",
   buildNumber: 100,
-  engine: "electron",
+  buildAdapter: "electron",
   platform: "windows",
   arch: "x64",
   artifactRoot: "win-unpacked",

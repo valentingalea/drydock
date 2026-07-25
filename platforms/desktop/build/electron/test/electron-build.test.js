@@ -51,7 +51,7 @@ test("normalizes Electron build targets and output paths", () => {
   assert.throws(() => resolveBuildTarget({ platform: "freebsd", arch: "x64" }), /unsupported/);
 });
 
-test("stages Electron shell and runtime payload without repo-only files", async () => {
+test("stages Electron shell and composed product without repo-only files", async () => {
   const stageDir = await mkdtemp(join(tmpdir(), "drydock-electron-stage-"));
 
   await prepareStagedApp({
@@ -63,19 +63,22 @@ test("stages Electron shell and runtime payload without repo-only files", async 
   await stat(join(stageDir, "preload.js"));
   await stat(join(stageDir, "protocol.js"));
   await stat(join(stageDir, "host-provider.js"));
-  await stat(join(stageDir, "game/index.html"));
-  await stat(join(stageDir, "game/vendor/drydock-host-bridge/index.js"));
-  await stat(join(stageDir, "game/engine/mock-game/index.html"));
-  await stat(join(stageDir, "game/engine/mock-game/src/bootstrap.js"));
-  await stat(join(stageDir, "game/engine/mock-game/src/platform-host.js"));
-  await stat(join(stageDir, "game/engine/mock-game/style/mock.css"));
-  await stat(join(stageDir, "game/engine/src/core/scope.js"));
-  await stat(join(stageDir, "game/engine/style/hud.css"));
-  await stat(join(stageDir, "game/engine/lib/three.module.js"));
+  await stat(join(stageDir, "runtime/index.html"));
+  await stat(join(stageDir, "runtime/vendor/drydock-host-bridge/index.js"));
+  await stat(join(stageDir, "runtime/product/mock-game/index.html"));
+  await stat(join(stageDir, "runtime/product/mock-game/src/bootstrap.js"));
+  await stat(join(stageDir, "runtime/product/mock-game/src/platform-host.js"));
+  await stat(join(stageDir, "runtime/product/mock-game/style/mock.css"));
+  await stat(join(stageDir, "runtime/product/src/core/scope.js"));
+  await stat(join(stageDir, "runtime/product/style/hud.css"));
+  await stat(join(stageDir, "runtime/product/lib/three.module.js"));
 
-  await assert.rejects(stat(join(stageDir, "game/package.json")), { code: "ENOENT" });
-  await assert.rejects(stat(join(stageDir, "game/test/game.test.js")), { code: "ENOENT" });
-  await assert.rejects(stat(join(stageDir, "game/engine/AGENTS.md")), { code: "ENOENT" });
+  await assert.rejects(stat(join(stageDir, "runtime/product/package.json")), { code: "ENOENT" });
+  await assert.rejects(stat(join(stageDir, "runtime/product/AGENTS.md")), { code: "ENOENT" });
+  await assert.rejects(
+    stat(join(stageDir, "runtime/product/drydock-product.json")),
+    { code: "ENOENT" }
+  );
 
   const stagedPackage = JSON.parse(await readFile(join(stageDir, "package.json"), "utf8"));
   assert.equal(stagedPackage.main, "main.js");
@@ -95,15 +98,16 @@ test("Electron build emits a schema-valid artifact manifest", async () => {
   await stat(join(out, "linux-unpacked/line-engine-calibration"));
   await stat(join(out, "drydock-artifact.json"));
 
-  assert.equal(manifest.engine, "electron");
+  assert.equal(manifest.schemaVersion, 2);
+  assert.equal(manifest.buildAdapter, "electron");
   assert.equal(manifest.platform, "linux");
   assert.equal(manifest.arch, "x64");
   assert.equal(manifest.artifactRoot, "linux-unpacked");
   assert.equal(manifest.executable, "linux-unpacked/line-engine-calibration");
-  assert.equal(manifest.gameId, "line-engine-calibration");
+  assert.equal(manifest.productId, "line-engine-calibration");
   assert.equal(manifest.buildNumber, 100);
   assert.deepEqual(manifest.capabilities, ["storage"]);
-  assert.equal(manifest.extensions.drydock.entrypoint, "engine/mock-game/index.html");
-  assert.match(manifest.extensions.drydock.engineRevision.commit, /^[a-f0-9]{40}$/);
+  assert.equal(manifest.extensions.drydock.entrypoint, "product/mock-game/index.html");
+  assert.match(manifest.extensions.drydock.productRevision.commit, /^[a-f0-9]{40}$/);
   assert.equal(manifest.extensions.electron.protocol, "app://drydock");
 });

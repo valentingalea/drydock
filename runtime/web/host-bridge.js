@@ -6,6 +6,7 @@ import {
   ok
 } from "./vendor/drydock-host-bridge/index.js";
 
+// Drydock-owned web runtime; product code connects through its own adapter.
 let hostPromise;
 
 export { HOST_PROTOCOL_VERSION };

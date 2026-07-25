@@ -1,7 +1,6 @@
 # Electron Build Adapter
 
-This adapter wraps the descriptor-composed Line Engine calibration payload in a
-store-neutral Electron shell.
+This adapter wraps the contract-composed product in a store-neutral Electron shell.
 Store-specific SDKs and upload behavior belong in desktop channel folders, not here.
 
 ## Build
@@ -16,20 +15,21 @@ pnpm --filter @drydock/desktop-electron build -- \
 The default output is `artifacts/build/<platform>-<arch>/`, using manifest platform names such as
 `linux`, `windows`, and `macos`.
 
-The build stages a minimal Electron app, consumes `game/drydock-payload.json`, overlays
-Drydock's platform host at Line Engine's extension point, runs `electron-builder --dir`,
-and writes `drydock-artifact.json` next to the unpacked output. The manifest records the
-pinned Line Engine revision.
+The build stages a minimal Electron app, consumes `product/drydock-product.json`, adds
+Drydock's generic host runtime, runs `electron-builder --dir`, and writes an
+artifact-schema-v2 `drydock-artifact.json` next to the unpacked output. The product owns
+its adapter; the manifest records the pinned product revision.
 
 The CLI performs strict submodule verification before staging. It refuses a dirty,
-uninitialized, locally unreachable, or mismatched engine pin. Follow
-[`docs/PAYLOAD.md`](../../../../docs/PAYLOAD.md) to advance the Line Engine revision.
+uninitialized, unreachable, or mismatched product pin. It ignores
+`DRYDOCK_PRODUCT_ROOT`. Follow
+[`docs/PRODUCT.md`](../../../../docs/PRODUCT.md) to advance the product revision.
 
 ## Runtime Contract
 
 - `main.js` registers a privileged `app://drydock` protocol.
 - `protocol.js` serves only composed runtime paths and adds CSP/security headers. Its
-  script policy authorizes the exact Line Engine import-map hash without allowing
+  script policy authorizes the current product's exact import-map hash without allowing
   arbitrary inline scripts.
 - `preload.js` exposes `window.drydockHost` only.
 - `host-provider.js` validates all IPC and implements local file-backed storage.

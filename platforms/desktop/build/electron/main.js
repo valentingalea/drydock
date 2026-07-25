@@ -20,18 +20,18 @@ if (typeof app.enableSandbox === "function") {
   app.enableSandbox();
 }
 
-function resolveGameRoot() {
-  if (process.env.DRYDOCK_GAME_ROOT) {
-    return path.resolve(process.env.DRYDOCK_GAME_ROOT);
+function resolveRuntimeRoot() {
+  if (process.env.DRYDOCK_RUNTIME_ROOT) {
+    return path.resolve(process.env.DRYDOCK_RUNTIME_ROOT);
   }
 
-  const packagedGameRoot = path.resolve(__dirname, "game");
+  const packagedRuntimeRoot = path.resolve(__dirname, "runtime");
 
-  if (existsSync(path.join(packagedGameRoot, "index.html"))) {
-    return packagedGameRoot;
+  if (existsSync(path.join(packagedRuntimeRoot, "index.html"))) {
+    return packagedRuntimeRoot;
   }
 
-  return path.resolve(__dirname, "../../../..", "game");
+  throw new Error("composed Electron runtime is missing; build or set DRYDOCK_RUNTIME_ROOT");
 }
 
 function createWindowOptions(options = {}) {
@@ -59,8 +59,8 @@ function configureSession(defaultSession) {
   });
 }
 
-function registerAppProtocol(protocolModule, gameRoot) {
-  protocolModule.handle(appScheme, createAppProtocolHandler({ gameRoot }));
+function registerAppProtocol(protocolModule, runtimeRoot) {
+  protocolModule.handle(appScheme, createAppProtocolHandler({ runtimeRoot }));
 }
 
 function createWindow(options = {}) {
@@ -81,9 +81,9 @@ function createWindow(options = {}) {
 }
 
 async function boot() {
-  const gameRoot = resolveGameRoot();
+  const runtimeRoot = resolveRuntimeRoot();
 
-  registerAppProtocol(protocol, gameRoot);
+  registerAppProtocol(protocol, runtimeRoot);
   await registerHostIpc(
     ipcMain,
     createElectronHostProvider({ userDataPath: app.getPath("userData") })
@@ -111,5 +111,5 @@ module.exports = {
   createWindow,
   createWindowOptions,
   registerAppProtocol,
-  resolveGameRoot
+  resolveRuntimeRoot
 };

@@ -1,5 +1,4 @@
 packages:
-  - "game"
   - "contracts/host-bridge"
   - "platforms/*/iterate/*"
   - "platforms/*/build/*"

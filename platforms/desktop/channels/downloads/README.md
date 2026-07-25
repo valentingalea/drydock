@@ -10,9 +10,9 @@ It is still not a store release path:
 - no store metadata;
 - no store upload.
 
-The package contains the descriptor-composed Line Engine calibration client and Drydock
-host bridge produced by the Electron adapter. This channel never reads `engine/` or
-recomposes the payload; it packages only the artifact named by
+The package contains the contract-composed product and Drydock host runtime produced by
+the Electron adapter. This channel never reads `product/`, an external product checkout,
+or the product contract; it packages only the artifact named by
 `drydock-artifact.json`.
 
 ## Current VPS Route
@@ -60,9 +60,10 @@ The package script consumes `drydock-artifact.json`, preserves the artifact root
 the zip, writes a SHA-256 checksum, and renders `index.html`. The publish script replaces
 `/var/www/drydock-downloads` with only public package files.
 
-The input manifest preserves `extensions.drydock.engineRevision`, so the download can be
-traced to the Line Engine release and commit selected by Drydock. The embedding workflow
-is documented in [`docs/PAYLOAD.md`](../../../../docs/PAYLOAD.md).
+The schema-v2 input manifest preserves `extensions.drydock.productRevision`, so the
+download can be traced to the exact product contract, tag, and commit selected by
+Drydock. The workflow is documented in
+[`docs/PRODUCT.md`](../../../../docs/PRODUCT.md).
 
 ## Windows Signing
 

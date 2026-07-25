@@ -3,9 +3,8 @@ drydock.example.com {
 
 	root * /var/www/drydock
 
-	@allowed path / /index.html /host-bridge.js /vendor/drydock-host-bridge/* /engine/mock-game/ /engine/mock-game/index.html /engine/mock-game/src/* /engine/mock-game/style/* /engine/src/* /engine/style/* /engine/lib/*
+	@allowed path / /index.html /host-bridge.js /vendor/drydock-host-bridge/* /product/*
 	handle @allowed {
-		try_files {path} /index.html
 		file_server
 	}
 

@@ -6,15 +6,14 @@ Nothing relies on a shared `node_modules`. The Electron adapter, each release ch
 the Capacitor adapter, and the shared host bridge are separate packages with their own
 manifests and scripts.
 
-Line Engine is a separate repository as well as a submodule. Its `npm` development
-dependencies and lockfile belong under `engine/`; it owns Three.js as a checked-in runtime
-dependency. Drydock's pnpm workspace does not install or hoist Line Engine dependencies.
+The product is a separate repository and submodule. Its dependencies, lockfiles, engine,
+and build tools stay under `product/` or its standalone checkout. Drydock's pnpm
+workspace does not install or hoist product dependencies.
 
 Expected package shape:
 
 | Package | Folder | Purpose |
 |---|---|---|
-| `@drydock/game` | `game/` | Payload composition + Drydock host adapter |
 | `@drydock/host-bridge` | `contracts/host-bridge/` | Typed host API + conformance tests |
 | `@drydock/web-iterate-caddy-live` | `platforms/web/iterate/caddy-live/` | Live Caddy-backed browser iteration |
 | `@drydock/web-static` | `platforms/web/build/static/` | Static web build adapter |
@@ -59,62 +58,59 @@ pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/
 pnpm's content-addressed store keeps installs disk-efficient without merging dependency
 graphs.
 
-## Updating The Engine Pin
+## Updating The Product Pin
 
-An engine update crosses two repositories in a fixed order:
+A product update crosses two repositories in a fixed order:
 
 ```sh
-cd engine
+cd product
 git switch main
 git pull --ff-only
-npm ci
-tools/test.sh
-git add <engine-files>
-git commit -m "<Line Engine change>"
+<product test command>
+git add <product-files>
+git commit -m "<product change>"
 git push origin main
 
 cd ..
-git add engine game/drydock-payload.json
-pnpm run validate:submodule
+git add product
+pnpm run validate:product
 pnpm test
 pnpm run validate
-git commit -m "Embed Line Engine vX.Y.Z"
+git commit -m "Embed product vX.Y.Z"
 ```
 
-Push a Line Engine release tag before referring to it from the descriptor. Strict
-submodule validation checks that the checkout is clean, exactly matches Drydock's staged
-gitlink, and is reachable from Line Engine's origin. The live iteration server uses the
-weaker `--start` check so active engine edits produce warnings instead of blocking the
-feedback loop.
+Push a product release tag before Drydock refers to it. Strict validation checks that the
+checkout is clean, exactly matches Drydock's staged gitlink, and is reachable from the
+product origin.
 
-See [`PAYLOAD.md`](./PAYLOAD.md) for tagging, descriptor changes, composition rules, and
-the full browser verification contract.
+See [`PRODUCT.md`](./PRODUCT.md) for external iteration, tagging, contract changes,
+substitution, and browser verification.
 
 ## Runtime Sources And Vendoring
 
-Line Engine owns and pins Three.js r160 under `engine/lib/`; Drydock must not install or
-vendor a second Three.js copy. `pnpm run vendor` copies only the shared Drydock host
-contract into `game/vendor/drydock-host-bridge/`.
+The product owns every game and engine runtime dependency. Drydock must not install or
+vendor its own copy. `pnpm run vendor` copies only the shared Drydock host contract into
+`runtime/web/vendor/drydock-host-bridge/`.
 
-Release builds and Electron staging consume `game/drydock-payload.json`. They copy the
-exact Line Engine runtime directories and apply the declared platform-host overlay. They
-do not read runtime code from `node_modules`, CDNs, or package-manager caches.
+Release builds and Electron staging consume `product/drydock-product.json`. They stage
+the exact product-owned entries plus Drydock's web host runtime. They do not infer product
+files or read product runtime code from Drydock's `node_modules`.
 
-`tools/scripts/payload.js` is the one shared descriptor implementation. It validates
-safe repository-relative mappings, resolves live requests, stages packaged trees, reads
-the engine revision, and runs the submodule verifier. Build adapters must import it
+`tools/scripts/product.js` is the one shared contract implementation. It validates safe
+product-relative mappings, resolves live requests, stages packaged trees, and reads the
+product revision. Build adapters must import it
 instead of recreating those rules.
 
 ## Workspace Rules
 
-- The Drydock platform-host overlay can depend on `@drydock/host-bridge`, but neither it
-  nor Line Engine may depend on channel packages.
-- Iterate packages may resolve the live payload composition for fast feedback, but they
+- The product-side host adapter may use the stable Drydock host contract, but it may not
+  depend on channel packages.
+- Iterate packages may resolve an external product composition for fast feedback, but they
   do not emit artifacts, read secrets, or act as release inputs.
-- Build adapters can depend on `@drydock/game` and `@drydock/host-bridge`, but not on
-  concrete channel packages.
+- Build adapters can depend on `@drydock/host-bridge`, but not on concrete channel
+  packages.
 - Channel packages can depend on `@drydock/host-bridge` and consume artifact manifests.
-  They should not import private engine adapter internals.
+  They should not import product internals or private build-adapter modules.
 - If a channel implementation must run inside Electron, it must be bundled or copied into
   the Electron app during the channel integration/package stage. Do not rely on runtime
   `require()` resolving across unrelated package `node_modules`.
@@ -146,16 +142,17 @@ when SOPS-injected signing inputs are missing.
 The web iteration path is deliberately lighter than a release:
 
 ```sh
-pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
+DRYDOCK_PRODUCT_ROOT=/path/to/product \
+  pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 ```
 
-It starts a localhost-only descriptor-resolved origin with no-cache headers and no
-artifact output. Caddy exposes that origin through a tight allowlist. This is the right
-path for fast rendering, controls, layout, and device checks.
+It starts a localhost-only product-contract resolver with no-cache headers and no
+artifact output. The override is ignored by release builds. Caddy exposes the origin
+through a tight allowlist.
 
 Iteration packages must not:
 
-- copy `engine/mock-game` into another canonical source tree;
+- copy the product into another canonical source tree;
 - symlink a second source mirror;
 - serve the repo root;
 - read SOPS secrets;

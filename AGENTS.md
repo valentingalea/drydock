@@ -4,10 +4,11 @@ A reusable harness for shipping one game to many release channels: Steam, Epic, 
 itch, the App Store, and Google Play. The goal is to keep game code portable while
 making each channel's build, signing, metadata, and upload rules explicit.
 
-The game itself is treated as an interchangeable **payload**. The current proof payload
-is Line Engine's canonical calibration mock, pinned as the root `engine/` git submodule.
-`game/drydock-payload.json` composes that source with Drydock's host adapter; Drydock does
-not maintain a second mock game.
+The complete game repository is treated as an interchangeable **product**: the vessel
+that Drydock prepares for release. The current proof product is Line Engine's canonical
+calibration client, pinned as the root `product/` git submodule. The product owns
+`drydock-product.json`, its engine dependencies, and its Drydock host adapter. Drydock
+does not maintain game code or infer product internals.
 
 ## Core principle - the release pipeline
 
@@ -18,7 +19,7 @@ passes through four stages:
 BUILD  ->  INTEGRATE  ->  PACKAGE / SIGN  ->  PUBLISH
 ```
 
-- **BUILD** is payload/build-adapter-specific. It stages, compiles, or wraps the payload
+- **BUILD** is product/build-adapter-specific. It stages, compiles, or wraps the product
   into a raw artifact and writes a `drydock-artifact.json` manifest describing it.
 - **INTEGRATE** is channel-specific runtime work. It wires in store SDKs, overlays,
   entitlement checks, achievement providers, cloud-save providers, and other channel
@@ -29,12 +30,12 @@ BUILD  ->  INTEGRATE  ->  PACKAGE / SIGN  ->  PUBLISH
 
 The boundary is not "stores never affect binaries." Real stores often do. The boundary is
 that channel-specific behavior is isolated behind a documented artifact manifest and host
-bridge instead of leaking into the payload.
+bridge instead of leaking into the product.
 
-Fast iteration is separate from release. Web iteration may serve the descriptor-selected
-files from `game/` and `engine/` directly through a localhost-only origin and Caddy
-allowlist, but that path does not emit an artifact and is not used for release
-verification.
+Fast iteration is separate from release. Web iteration may resolve contract-selected
+files from an external `DRYDOCK_PRODUCT_ROOT` checkout through a localhost-only origin
+and Caddy allowlist, but that path does not emit an artifact and is not used for release
+verification. Release builds always consume the pinned `product/` gitlink.
 
 ## Documentation map
 
@@ -43,7 +44,7 @@ Read in this order.
 | File | Purpose |
 |---|---|
 | `docs/ARCHITECTURE.md` | The layered model, release stages, artifact manifest, host bridge. Read first. |
-| `docs/PAYLOAD.md` | Canonical Line Engine embedding, update, composition, and verification workflow. |
+| `docs/PRODUCT.md` | Canonical product ownership, contract, external iteration, pinning, and substitution workflow. |
 | `docs/STRUCTURE.md` | Canonical folder tree and what each directory owns. |
 | `docs/TOOLCHAIN.md` | Package management, dependency isolation, SDK & signing handling. |
 | `docs/ITERATE.md` | The fast Caddy-backed web iteration path and its safety rules. |
@@ -54,23 +55,23 @@ Read in this order.
 
 ## Ground rules for contributors
 
-1. **The payload never references a channel or store.** Payload runtime dependencies such
-   as Line Engine are explicit and pinned; platform services are accessed only through
-   the host bridge.
-2. **Every repository and Drydock package owns its dependency graph.** Line Engine keeps
-   its npm development dependencies; every Drydock platform/channel package keeps its own
-   manifest. Nothing relies on a shared `node_modules`.
+1. **The product never references a channel or store.** It owns its engine/runtime
+   dependencies and accesses platform services only through the host bridge.
+2. **Every repository and Drydock package owns its dependency graph.** The product keeps
+   its own dependencies; every Drydock platform/channel package keeps its own manifest.
+   Nothing relies on a shared `node_modules`.
 3. **Every build adapter emits `drydock-artifact.json`.** Channel tooling consumes the
    manifest, not engine-specific paths.
 4. **Adding a channel should add a channel folder + workflow.** If shared code changes,
    it should be because the artifact or host contract was missing a real capability.
 5. **Iteration paths are not release paths.** `platforms/web/iterate/caddy-live/` may
-   compose live allowlisted payload files for speed, but release channels consume
+   compose live allowlisted product files for speed, but release channels consume
    packaged artifacts.
-6. **Line Engine's `mock-game/` is the only mock game.** Drydock may overlay its documented
-   `platform-host.js` extension point, but must not copy or fork the mock.
-7. **Engine and harness changes are separate commits.** Push a reachable Line Engine
-   commit/tag first, then commit the updated `engine/` gitlink and descriptor in Drydock.
+6. **The product owns its entire composition.** `product/drydock-product.json` names
+   product-relative sources and runtime targets. Drydock supplies only its host runtime
+   and must not own product-specific overlays.
+7. **Product and harness changes are separate commits.** Push a reachable product
+   commit/tag first, then commit the updated `product/` gitlink in Drydock.
 8. **Secrets use SOPS+age by default.** Encrypted files may be committed; plaintext keys,
    signing material, SDK caches, and personal credentials never enter the repo.
 9. Prefer conventional tools (pnpm, electron-builder, fastlane, steamcmd) over bespoke
