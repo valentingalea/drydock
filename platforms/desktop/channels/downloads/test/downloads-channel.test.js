@@ -37,7 +37,8 @@ test("downloads Caddy template exposes only the current package and checksum", a
   const caddy = await readFile(join(import.meta.dirname, "../caddy.path.example"), "utf8");
 
   assert.match(caddy, /handle_path \/drydock-downloads\/\*/);
-  assert.match(caddy, /root \* \/var\/www\/drydock-downloads/);
+  assert.match(caddy, /DRYDOCK_DOWNLOAD_ROOT/);
+  assert.match(caddy, /\/srv\/drydock\/downloads/);
   assert.match(caddy, /\/\*\.zip/);
   assert.match(caddy, /\/\*\.zip\.sha256/);
   assert.match(caddy, /respond 404/);

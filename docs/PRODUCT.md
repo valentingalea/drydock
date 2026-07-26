@@ -95,23 +95,29 @@ Electron, the preload injects a validated `globalThis.drydockHost`, backed by re
 IPC and local file storage. Future channels can add capabilities without changing the
 product's store-neutral host calls.
 
-## Frictionless Iteration
+## Iterating In The Product Submodule
 
-Live iteration can read either the pinned submodule or any standalone product checkout:
+The default live workflow reads directly from Drydock's `product/` submodule:
 
 ```sh
-DRYDOCK_PRODUCT_ROOT=/usr/games/engine \
+pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
+```
+
+Edit files under `product/` and refresh the browser. The resolver loads
+`product/drydock-product.json` when the iterator starts, then reads selected source files
+on every request. Source edits therefore appear without copying, committing, pulling, or
+advancing the gitlink. Restart the iterator after changing the contract itself.
+
+For an unusual workflow that needs a different checkout, set the iteration-only
+`DRYDOCK_PRODUCT_ROOT` override:
+
+```sh
+DRYDOCK_PRODUCT_ROOT=/path/to/product \
   pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 ```
 
-`DRYDOCK_PRODUCT_ROOT` is iteration-only. The resolver loads that checkout's
-`drydock-product.json` when the iterator starts, then reads selected source files on every
-request. Source edits therefore appear after a browser refresh without copying,
-committing, pulling, or advancing Drydock's gitlink; restart the iterator after changing
-the contract itself.
-
-The persistent systemd service may set the same environment variable. The external
-checkout must remain readable by the service account.
+The override is optional and should not be present in the normal service configuration.
+If used, the selected checkout must remain readable by the service account.
 
 ## Reproducible Builds
 
@@ -151,10 +157,10 @@ checkout.
 
 ## Updating The Pinned Product
 
-Develop and test in the product repository first:
+Starting at the Drydock repository root, develop and test inside the product submodule:
 
 ```sh
-cd /usr/games/engine
+cd product
 
 # edit product files
 tools/test.sh
@@ -170,14 +176,9 @@ git tag -a vX.Y.Z -m "Product vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
-Then deliberately advance the Drydock pin:
+Then deliberately record the new product revision in Drydock:
 
 ```sh
-cd /usr/games/Drydock/product
-git fetch origin
-git switch main
-git pull --ff-only
-
 cd ..
 git add product
 pnpm run validate:product
@@ -204,11 +205,12 @@ Change the `product/` submodule URL and gitlink, initialize it, and run the comp
 validation suite. Drydock should require no knowledge of whether that repository embeds
 Line Engine, another browser runtime, or a native engine.
 
-## Current Proof Targets
+## Target Shapes
 
-- Live external-product iteration:
-  `https://vinyltin.duckdns.org/drydock/`
-- Packaged pinned-product web artifact:
-  `https://vinyltin.duckdns.org/drydock-release/`
-- Windows x64 Electron package:
-  `https://vinyltin.duckdns.org/drydock-downloads/line-engine-calibration-0.1.0-windows-x64.zip`
+Deployments choose their own hostnames and roots. A typical path-mounted setup exposes:
+
+- `/drydock/` for optional live iteration;
+- `/drydock-release/` for the packaged pinned-product web artifact;
+- `/drydock-downloads/` for packaged desktop downloads.
+
+These route names are examples, not requirements or records of an individual deployment.

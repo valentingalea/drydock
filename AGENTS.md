@@ -32,10 +32,11 @@ The boundary is not "stores never affect binaries." Real stores often do. The bo
 that channel-specific behavior is isolated behind a documented artifact manifest and host
 bridge instead of leaking into the product.
 
-Fast iteration is separate from release. Web iteration may resolve contract-selected
-files from an external `DRYDOCK_PRODUCT_ROOT` checkout through a localhost-only origin
-and Caddy allowlist, but that path does not emit an artifact and is not used for release
-verification. Release builds always consume the pinned `product/` gitlink.
+Fast iteration is separate from release. By default, web iteration resolves
+contract-selected files directly from the pinned `product/` checkout through a
+localhost-only origin and Caddy allowlist. An optional `DRYDOCK_PRODUCT_ROOT` override
+may select another checkout, but neither iteration mode emits an artifact or participates
+in release verification. Release builds always consume the pinned `product/` gitlink.
 
 ## Documentation map
 
@@ -76,3 +77,7 @@ Read in this order.
    signing material, SDK caches, and personal credentials never enter the repo.
 9. Prefer conventional tools (pnpm, electron-builder, fastlane, steamcmd) over bespoke
    scripting, so any agent or engineer can pick the work up cold.
+10. **Committed material is portable.** Documentation, examples, templates, fixtures,
+    and comments use repository-relative commands, configurable values, or generic
+    placeholders. They never encode a contributor's checkout layout, username, private
+    hostname, deployment domain, or one-off machine configuration.

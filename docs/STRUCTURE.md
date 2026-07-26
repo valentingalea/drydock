@@ -104,8 +104,8 @@ install state and stays ignored.
   records the new `product/` gitlink.
 - Every target consumes `product/drydock-product.json`; runtime source mappings must not
   be reimplemented independently by adapters.
-- Web iteration may resolve an external `DRYDOCK_PRODUCT_ROOT` without copying or
-  symlinking a second source mirror.
+- Web iteration resolves the pinned `product/` checkout by default without copying or
+  symlinking a second source mirror. `DRYDOCK_PRODUCT_ROOT` is an optional override.
 - Public live iteration origins bind to `127.0.0.1` and rely on Caddy allowlists. They do
   not serve the repo root.
 - Every build adapter emits `drydock-artifact.json` under `artifacts/build/<target>/` and

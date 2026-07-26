@@ -2,9 +2,9 @@
 
 Status: **product/release separation proven across web and Electron**. The complete proof
 product is pinned at `product/` and owns its contract and host adapter. Live iteration
-can read a standalone product checkout, while packaged static web and Electron strictly
-consume the pinned product and emit artifact-schema-v2 manifests. Store channels,
-signing, and mobile remain unbuilt.
+reads that checkout by default and may optionally select another checkout, while packaged
+static web and Electron strictly consume the pinned product and emit artifact-schema-v2
+manifests. Store channels, signing, and mobile remain unbuilt.
 
 ## Build Order
 
@@ -27,7 +27,8 @@ Do these in sequence. Each step should leave something executable or enforceable
       product-side host adapter.
 - [x] Drydock owns only the generic `runtime/web/` host implementation.
 - [x] `game/` and Drydock's product-specific overlay were removed.
-- [x] `DRYDOCK_PRODUCT_ROOT` enables immediate iteration from a standalone checkout.
+- [x] Live iteration reads `product/` by default; `DRYDOCK_PRODUCT_ROOT` remains an
+      optional override.
 - [x] Release builds ignore that override and strictly verify the pinned product gitlink.
 - [x] Caddy exposes only the composed runtime and denies product metadata/docs/tests.
 - [x] `docs/PRODUCT.md` defines product substitution, iteration, pinning, and verification.
@@ -49,8 +50,8 @@ Do these in sequence. Each step should leave something executable or enforceable
 - [x] The live iterate origin has a repo-owned systemd service template.
 - [x] `platforms/web/channels/vps/` has a repeatable public verifier for live and release
       routes.
-- [x] VPS docs identify external deploy state under `/etc/caddy`, `/var/www/drydock`,
-      and the live localhost origin.
+- [x] VPS docs distinguish repository-owned templates from configurable external deploy
+      state without recording an individual machine's layout.
 - [x] Render-level Playwright smoke checks remain separate from HTTP allow/deny checks.
 
 ### 4. Desktop Build Adapter: Electron
@@ -127,8 +128,8 @@ Do these in sequence. Each step should leave something executable or enforceable
 
 ## Definition Of Done For The Template
 
-- Live Caddy-backed iteration reads a standalone product checkout without duplicate
-  source or repository-root exposure.
+- Live Caddy-backed iteration reads `product/` without duplicate source or
+  repository-root exposure; an external checkout is optional.
 - A product change is committed and pushed in its own repository before Drydock records
   the reachable revision as a separate gitlink commit.
 - One release manifest plus channel tags can produce uploads to the VPS web channel,

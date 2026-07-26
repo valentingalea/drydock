@@ -21,8 +21,7 @@ pnpm run validate
 ```
 
 If the Node distribution includes Corepack, `corepack enable pnpm` may replace the global
-install; the root `packageManager` field pins the same pnpm version. The current VPS
-Node 25 installation does not include Corepack.
+install; the root `packageManager` field pins the same pnpm version.
 
 Initialize the product in an existing checkout with:
 
@@ -30,12 +29,6 @@ Initialize the product in an existing checkout with:
 git submodule update --init --recursive
 ```
 
-Current proof routes:
-
-- Live product iteration: `https://vinyltin.duckdns.org/drydock/`
-- Packaged static build: `https://vinyltin.duckdns.org/drydock-release/`
-- Desktop downloads: `https://vinyltin.duckdns.org/drydock-downloads/`
-
 Start with [`AGENTS.md`](./AGENTS.md) for the project rules and documentation map. Read
 [`docs/PRODUCT.md`](./docs/PRODUCT.md) before changing the product pin, runtime mapping,
-external iteration checkout, or host integration.
+optional iteration checkout, or host integration.

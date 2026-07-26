@@ -28,8 +28,7 @@ Expected package shape:
 
 The root should contain `package.json`, `pnpm-workspace.yaml`, `.npmrc`, and
 `pnpm-lock.yaml`. The root `packageManager` field pins pnpm 11.17.0. Corepack honors that
-pin when it is available; the current VPS Node 25 distribution does not include Corepack,
-so install the exact pnpm version directly there.
+pin when it is available. Otherwise install the exact pnpm version directly.
 
 ```sh
 git submodule update --init --recursive
@@ -48,8 +47,8 @@ pnpm --filter @drydock/channel-vps run publish -- artifacts/build/web-static/dry
 pnpm --filter @drydock/desktop-electron build -- --platform windows --arch x64
 pnpm --filter @drydock/channel-downloads run package -- artifacts/build/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-downloads run publish -- artifacts/channels/downloads
-pnpm --filter @drydock/channel-downloads run verify -- --base-url https://vinyltin.duckdns.org/drydock-downloads/
-curl -I https://vinyltin.duckdns.org/drydock-downloads/line-engine-calibration-0.1.0-windows-x64.zip
+pnpm --filter @drydock/channel-downloads run verify -- --base-url https://games.example.com/drydock-downloads/
+curl -I https://games.example.com/drydock-downloads/<package>.zip
 pnpm --filter @drydock/channel-steam integrate -- artifacts/build/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-steam package -- artifacts/build/windows-x64/drydock-artifact.json
 pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/drydock-artifact.json
@@ -83,7 +82,7 @@ Push a product release tag before Drydock refers to it. Strict validation checks
 checkout is clean, exactly matches Drydock's staged gitlink, and is reachable from the
 product origin.
 
-See [`PRODUCT.md`](./PRODUCT.md) for external iteration, tagging, contract changes,
+See [`PRODUCT.md`](./PRODUCT.md) for iteration, tagging, contract changes,
 substitution, and browser verification.
 
 ## Runtime Sources And Vendoring
@@ -105,8 +104,8 @@ instead of recreating those rules.
 
 - The product-side host adapter may use the stable Drydock host contract, but it may not
   depend on channel packages.
-- Iterate packages may resolve an external product composition for fast feedback, but they
-  do not emit artifacts, read secrets, or act as release inputs.
+- Iterate packages resolve `product/` by default and may optionally select another
+  checkout, but they do not emit artifacts, read secrets, or act as release inputs.
 - Build adapters can depend on `@drydock/host-bridge`, but not on concrete channel
   packages.
 - Channel packages can depend on `@drydock/host-bridge` and consume artifact manifests.
@@ -142,13 +141,13 @@ when SOPS-injected signing inputs are missing.
 The web iteration path is deliberately lighter than a release:
 
 ```sh
-DRYDOCK_PRODUCT_ROOT=/path/to/product \
-  pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
+pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 ```
 
-It starts a localhost-only product-contract resolver with no-cache headers and no
-artifact output. The override is ignored by release builds. Caddy exposes the origin
-through a tight allowlist.
+It starts a localhost-only product-contract resolver against `product/`, with no-cache
+headers and no artifact output. An optional `DRYDOCK_PRODUCT_ROOT=/path/to/product`
+prefix selects a different iteration checkout; release builds ignore it. Caddy exposes
+the origin through a tight allowlist.
 
 Iteration packages must not:
 

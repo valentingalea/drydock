@@ -3,7 +3,7 @@ existing.example.com {
 
 	redir /drydock-release /drydock-release/ 308
 	handle_path /drydock-release/* {
-		root * /var/www/drydock
+		root * {$DRYDOCK_WEB_ROOT:/srv/drydock/web}
 
 		@drydock_release_allowed path / /index.html /host-bridge.js /vendor/drydock-host-bridge/* /product/*
 		handle @drydock_release_allowed {

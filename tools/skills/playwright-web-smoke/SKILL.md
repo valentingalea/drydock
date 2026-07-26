@@ -27,8 +27,8 @@ Use this skill to turn "blank page" reports into concrete browser evidence.
    verify the menu reports `host v1`, activate `[data-line-action="play"]`, wait for
    `[data-line-state="play"]`, and require exactly one calibration canvas.
 8. Test both composed forms after an embedding or host-overlay change:
-   `https://vinyltin.duckdns.org/drydock/` for live descriptor resolution and
-   `https://vinyltin.duckdns.org/drydock-release/` for the packaged static artifact.
+   the deployment's live iteration URL for contract resolution and its packaged release
+   URL for the static artifact.
 
 ## Script Options
 

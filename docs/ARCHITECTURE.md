@@ -76,16 +76,17 @@ The clean boundary is therefore:
 Iteration is intentionally outside the release pipeline:
 
 ```text
-EDIT standalone product checkout
+EDIT pinned product/ checkout
   -> product-contract-resolved localhost origin
   -> Caddy allowlist
   -> browser
 ```
 
 For web product work, `platforms/web/iterate/caddy-live/` owns the fast feedback path.
-It resolves `drydock-product.json` against `DRYDOCK_PRODUCT_ROOT`, or the pinned
-`product/` checkout when no override is set. Changes appear after refresh without a
-copy, symlink mirror, artifact, or publish step.
+It resolves `product/drydock-product.json` directly from the submodule. Changes appear
+after refresh without a copy, symlink mirror, artifact, or publish step. An optional
+`DRYDOCK_PRODUCT_ROOT` may select another checkout when a contributor explicitly needs
+one.
 
 The live origin binds to `127.0.0.1` and exposes only contract-selected files. Caddy is
 the public boundary and allows the `/product/` runtime prefix plus the root launcher and

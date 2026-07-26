@@ -3,7 +3,7 @@ existing.example.com {
 
 	redir /drydock-downloads /drydock-downloads/ 308
 	handle_path /drydock-downloads/* {
-		root * /var/www/drydock-downloads
+		root * {$DRYDOCK_DOWNLOAD_ROOT:/srv/drydock/downloads}
 
 		@drydock_downloads_allowed path / /index.html /*.zip /*.zip.sha256
 		handle @drydock_downloads_allowed {

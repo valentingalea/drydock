@@ -1,7 +1,7 @@
 drydock.example.com {
 	encode gzip zstd
 
-	root * /var/www/drydock
+	root * {$DRYDOCK_WEB_ROOT:/srv/drydock/web}
 
 	@allowed path / /index.html /host-bridge.js /vendor/drydock-host-bridge/* /product/*
 	handle @allowed {

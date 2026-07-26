@@ -58,8 +58,9 @@ test("systemd example runs the localhost-only live origin with basic sandboxing"
     "utf8"
   );
 
-  assert.match(unit, /ExecStart=\/usr\/games\/Drydock\/platforms\/web\/iterate\/caddy-live\/start\.sh --port 8090/);
-  assert.match(unit, /DRYDOCK_PRODUCT_ROOT/);
+  assert.match(unit, /ExecStart=\/path\/to\/drydock\/platforms\/web\/iterate\/caddy-live\/start\.sh --port 8090/);
+  assert.doesNotMatch(unit, /DRYDOCK_PRODUCT_ROOT/);
+  assert.doesNotMatch(unit, /\/usr\/games\//);
   assert.match(unit, /IPAddressAllow=localhost/);
   assert.match(unit, /NoNewPrivileges=true/);
   assert.match(unit, /ProtectSystem=strict/);

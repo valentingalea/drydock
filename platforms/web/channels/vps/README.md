@@ -9,17 +9,17 @@ artifact. The VPS publisher consumes the schema-v2 manifest and packaged tree on
 never reads the product checkout. See
 [`docs/PRODUCT.md`](../../../../docs/PRODUCT.md) for the composition contract.
 
-## External State
+## Deployment State
 
-The repo owns the scripts and templates. The VPS owns the runtime state:
+The repository owns scripts and templates. Each deployment chooses and owns:
 
-- `/var/www/drydock` is the packaged release root populated by `publish.js`.
-- `/etc/caddy/Caddyfile` is the public routing boundary.
-- `127.0.0.1:8090` is the optional live iteration origin.
-- `/etc/systemd/system/drydock-web-iterate.service` may manage that live origin.
+- the packaged release root populated by `publish.js`;
+- the installed Caddy configuration;
+- the public hostname and route prefixes;
+- the service unit and unprivileged account for the optional localhost iteration origin.
 
-Treat changes to those paths as deploy state. Keep matching templates or notes in this
-repo so another agent can reconstruct the VPS.
+Treat those values as deploy state. Do not copy an individual host's paths, users, or
+domains into the repository templates.
 
 ## Release Route
 
@@ -41,15 +41,15 @@ Verify both public routes after a change:
 
 ```sh
 pnpm --filter @drydock/channel-vps run verify -- \
-  --live-url https://vinyltin.duckdns.org/drydock/ \
-  --release-url https://vinyltin.duckdns.org/drydock-release/
+  --live-url https://games.example.com/drydock/ \
+  --release-url https://games.example.com/drydock-release/
 ```
 
 For render-level checks, use the Playwright smoke skill command:
 
 ```sh
-pnpm smoke:web -- https://vinyltin.duckdns.org/drydock/
-pnpm smoke:web -- https://vinyltin.duckdns.org/drydock-release/
+pnpm smoke:web -- https://games.example.com/drydock/
+pnpm smoke:web -- https://games.example.com/drydock-release/
 ```
 
 The verifier expects the contract-selected product and Drydock host runtime paths to
@@ -61,7 +61,6 @@ return `200`. Product metadata, tests, package files, and repository internals m
 - `caddy.example` is for a dedicated hostname.
 - `caddy.path.example` is for mounting under an existing hostname.
 
-The current VPS proof uses the path-mounted shape:
-
-- `/drydock/` reverse proxies to the live iterate origin.
-- `/drydock-release/` serves `/var/www/drydock`.
+The path-mounted example uses `/drydock/` for the live iterate origin and
+`/drydock-release/` for the configured packaged web root. Deployments may choose
+different prefixes.

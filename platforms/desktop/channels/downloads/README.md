@@ -15,15 +15,9 @@ the Electron adapter. This channel never reads `product/`, an external product c
 or the product contract; it packages only the artifact named by
 `drydock-artifact.json`.
 
-## Current VPS Route
+## Public Route
 
-`https://vinyltin.duckdns.org/drydock-downloads/` serves files from:
-
-```text
-/var/www/drydock-downloads
-```
-
-The current Caddy route only exposes:
+The configured Caddy route should expose only:
 
 - `/`
 - `/index.html`
@@ -33,7 +27,7 @@ The current Caddy route only exposes:
 It deliberately does not expose `drydock-artifact.json`, unpacked build directories,
 repo files, or directory browsing.
 
-Current proof files:
+For the proof product, package names have this shape:
 
 - `line-engine-calibration-0.1.0-windows-x64.zip`
 - `line-engine-calibration-0.1.0-windows-x64.zip.sha256`
@@ -53,12 +47,12 @@ pnpm --filter @drydock/channel-downloads run publish -- \
   artifacts/channels/downloads
 
 pnpm --filter @drydock/channel-downloads run verify -- \
-  --base-url https://vinyltin.duckdns.org/drydock-downloads/
+  --base-url https://games.example.com/drydock-downloads/
 ```
 
 The package script consumes `drydock-artifact.json`, preserves the artifact root inside
 the zip, writes a SHA-256 checksum, and renders `index.html`. The publish script replaces
-`/var/www/drydock-downloads` with only public package files.
+the configured download root with only public package files.
 
 The schema-v2 input manifest preserves `extensions.drydock.productRevision`, so the
 download can be traced to the exact product contract, tag, and commit selected by

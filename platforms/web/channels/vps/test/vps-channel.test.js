@@ -50,7 +50,8 @@ test("VPS Caddy templates keep allowlisted file serving explicit", async () => {
   const wholeDomain = await readFile(join(import.meta.dirname, "../caddy.example"), "utf8");
   const pathMounted = await readFile(join(import.meta.dirname, "../caddy.path.example"), "utf8");
 
-  assert.match(wholeDomain, /root \* \/var\/www\/drydock/);
+  assert.match(wholeDomain, /DRYDOCK_WEB_ROOT/);
+  assert.match(wholeDomain, /\/srv\/drydock\/web/);
   assert.match(wholeDomain, /\/product\/\*/);
   assert.doesNotMatch(wholeDomain, /try_files \{path\} \/index\.html/);
   assert.match(pathMounted, /handle_path \/drydock-release\/\*/);

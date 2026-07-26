@@ -2,23 +2,20 @@
 
 Fast iteration is a first-class workflow, but it is not a release channel.
 
-Set `DRYDOCK_PRODUCT_ROOT` to the standalone product repository you are actively editing:
+Start the iterator from the Drydock repository:
 
 ```sh
-DRYDOCK_PRODUCT_ROOT=/usr/games/engine \
-  pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
+pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
 ```
 
-The persistent VPS service sets the same variable. Edit the product, refresh
-`https://vinyltin.duckdns.org/drydock/`, and see the change without copying, committing,
-pulling, advancing Drydock's gitlink, building, or deploying.
-
-When no override is set, iteration falls back to Drydock's pinned `product/` submodule.
+By default it reads Drydock's `product/` submodule. Edit the product and refresh the
+browser to see source changes without copying, committing, pulling, advancing the
+gitlink, building, or deploying.
 
 ## Model
 
 ```text
-DRYDOCK_PRODUCT_ROOT/drydock-product.json
+product/drydock-product.json
   + contract-selected product sources
   + product-owned Drydock adapter
   + Drydock runtime/web host files
@@ -63,7 +60,7 @@ The resolver still denies product files not selected by the contract, including:
 The origin must:
 
 - bind to `127.0.0.1`, never `0.0.0.0`;
-- validate the external product's `drydock-product.json`;
+- validate the selected product's `drydock-product.json`;
 - send no-cache headers;
 - read no SOPS secrets;
 - emit no artifact manifest;
@@ -73,13 +70,8 @@ The origin must:
 
 The live route is backed by
 `platforms/web/iterate/caddy-live/systemd/drydock-web-iterate.service.example`.
-Set the product checkout in the installed unit:
-
-```ini
-Environment=DRYDOCK_PRODUCT_ROOT=/usr/games/engine
-```
-
-Then reload and restart:
+Install the template in the platform's systemd unit directory, adjust its generic
+repository path and unprivileged service account, then reload and restart:
 
 ```sh
 sudo systemctl daemon-reload
@@ -87,16 +79,20 @@ sudo systemctl restart drydock-web-iterate.service
 systemctl status drydock-web-iterate.service
 ```
 
-Current VPS note: Node 25 is installed under root's NVM tree, so the installed unit uses
-that explicit binary and runs as root with systemd restrictions. Move Node to a
-system-readable location and switch to an unprivileged `drydock` account when the host
-toolchain is normalized.
+The normal service does not set `DRYDOCK_PRODUCT_ROOT`; it reads `product/`. For an
+exceptional workflow, the optional override may point at another checkout:
+
+```ini
+Environment=DRYDOCK_PRODUCT_ROOT=/path/to/product
+```
+
+Restart the service after adding or changing that override.
 
 ## Iterate vs Release
 
 | Workflow | Product source | Output |
 |---|---|---|
-| Live iterator | `DRYDOCK_PRODUCT_ROOT`, falling back to `product/` | None |
+| Live iterator | `product/` by default; optional `DRYDOCK_PRODUCT_ROOT` | None |
 | Static/Electron build | Exact pinned `product/` gitlink | Clean artifact + schema-v2 manifest |
 
 Release builds ignore `DRYDOCK_PRODUCT_ROOT`, strictly verify the pinned product, stage
@@ -105,20 +101,20 @@ the same runtime URL layout, and record `extensions.drydock.productRevision`.
 ## Verification
 
 ```sh
-curl -sI https://example.com/drydock/product/mock-game/index.html       # 200
-curl -sI https://example.com/drydock/product/src/core/scope.js          # 200
-curl -sI https://example.com/drydock/product/lib/three.module.js         # 200
-curl -sI https://example.com/drydock/product/AGENTS.md                   # 404
-curl -sI https://example.com/drydock/product/drydock-product.json        # 404
-curl -sI https://example.com/drydock/.git/config                         # 404
+curl -sI https://games.example.com/drydock/product/mock-game/index.html # 200
+curl -sI https://games.example.com/drydock/product/src/core/scope.js    # 200
+curl -sI https://games.example.com/drydock/product/lib/three.module.js  # 200
+curl -sI https://games.example.com/drydock/product/AGENTS.md            # 404
+curl -sI https://games.example.com/drydock/product/drydock-product.json # 404
+curl -sI https://games.example.com/drydock/.git/config                  # 404
 ```
 
 For the current proof product, render-level smoke must load the menu, report `host v1`,
 click Play, reach `data-line-state="play"`, and find one calibration canvas:
 
 ```sh
-pnpm smoke:web -- https://vinyltin.duckdns.org/drydock/
-pnpm smoke:web -- https://vinyltin.duckdns.org/drydock-release/
+pnpm smoke:web -- https://games.example.com/drydock/
+pnpm smoke:web -- https://games.example.com/drydock-release/
 ```
 
 Local listener checks should show localhost only:

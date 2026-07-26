@@ -17,8 +17,9 @@ product commit/tag must be pushed first, then the Drydock pin is committed separ
 ## Iteration Is Separate
 
 The fast web path is not a release. `platforms/web/iterate/caddy-live/` resolves the
-external `DRYDOCK_PRODUCT_ROOT` contract through a localhost-bound origin and Caddy
-allowlist so browser refreshes reflect product edits immediately.
+pinned `product/` contract through a localhost-bound origin and Caddy allowlist so
+browser refreshes reflect product edits immediately. `DRYDOCK_PRODUCT_ROOT` remains an
+optional iteration-only override.
 
 Use it for feel, rendering, controls, and device smoke checks:
 
@@ -57,7 +58,7 @@ build:
 channels:
   vps:
     host: drydock.example.com
-    root: /var/www/drydock
+    root: /srv/drydock/web
   steam:
     branch: beta
   epic:
@@ -84,8 +85,7 @@ pnpm run validate:release -- contracts/releases/0.1.0.yaml
 ```
 
 Corepack can enable the root-pinned pnpm version on Node distributions that provide it.
-The current VPS Node 25 installation does not, so its one-time setup uses the exact global
-pnpm version above.
+Otherwise the one-time setup uses the exact global pnpm version above.
 
 `pnpm run validate` strictly verifies that the clean `product/` checkout matches the
 Drydock gitlink and that the commit is reachable from the product origin. It also
@@ -106,7 +106,8 @@ One-time setup:
 - Caddy is installed, enabled, and serving TLS.
 - The live iteration origin, if enabled, serves only product-contract-selected files
   from `127.0.0.1`.
-- The release channel has a stable deploy root such as `/var/www/drydock`.
+- The release channel has a stable, configured deploy root such as
+  `/srv/drydock/web`.
 - Caddy config is generated or templated from `platforms/web/channels/vps/caddy.example`.
 
 Per release:
@@ -122,8 +123,8 @@ pnpm --filter @drydock/channel-vps run publish -- \
 
 # VERIFY: confirm public runtime paths load and repo/internal paths are denied.
 pnpm --filter @drydock/channel-vps run verify -- \
-  --live-url https://vinyltin.duckdns.org/drydock/ \
-  --release-url https://vinyltin.duckdns.org/drydock-release/
+  --live-url https://games.example.com/drydock/ \
+  --release-url https://games.example.com/drydock-release/
 ```
 
 The VPS channel must deploy the packaged `artifacts/build/web-static/` output, not the repo root and
@@ -144,26 +145,18 @@ sudo systemctl reload caddy
 Use Playwright for render-level smoke after route checks:
 
 ```sh
-pnpm smoke:web -- https://vinyltin.duckdns.org/drydock/
-pnpm smoke:web -- https://vinyltin.duckdns.org/drydock-release/
+pnpm smoke:web -- https://games.example.com/drydock/
+pnpm smoke:web -- https://games.example.com/drydock-release/
 ```
 
-Current proof-of-concept routes on this VPS:
-
-- Live iteration: `https://vinyltin.duckdns.org/drydock/` -> `127.0.0.1:8090`
-- Packaged release artifact: `https://vinyltin.duckdns.org/drydock-release/` ->
-  `/var/www/drydock`
+The domain, route prefixes, deploy root, and service account are deployment inputs.
+Keep them in deployment configuration, not canonical project documentation.
 
 ## Desktop Example: Direct Downloads
 
 Direct downloads are a testing channel for Electron artifacts. They are useful before a
 real store channel exists, but they do not replace Steam/Epic/GOG/itch package/sign/publish
 stages.
-
-Current proof package:
-
-- `https://vinyltin.duckdns.org/drydock-downloads/line-engine-calibration-0.1.0-windows-x64.zip`
-- `https://vinyltin.duckdns.org/drydock-downloads/line-engine-calibration-0.1.0-windows-x64.zip.sha256`
 
 Build the Windows x64 artifact:
 
@@ -180,15 +173,15 @@ pnpm --filter @drydock/channel-downloads run publish -- \
   artifacts/channels/downloads
 
 pnpm --filter @drydock/channel-downloads run verify -- \
-  --base-url https://vinyltin.duckdns.org/drydock-downloads/
+  --base-url https://games.example.com/drydock-downloads/
 ```
 
 Electron stages the same product contract and Drydock host runtime as the web build. The
 downloads channel consumes only its `drydock-artifact.json`; it does not read product
 source or the product contract.
 
-The current VPS route serves only the package archive, checksum, and index page from
-`/var/www/drydock-downloads`.
+The download route should serve only the package archive, checksum, and index page from
+its configured deploy root.
 
 Windows signing can be added before the download package step. The signing input is either
 an Authenticode code-signing certificate usable by electron-builder, Azure Trusted
