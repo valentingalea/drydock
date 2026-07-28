@@ -18,10 +18,6 @@
       "path": "game",
       "revision": "project"
     },
-    "engine": {
-      "path": "engine",
-      "revision": "gitlink"
-    },
     "shipping": {
       "path": "shipping",
       "revision": "project"
@@ -39,11 +35,6 @@
         "component": "game",
         "source": "src",
         "target": "game/src"
-      },
-      {
-        "component": "engine",
-        "source": "src",
-        "target": "engine/src"
       },
       {
         "component": "shipping",

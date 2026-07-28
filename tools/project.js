@@ -197,28 +197,61 @@ export function validateProjectSemantics(descriptor) {
 }
 
 export async function validateProjectCommand({ args, context, stderr, stdout }) {
-  if (args.length > 0) {
-    stderr.write(`ERROR: validate does not accept arguments: ${args.join(" ")}\n`);
+  const profile = parseValidationProfile(args);
+  if (profile.error) {
+    stderr.write(`ERROR: ${profile.error}\n`);
     return 2;
   }
 
   try {
     const project = await loadProject(context);
+    const { verifyProjectComponents } = await import("./components.js");
+    await verifyProjectComponents(project, {
+      profile: profile.value
+    });
     const { descriptor } = project;
     stdout.write(
       `valid Drydock project: ${descriptor.product.id} `
       + `(schema ${descriptor.schemaVersion}, contract ${descriptor.drydockContract}, `
-      + `host ${descriptor.host.protocol})\n`
+      + `host ${descriptor.host.protocol}, profile ${profile.value})\n`
     );
     return 0;
   } catch (error) {
-    if (!(error instanceof ProjectValidationError)) {
+    const { ComponentValidationError } = await import("./components.js");
+    if (
+      !(error instanceof ProjectValidationError)
+      && !(error instanceof ComponentValidationError)
+    ) {
       throw error;
     }
 
     stderr.write(`${error.message}\n`);
     return 1;
   }
+}
+
+function parseValidationProfile(args) {
+  if (args.length === 0) {
+    return {
+      value: "development"
+    };
+  }
+
+  if (args.length === 2 && args[0] === "--profile") {
+    if (args[1] === "development" || args[1] === "release") {
+      return {
+        value: args[1]
+      };
+    }
+
+    return {
+      error: `unknown validation profile: ${args[1]}`
+    };
+  }
+
+  return {
+    error: `usage: validate [--profile development|release]`
+  };
 }
 
 async function readDescriptor(projectPath) {

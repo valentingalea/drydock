@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -99,7 +99,7 @@ test("rejects unknown components and unsafe component paths", async (context) =>
 test("schema rejects unknown host capabilities and revision modes", async (context) => {
   const descriptor = await readFixture("valid/minimal.json");
   descriptor.host.requiredCapabilities.push("timeTravel");
-  descriptor.components.engine.revision = "floating";
+  descriptor.components.game.revision = "floating";
   const fixture = await createProject(context, descriptor);
   const selected = await resolveProjectContext(fixture.projectPath, {
     invocationCwd: fixture.root
@@ -165,12 +165,12 @@ test("rejects unsafe shipping sources, reserved targets, and ambiguous mappings"
   const issues = validateProjectSemantics(descriptor);
   assert.equal(
     issues.includes(
-      "runtime entry 4 may select only explicit shipping integrations: releases/0.1.0.yaml"
+      "runtime entry 3 may select only explicit shipping integrations: releases/0.1.0.yaml"
     ),
     true
   );
   assert.equal(
-    issues.includes("runtime entry 5 overlaps reserved Drydock runtime: host-bridge.js"),
+    issues.includes("runtime entry 4 overlaps reserved Drydock runtime: host-bridge.js"),
     true
   );
   assert.equal(
@@ -179,7 +179,7 @@ test("rejects unsafe shipping sources, reserved targets, and ambiguous mappings"
   );
   assert.equal(
     issues.includes(
-      "runtime entry 7 overlay target is not supplied by a base mapping: missing/replacement.js"
+      "runtime entry 6 overlay target is not supplied by a base mapping: missing/replacement.js"
     ),
     true
   );
@@ -199,6 +199,7 @@ test("rejects an entrypoint that no base mapping supplies", async () => {
 
 test("the public validate command accepts a valid descriptor", async (context) => {
   const fixture = await createProjectFromFixture(context, "valid/minimal.json");
+  await initializeProjectRepository(fixture);
   const result = spawnSync(
     process.execPath,
     [
@@ -216,7 +217,8 @@ test("the public validate command accepts a valid descriptor", async (context) =
   assert.equal(result.status, 0, result.stderr);
   assert.equal(
     result.stdout,
-    "valid Drydock project: fixture-game (schema 1, contract 1, host 1)\n"
+    "valid Drydock project: fixture-game "
+    + "(schema 1, contract 1, host 1, profile development)\n"
   );
   assert.equal(result.stderr, "");
 });
@@ -267,7 +269,10 @@ test("the public validate command rejects command-specific arguments", async (co
   );
 
   assert.equal(result.status, 2);
-  assert.match(result.stderr, /validate does not accept arguments: --extra/);
+  assert.match(
+    result.stderr,
+    /usage: validate \[--profile development\|release\]/
+  );
 });
 
 async function createProjectFromFixture(context, fixturePath) {
@@ -293,4 +298,27 @@ async function readFixture(fixturePath) {
   return JSON.parse(
     await readFile(resolve(fixturesRoot, fixturePath), "utf8")
   );
+}
+
+async function initializeProjectRepository(fixture) {
+  const gameRoot = join(fixture.projectRoot, "game");
+  await mkdir(gameRoot, { recursive: true });
+  await writeFile(join(gameRoot, "index.html"), "<!doctype html>\n");
+  git(fixture.projectRoot, "init", "-b", "main");
+  git(fixture.projectRoot, "config", "user.name", "Drydock Test");
+  git(fixture.projectRoot, "config", "user.email", "drydock-test@example.invalid");
+  git(fixture.projectRoot, "add", ".");
+  git(fixture.projectRoot, "commit", "-m", "seed fixture");
+}
+
+function git(cwd, ...args) {
+  return execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: [
+      "ignore",
+      "pipe",
+      "pipe"
+    ]
+  }).trim();
 }
