@@ -37,7 +37,8 @@ creates a fake unpacked executable and is not a publishable build.
 
 The base Electron host claims only local `storage`. Achievements, identity, purchases,
 telemetry, overlays, cloud save, and entitlement checks remain unsupported until a desktop
-channel supplies them.
+channel supplies them. Electron builds reject a project that requires an unsupported
+base-host capability.
 
 ## Current Caveat
 

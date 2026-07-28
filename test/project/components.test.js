@@ -233,7 +233,21 @@ async function createGitProject(context, mutateDescriptor, options = {}) {
   await mkdir(gameRoot, {
     recursive: true
   });
+  await mkdir(join(gameRoot, "src"), {
+    recursive: true
+  });
+  await mkdir(join(shippingRoot, "integrations", "drydock"), {
+    recursive: true
+  });
   await writeFile(join(gameRoot, "index.html"), "<!doctype html>\n");
+  await writeFile(
+    join(gameRoot, "src", "platform-host.js"),
+    "export const platform = \"fallback\";\n"
+  );
+  await writeFile(
+    join(shippingRoot, "integrations", "drydock", "platform-host.js"),
+    "export const platform = \"overlay\";\n"
+  );
   await writeFile(
     join(shippingRoot, "drydock-project.json"),
     `${JSON.stringify(descriptor, null, 2)}\n`

@@ -18,6 +18,9 @@ import {
   runCli
 } from "../../../../../tools/drydock.js";
 import {
+  verifyArtifactChecksums
+} from "../../../../../tools/artifacts.js";
+import {
   createMinimalProject,
   harnessRoot,
   loadMinimalVerifiedProject
@@ -158,6 +161,46 @@ test("static build stages project composition and emits a generic artifact", asy
   );
 });
 
+test("static build materializes a web root for a custom entrypoint", async (context) => {
+  const fixture = await createBuildProject(context, {
+    entrypoint: "ui/start.html"
+  });
+  const projectContext = await resolveContext(fixture);
+  const verified = await loadMinimalVerifiedProject(fixture);
+  const { manifest, outDir } = await buildStaticWeb({
+    context: projectContext,
+    options: {
+      channel: "preview",
+      out: "artifacts/build/custom-entrypoint",
+      profile: "development",
+      release: "shipping/releases/0.1.0.yaml"
+    },
+    verified
+  });
+
+  assert.match(
+    await readFile(join(outDir, "index.html"), "utf8"),
+    /url=ui\/start\.html/
+  );
+  assert.equal(
+    await readFile(join(outDir, "ui/start.html"), "utf8"),
+    "<!doctype html><title>Custom entrypoint</title>\n"
+  );
+  assert.equal(manifest.extensions.drydock.entrypoint, "ui/start.html");
+  assert.ok(
+    manifest.checksums.some((checksum) => checksum.path === "index.html")
+  );
+  assert.ok(
+    manifest.checksums.some((checksum) => checksum.path === "ui/start.html")
+  );
+  await assert.doesNotReject(
+    verifyArtifactChecksums(
+      manifest,
+      join(outDir, "drydock-artifact.json")
+    )
+  );
+});
+
 test("static command contains release and output paths inside the project", async (context) => {
   const fixture = await createBuildProject(context);
   const projectContext = await resolveContext(fixture);
@@ -235,11 +278,28 @@ test("public CLI builds from outside the project working directory", async (cont
   );
 });
 
-async function createBuildProject(context) {
+async function createBuildProject(context, {
+  entrypoint = "index.html"
+} = {}) {
   return createMinimalProject(
     context,
-    undefined,
-    async ({ shippingRoot }) => {
+    (descriptor) => {
+      if (entrypoint !== "index.html") {
+        descriptor.runtime.entrypoint = entrypoint;
+        descriptor.runtime.entries[0] = {
+          component: "game",
+          source: "start.html",
+          target: entrypoint
+        };
+      }
+    },
+    async ({ gameRoot, shippingRoot }) => {
+      if (entrypoint !== "index.html") {
+        await writeFile(
+          join(gameRoot, "start.html"),
+          "<!doctype html><title>Custom entrypoint</title>\n"
+        );
+      }
       const releaseRoot = join(shippingRoot, "releases");
       await mkdir(releaseRoot);
       await mkdir(join(shippingRoot, "channels"));

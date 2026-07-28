@@ -198,6 +198,11 @@ test("rejects unsafe shipping sources, reserved targets, and ambiguous mappings"
       source: "replacement.js",
       target: "missing/replacement.js",
       overlay: true
+    },
+    {
+      component: "game",
+      source: "manifest.json",
+      target: "drydock-artifact.json"
     }
   );
 
@@ -219,6 +224,12 @@ test("rejects unsafe shipping sources, reserved targets, and ambiguous mappings"
   assert.equal(
     issues.includes(
       "runtime entry 6 overlay target is not supplied by a base mapping: missing/replacement.js"
+    ),
+    true
+  );
+  assert.equal(
+    issues.includes(
+      "runtime entry 7 overlaps reserved Drydock runtime: drydock-artifact.json"
     ),
     true
   );
@@ -356,6 +367,49 @@ test("the public validate command rejects command-specific arguments", async (co
   );
 });
 
+test("the public validate command rejects a missing composed entrypoint", async (context) => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.runtime.entrypoint = "ui/missing.html";
+  descriptor.runtime.entries = descriptor.runtime.entries.filter(
+    (entry) => entry.target !== "index.html"
+  );
+  descriptor.runtime.entries.push({
+    component: "game",
+    source: "src",
+    target: "ui"
+  });
+  const fixture = await createProject(context, descriptor);
+  await mkdir(join(fixture.projectRoot, "game", "src"), {
+    recursive: true
+  });
+  await writeFile(
+    join(fixture.projectRoot, "game", "src", "present.html"),
+    "<!doctype html>\n"
+  );
+  await initializeProjectRepository(fixture);
+
+  const result = spawnSync(
+    process.execPath,
+    [
+      entrypoint,
+      "validate",
+      "--project",
+      "shipping/drydock-project.json"
+    ],
+    {
+      cwd: fixture.projectRoot,
+      encoding: "utf8"
+    }
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(
+    result.stderr,
+    /runtime entrypoint is not a composed file: ui\/missing\.html/
+  );
+  assert.equal(result.stdout, "");
+});
+
 async function createProjectFromFixture(context, fixturePath) {
   return createProject(context, await readFixture(fixturePath));
 }
@@ -383,8 +437,24 @@ async function readFixture(fixturePath) {
 
 async function initializeProjectRepository(fixture) {
   const gameRoot = join(fixture.projectRoot, "game");
+  const integrationRoot = join(
+    fixture.projectRoot,
+    "shipping",
+    "integrations",
+    "drydock"
+  );
   await mkdir(gameRoot, { recursive: true });
+  await mkdir(join(gameRoot, "src"), { recursive: true });
+  await mkdir(integrationRoot, { recursive: true });
   await writeFile(join(gameRoot, "index.html"), "<!doctype html>\n");
+  await writeFile(
+    join(gameRoot, "src", "platform-host.js"),
+    "export const platform = \"fallback\";\n"
+  );
+  await writeFile(
+    join(integrationRoot, "platform-host.js"),
+    "export const platform = \"overlay\";\n"
+  );
   git(fixture.projectRoot, "init", "-b", "main");
   git(fixture.projectRoot, "config", "user.name", "Drydock Test");
   git(fixture.projectRoot, "config", "user.email", "drydock-test@example.invalid");

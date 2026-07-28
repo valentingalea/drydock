@@ -297,6 +297,30 @@ test("Electron build rejects a symlinked output ancestor", async (context) => {
   );
 });
 
+test("Electron build rejects host capabilities it cannot provide", async (context) => {
+  const state = await createElectronState(context, {
+    requiredCapabilities: [
+      "storage",
+      "achievements"
+    ]
+  });
+
+  await assert.rejects(
+    buildElectron({
+      context: state.context,
+      options: {
+        arch: "x64",
+        platform: "linux",
+        profile: "development",
+        release: "shipping/releases/0.1.0.yaml",
+        skipPackage: true
+      },
+      verified: state.verified
+    }),
+    /Electron host does not provide required capabilities: achievements/
+  );
+});
+
 test("public CLI dispatches the Electron build outside project cwd", async (context) => {
   const state = await createElectronState(context);
   const { runCli } = await import("../../../../../tools/drydock.js");
@@ -335,7 +359,10 @@ test("public CLI dispatches the Electron build outside project cwd", async (cont
 });
 
 async function createElectronState(context, {
-  entrypoint = "index.html"
+  entrypoint = "index.html",
+  requiredCapabilities = [
+    "storage"
+  ]
 } = {}) {
   const {
     createMinimalProject,
@@ -345,6 +372,7 @@ async function createElectronState(context, {
   const fixture = await createMinimalProject(
     context,
     (descriptor) => {
+      descriptor.host.requiredCapabilities = requiredCapabilities;
       if (entrypoint !== "index.html") {
         descriptor.runtime.entrypoint = entrypoint;
         descriptor.runtime.entries[0] = {

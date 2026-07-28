@@ -15,6 +15,7 @@ const RESERVED_COMPONENT_ROOTS = [
   "drydock"
 ];
 const RESERVED_RUNTIME_TARGETS = [
+  "drydock-artifact.json",
   "host-bridge.js",
   "vendor/drydock-host-bridge"
 ];
@@ -197,6 +198,15 @@ export function validateProjectSemantics(descriptor) {
   ) {
     issues.push(`runtime entrypoint is not supplied by a base mapping: ${descriptor.runtime.entrypoint}`);
   }
+  if (
+    !entrypointIssue
+    && descriptor.runtime.entrypoint !== "index.html"
+    && baseEntries.some((base) => pathsOverlap(base.entry.target, "index.html"))
+  ) {
+    issues.push(
+      `custom runtime entrypoint requires index.html for Drydock web routing: ${descriptor.runtime.entrypoint}`
+    );
+  }
 
   return issues;
 }
@@ -211,9 +221,11 @@ export async function validateProjectCommand({ args, context, stderr, stdout }) 
   try {
     const project = await loadProject(context);
     const { verifyProjectComponents } = await import("./components.js");
-    await verifyProjectComponents(project, {
+    const verified = await verifyProjectComponents(project, {
       profile: profile.value
     });
+    const { createRuntimeComposition } = await import("./composition.js");
+    await createRuntimeComposition(verified);
     const { descriptor } = project;
     stdout.write(
       `valid Drydock project: ${descriptor.product.id} `
@@ -223,9 +235,11 @@ export async function validateProjectCommand({ args, context, stderr, stdout }) 
     return 0;
   } catch (error) {
     const { ComponentValidationError } = await import("./components.js");
+    const { CompositionError } = await import("./composition.js");
     if (
       !(error instanceof ProjectValidationError)
       && !(error instanceof ComponentValidationError)
+      && !(error instanceof CompositionError)
     ) {
       throw error;
     }

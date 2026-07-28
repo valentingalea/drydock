@@ -22,6 +22,9 @@ const {
 } = require("node:path");
 const { pathToFileURL } = require("node:url");
 const YAML = require("yaml");
+const {
+  ELECTRON_HOST_CAPABILITIES
+} = require("./host-provider.js");
 
 const packageRoot = __dirname;
 const defaultBuildKey = "desktop";
@@ -103,6 +106,9 @@ async function buildElectron({
   } = await loadBuildTools();
   const target = resolveBuildTarget(options);
   const identity = identityFromDescriptor(verified.project.descriptor);
+  assertRequiredHostCapabilities(
+    verified.project.descriptor.host.requiredCapabilities
+  );
   const releasePath = await resolveReleasePath(
     context,
     options.release,
@@ -538,6 +544,20 @@ function rejectDuplicate(seen, flag) {
   seen.add(flag);
 }
 
+function assertRequiredHostCapabilities(requiredCapabilities) {
+  const unsupported = requiredCapabilities.filter((capability) => (
+    capability === "storage"
+      ? ELECTRON_HOST_CAPABILITIES.storage === "none"
+      : ELECTRON_HOST_CAPABILITIES[capability] !== true
+  ));
+
+  if (unsupported.length > 0) {
+    throw new Error(
+      `Electron host does not provide required capabilities: ${unsupported.join(", ")}`
+    );
+  }
+}
+
 async function createFakeUnpackedOutput({
   identity,
   outDir,
@@ -743,6 +763,7 @@ function electronVersion() {
 }
 
 module.exports = {
+  assertRequiredHostCapabilities,
   artifactRootForTarget,
   buildElectron,
   buildElectronCommand,

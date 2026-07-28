@@ -20,7 +20,8 @@ tracked component files; release builds apply stricter revision checks.
 
 Mount this under a dedicated hostname or an existing domain path such as `/game/` with
 Caddy `handle_path`. Caddy proxies to the localhost-only origin; the origin itself
-enforces the descriptor-derived allowlist and returns `404` for undeclared files.
+enforces the descriptor-derived allowlist, redirects `/` to the declared entrypoint,
+and returns `404` for undeclared files.
 
 The Caddy examples require deployment-specific hostname/route, origin, and log
 variables. When installing the systemd example, give each game a unique unit filename,

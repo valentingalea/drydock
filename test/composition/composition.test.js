@@ -60,6 +60,63 @@ test("uses the same mappings and overlay order for live reads and staging", asyn
   );
 });
 
+test("routes the runtime root to a declared custom entrypoint", async (context) => {
+  const fixture = await createMinimalProject(
+    context,
+    (descriptor) => {
+      descriptor.runtime.entrypoint = "ui/start.html";
+      descriptor.runtime.entries[0] = {
+        component: "game",
+        source: "start.html",
+        target: "ui/start.html"
+      };
+    },
+    async ({ gameRoot }) => {
+      await writeFile(
+        join(gameRoot, "start.html"),
+        "<!doctype html><title>Custom entrypoint</title>\n"
+      );
+    }
+  );
+  const composition = await loadMinimalComposition(fixture);
+
+  const root = await readRuntimeFile(composition, "/");
+  assert.equal(root.target, "ui/start.html");
+  assert.equal(
+    root.contents.toString(),
+    "<!doctype html><title>Custom entrypoint</title>\n"
+  );
+});
+
+test("requires the final composed entrypoint to be a file", async (context) => {
+  const fixture = await createMinimalProject(
+    context,
+    (descriptor) => {
+      descriptor.runtime.entrypoint = "ui/missing.html";
+      descriptor.runtime.entries = descriptor.runtime.entries.filter(
+        (entry) => entry.target !== "index.html"
+      );
+      descriptor.runtime.entries.push({
+        component: "game",
+        source: "pages",
+        target: "ui"
+      });
+    },
+    async ({ gameRoot }) => {
+      await mkdir(join(gameRoot, "pages"));
+      await writeFile(
+        join(gameRoot, "pages", "present.html"),
+        "<!doctype html>\n"
+      );
+    }
+  );
+
+  await assert.rejects(
+    loadMinimalComposition(fixture),
+    /runtime entrypoint is not a composed file: ui\/missing\.html/
+  );
+});
+
 test("rejects unsafe live requests and returns null for absent files", async (context) => {
   const composition = await loadMinimalComposition(
     await createMinimalProject(context)

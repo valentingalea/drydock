@@ -116,18 +116,29 @@ export async function createRuntimeComposition(verifiedProject) {
     ...[...baseEntries].reverse()
   ];
 
-  return Object.freeze({
+  const composition = {
     artifactRoot: verifiedProject.project.context.artifactRoot,
     baseEntries: Object.freeze(baseEntries),
     entrypoint: verifiedProject.project.descriptor.runtime.entrypoint,
     lookupEntries: Object.freeze(lookupEntries),
     overlayEntries: Object.freeze(overlayEntries),
     projectRoot: verifiedProject.project.context.projectRoot
-  });
+  };
+  const entrypoint = await readRuntimeFile(
+    composition,
+    "/"
+  );
+  if (!entrypoint) {
+    throw new CompositionError(
+      `runtime entrypoint is not a composed file: ${composition.entrypoint}`
+    );
+  }
+
+  return Object.freeze(composition);
 }
 
 export async function readRuntimeFile(composition, pathname) {
-  const request = normalizeRuntimeRequest(pathname);
+  const request = normalizeRuntimeRequest(pathname, composition.entrypoint);
   if (!request) {
     throw new CompositionError(`unsafe runtime request: ${pathname}`);
   }
@@ -355,7 +366,7 @@ async function assertSafeDirectoryTree(
   }
 }
 
-function normalizeRuntimeRequest(pathname) {
+function normalizeRuntimeRequest(pathname, entrypoint) {
   let decoded;
   try {
     decoded = decodeURIComponent(pathname);
@@ -367,7 +378,7 @@ function normalizeRuntimeRequest(pathname) {
     return null;
   }
 
-  const requested = decoded === "/" ? "/index.html" : decoded;
+  const requested = decoded === "/" ? `/${entrypoint}` : decoded;
   if (requested.split("/").some((segment) => segment === "." || segment === "..")) {
     return null;
   }

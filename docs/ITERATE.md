@@ -19,7 +19,8 @@ route, and origin values for that deployment.
 
 Only descriptor-composed runtime paths are served. Traversal, undeclared source,
 repository metadata, the project descriptor, and component internals outside mappings
-return `404`.
+return `404`. The origin redirects `/` to the descriptor's composed entrypoint, using a
+relative location so dedicated-hostname and path-mounted deployments behave the same.
 
 Iteration is not a release path:
 

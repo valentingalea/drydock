@@ -92,6 +92,12 @@ export async function buildStaticWeb({
   });
   const composition = await createRuntimeComposition(verified);
   await stageRuntime(composition, outDir);
+  if (composition.entrypoint !== "index.html") {
+    await writeFile(
+      resolve(outDir, "index.html"),
+      renderEntrypointRedirect(composition.entrypoint)
+    );
+  }
 
   const filePaths = await listFiles(outDir);
   const checksums = [];
@@ -274,6 +280,29 @@ function pathWithin(root, candidate) {
 
 function portableRelative(root, target) {
   return relative(root, target).split(sep).join("/");
+}
+
+function renderEntrypointRedirect(entrypoint) {
+  const target = entrypoint
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+  return [
+    "<!doctype html>",
+    "<html lang=\"en\">",
+    "  <head>",
+    "    <meta charset=\"utf-8\">",
+    `    <meta http-equiv="refresh" content="0; url=${target}">`,
+    `    <link rel="canonical" href="${target}">`,
+    "    <title>Launching game</title>",
+    "  </head>",
+    "  <body>",
+    `    <p><a href="${target}">Launch the game</a></p>`,
+    "  </body>",
+    "</html>",
+    ""
+  ].join("\n");
 }
 
 if (

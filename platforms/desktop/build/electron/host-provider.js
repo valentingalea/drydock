@@ -10,7 +10,7 @@ const HostErrorCode = Object.freeze({
   InvalidArgument: "invalidArgument"
 });
 
-const capabilities = Object.freeze({
+const ELECTRON_HOST_CAPABILITIES = Object.freeze({
   storage: "local",
   achievements: false,
   telemetry: false,
@@ -28,7 +28,7 @@ function createElectronHostProvider(options = {}) {
     protocolVersion: HOST_PROTOCOL_VERSION,
 
     async capabilities() {
-      return { ...capabilities };
+      return { ...ELECTRON_HOST_CAPABILITIES };
     },
 
     storage: createFileStorageAdapter(storageFile),
@@ -284,6 +284,7 @@ function unsupported(feature) {
 }
 
 module.exports = {
+  ELECTRON_HOST_CAPABILITIES,
   HOST_PROTOCOL_VERSION,
   HostErrorCode,
   IPC_CHANNEL,

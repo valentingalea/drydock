@@ -56,6 +56,14 @@ export function createServer(composition) {
       }
 
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
+      if (url.pathname === "/") {
+        response.writeHead(302, {
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          Location: encodeRuntimePath(composition.entrypoint)
+        });
+        response.end();
+        return;
+      }
       const file = await readRuntimeFile(composition, url.pathname);
 
       if (!file) {
@@ -88,6 +96,13 @@ export function createServer(composition) {
       respond(response, 500, "internal server error");
     }
   });
+}
+
+function encodeRuntimePath(path) {
+  return path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
 }
 
 export async function startLiveWeb({

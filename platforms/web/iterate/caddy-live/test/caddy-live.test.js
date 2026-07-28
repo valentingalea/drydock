@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import {
@@ -195,8 +195,58 @@ test("server serves declared runtime files and denies repository files", async (
   }
 });
 
-async function createComposition(context) {
-  return loadMinimalComposition(await createMinimalProject(context));
+test("server redirects its root to a custom entrypoint", async (context) => {
+  const composition = await createComposition(context, {
+    entrypoint: "ui/start.html"
+  });
+  const server = createServer(composition);
+
+  await new Promise((resolveListen) => {
+    server.listen(0, "127.0.0.1", resolveListen);
+  });
+
+  try {
+    const { port } = server.address();
+    const root = `http://127.0.0.1:${port}/`;
+    const redirect = await fetch(root, {
+      redirect: "manual"
+    });
+
+    assert.equal(redirect.status, 302);
+    assert.equal(redirect.headers.get("location"), "ui/start.html");
+    assert.equal(
+      await (await fetch(root)).text(),
+      "<!doctype html><title>Custom entrypoint</title>\n"
+    );
+  } finally {
+    await new Promise((resolveClose) => server.close(resolveClose));
+  }
+});
+
+async function createComposition(context, {
+  entrypoint = "index.html"
+} = {}) {
+  return loadMinimalComposition(await createMinimalProject(
+    context,
+    (descriptor) => {
+      if (entrypoint !== "index.html") {
+        descriptor.runtime.entrypoint = entrypoint;
+        descriptor.runtime.entries[0] = {
+          component: "game",
+          source: "start.html",
+          target: entrypoint
+        };
+      }
+    },
+    async ({ gameRoot }) => {
+      if (entrypoint !== "index.html") {
+        await writeFile(
+          resolve(gameRoot, "start.html"),
+          "<!doctype html><title>Custom entrypoint</title>\n"
+        );
+      }
+    }
+  ));
 }
 
 function waitForOrigin(child) {
