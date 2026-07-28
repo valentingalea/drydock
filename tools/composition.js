@@ -180,6 +180,8 @@ export async function openRuntimeFile(composition, pathname) {
     throw new CompositionError(`unsafe runtime request: ${pathname}`);
   }
 
+  await assertCurrentRequestCompatibility(composition, request);
+
   for (const mapping of composition.lookupEntries) {
     const sourcePath = sourcePathForRequest(mapping, request);
     if (!sourcePath) {
@@ -204,6 +206,8 @@ export async function openRuntimeFile(composition, pathname) {
 }
 
 export async function stageRuntime(composition, outDir) {
+  await assertCurrentCompositionCompatibility(composition);
+
   const canonicalArtifactRoot = await prepareArtifactRoot(
     composition.artifactRoot,
     composition
@@ -454,6 +458,220 @@ function applyTargetKinds(effectiveTargetKinds, mapping) {
       : mapping.target;
     effectiveTargetKinds.set(target, sourceKind.kind);
   }
+}
+
+async function assertCurrentRequestCompatibility(composition, request) {
+  const relevantMappings = composition.lookupEntries.filter((mapping) => (
+    request === mapping.target
+    || request.startsWith(`${mapping.target}/`)
+  ));
+  if (relevantMappings.length === 0) {
+    return;
+  }
+  const relevantOverlays = composition.overlayEntries.filter((mapping) => (
+    request === mapping.target
+    || request.startsWith(`${mapping.target}/`)
+  ));
+
+  const rootKinds = new Map();
+  const targetKinds = new Map();
+  const currentRootKind = async (mapping) => {
+    if (!rootKinds.has(mapping)) {
+      const kind = await currentMappingPathKind(mapping, mapping.target);
+      if (kind !== mapping.kind) {
+        throw new CompositionError(
+          `runtime source changed type in ${mapping.owner}: ${mapping.source}`
+        );
+      }
+      rootKinds.set(mapping, kind);
+    }
+    return rootKinds.get(mapping);
+  };
+  const currentTargetKind = async (mapping, target) => {
+    let mappingKinds = targetKinds.get(mapping);
+    if (!mappingKinds) {
+      mappingKinds = new Map();
+      targetKinds.set(mapping, mappingKinds);
+    }
+    if (!mappingKinds.has(target)) {
+      mappingKinds.set(
+        target,
+        await currentMappingPathKind(mapping, target)
+      );
+    }
+    return mappingKinds.get(target);
+  };
+
+  for (const mapping of relevantMappings) {
+    await currentRootKind(mapping);
+  }
+  if (relevantOverlays.length === 0) {
+    return;
+  }
+
+  const targets = new Set();
+  for (const overlay of relevantOverlays) {
+    targets.add(overlay.target);
+    if (request === overlay.target) {
+      continue;
+    }
+
+    let target = overlay.target;
+    for (const segment of request
+      .slice(overlay.target.length + 1)
+      .split("/")) {
+      target = posix.join(target, segment);
+      targets.add(target);
+    }
+  }
+
+  for (const target of targets) {
+    let baseKind = null;
+    for (const base of composition.baseEntries) {
+      if (
+        target !== base.target
+        && !target.startsWith(`${base.target}/`)
+      ) {
+        continue;
+      }
+      await currentRootKind(base);
+      const kind = await currentTargetKind(base, target);
+      if (kind) {
+        baseKind = kind;
+      }
+    }
+
+    let effectiveKind = baseKind;
+    for (const overlay of composition.overlayEntries) {
+      if (
+        target !== overlay.target
+        && !target.startsWith(`${overlay.target}/`)
+      ) {
+        continue;
+      }
+      await currentRootKind(overlay);
+      const kind = await currentTargetKind(overlay, target);
+
+      if (target === overlay.target) {
+        if (!baseKind) {
+          throw new CompositionError(
+            `runtime overlay target has no current base source: ${overlay.target}`
+          );
+        }
+        if (kind !== baseKind) {
+          throwTargetTypeChange(target, baseKind, kind);
+        }
+      }
+
+      if (kind) {
+        if (effectiveKind && effectiveKind !== kind) {
+          throwTargetTypeChange(target, effectiveKind, kind);
+        }
+        effectiveKind = kind;
+      }
+    }
+  }
+}
+
+async function assertCurrentCompositionCompatibility(composition) {
+  const currentBaseEntries = [];
+  for (const mapping of composition.baseEntries) {
+    currentBaseEntries.push(await currentMapping(mapping));
+  }
+  const currentOverlayEntries = [];
+  for (const mapping of composition.overlayEntries) {
+    currentOverlayEntries.push(await currentMapping(mapping));
+  }
+
+  const baseTargetKinds = new Map();
+  for (const base of currentBaseEntries) {
+    applyTargetKinds(baseTargetKinds, base);
+  }
+  const effectiveTargetKinds = new Map(baseTargetKinds);
+
+  for (const overlay of currentOverlayEntries) {
+    const baseKind = baseTargetKinds.get(overlay.target);
+    if (!baseKind) {
+      throw new CompositionError(
+        `runtime overlay target has no current base source: ${overlay.target}`
+      );
+    }
+    if (baseKind !== overlay.kind) {
+      throwTargetTypeChange(overlay.target, baseKind, overlay.kind);
+    }
+    assertCompatibleTargetKinds(effectiveTargetKinds, overlay);
+    applyTargetKinds(effectiveTargetKinds, overlay);
+  }
+}
+
+async function currentMapping(mapping) {
+  const source = await inspectSafeSource(
+    mapping.owner,
+    mapping.ownerRoot,
+    mapping.requestedSourcePath,
+    mapping.source
+  );
+  if (source.kind !== mapping.kind) {
+    throw new CompositionError(
+      `runtime source changed type in ${mapping.owner}: ${mapping.source}`
+    );
+  }
+
+  return {
+    ...mapping,
+    sourceKinds: source.sourceKinds
+  };
+}
+
+async function currentMappingPathKind(mapping, target) {
+  const requestedPath = sourcePathForRequest(mapping, target);
+  if (!requestedPath) {
+    return null;
+  }
+
+  let canonicalPath;
+  try {
+    canonicalPath = await realpath(requestedPath);
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
+      if (requestedPath === mapping.requestedSourcePath) {
+        throw new CompositionError(
+          `runtime source is missing in ${mapping.owner}: ${mapping.source}`
+        );
+      }
+      return null;
+    }
+    throw error;
+  }
+
+  if (!pathWithin(mapping.ownerRoot, canonicalPath)) {
+    throw new CompositionError(
+      `runtime read escapes ${mapping.owner}: ${mapping.source}`
+    );
+  }
+  assertUnrestrictedSource(
+    mapping.owner,
+    mapping.ownerRoot,
+    canonicalPath,
+    mapping.source
+  );
+
+  const currentStat = await stat(canonicalPath);
+  if (currentStat.isFile()) {
+    return "file";
+  }
+  if (currentStat.isDirectory()) {
+    return "directory";
+  }
+  throw new CompositionError(
+    `runtime source is not a file or directory in ${mapping.owner}: ${mapping.source}`
+  );
+}
+
+function throwTargetTypeChange(target, from, to) {
+  throw new CompositionError(
+    `runtime overlay changes target type at ${target}: ${from} to ${to}`
+  );
 }
 
 function normalizeRuntimeRequest(pathname, entrypoint) {

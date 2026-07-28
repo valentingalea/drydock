@@ -15,6 +15,7 @@ import test from "node:test";
 import {
   createArtifactProvenance,
   loadChannelPolicy,
+  resolveArtifactManifestPath,
   resolveArtifactPayloadRoot,
   sanitizeRemoteUrl,
   validateArtifactManifest,
@@ -244,6 +245,53 @@ test("artifact payload roots require canonical manifest containment", async (con
       artifactRoot: "linked-payload"
     }, manifestPath),
     /artifact root must be a real directory/
+  );
+});
+
+test("artifact manifest selection requires the requested regular file", async (context) => {
+  const fixture = await createMinimalProject(context);
+  const artifactRoot = join(fixture.projectRoot, "artifacts");
+  const realRoot = join(artifactRoot, "real");
+  const selectedRoot = join(artifactRoot, "selected");
+  const realManifest = join(realRoot, "drydock-artifact.json");
+  const selectedManifest = join(selectedRoot, "drydock-artifact.json");
+  const projectContext = {
+    artifactRoot,
+    projectRoot: fixture.projectRoot
+  };
+
+  await mkdir(realRoot, {
+    recursive: true
+  });
+  await mkdir(selectedRoot);
+  await writeFile(realManifest, "{}\n");
+
+  assert.equal(
+    await resolveArtifactManifestPath(
+      projectContext,
+      "artifacts/real/drydock-artifact.json"
+    ),
+    realManifest
+  );
+
+  await symlink(realManifest, selectedManifest);
+
+  await assert.rejects(
+    resolveArtifactManifestPath(
+      projectContext,
+      "artifacts/selected/drydock-artifact.json"
+    ),
+    /artifact manifest must be a regular non-symbolic-link file/
+  );
+
+  await rm(selectedManifest);
+  await mkdir(selectedManifest);
+  await assert.rejects(
+    resolveArtifactManifestPath(
+      projectContext,
+      "artifacts/selected/drydock-artifact.json"
+    ),
+    /artifact manifest must be a regular non-symbolic-link file/
   );
 });
 

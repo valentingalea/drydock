@@ -25,6 +25,7 @@ import { parseArgs, publishVps } from "../publish.js";
 import {
   liveRuntimePathsFromManifest,
   parseArgs as parseVerifyArgs,
+  resolveArtifactPath,
   resolveRouteUrl,
   runtimePathsFromManifest,
   verifyVps
@@ -235,6 +236,52 @@ test("VPS verifier preserves path-mounted route prefixes", () => {
     ),
     "https://example.com/releases/game/help%23topic%3F.html"
   );
+});
+
+test("VPS verifier resolves artifacts from the lifecycle invocation directory", () => {
+  const projectRoot = join(tmpdir(), "example-game");
+  const packageRoot = join(projectRoot, "drydock", "platforms", "web");
+
+  assert.equal(
+    resolveArtifactPath(
+      "artifacts/build/web-static/drydock-artifact.json",
+      {
+        INIT_CWD: projectRoot
+      },
+      packageRoot
+    ),
+    join(
+      projectRoot,
+      "artifacts",
+      "build",
+      "web-static",
+      "drydock-artifact.json"
+    )
+  );
+});
+
+test("VPS verifier uses metadata-only requests and cancels response bodies", async () => {
+  const methods = [];
+  let canceled = 0;
+
+  await verifyVps({
+    fetchImpl: async (url, options) => {
+      methods.push(options.method);
+      return {
+        body: {
+          async cancel() {
+            canceled += 1;
+          }
+        },
+        status: new URL(url).pathname.endsWith("asset.bin") ? 200 : 404
+      };
+    },
+    liveUrl: "https://example.com/live/",
+    runtimePaths: ["/asset.bin"]
+  });
+
+  assert.deepEqual(new Set(methods), new Set(["HEAD"]));
+  assert.equal(canceled, methods.length);
 });
 
 test("VPS verifier excludes the release-only redirect from custom-entrypoint live checks", async () => {

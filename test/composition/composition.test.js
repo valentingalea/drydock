@@ -359,6 +359,74 @@ test("rejects nested type changes between overlays", async (context) => {
   );
 });
 
+test("revalidates overlay types after live source-tree edits", async (context) => {
+  const fixture = await createMinimalProject(
+    context,
+    (descriptor) => {
+      descriptor.runtime.entries.push({
+        component: "game",
+        overlay: true,
+        source: "mutable-overlay",
+        target: "game/src"
+      });
+    },
+    async ({ gameRoot }) => {
+      await mkdir(join(gameRoot, "src", "scope"));
+      await writeFile(
+        join(gameRoot, "src", "scope", "base.js"),
+        "export const base = true;\n"
+      );
+      await mkdir(join(gameRoot, "mutable-overlay"));
+      await writeFile(
+        join(gameRoot, "mutable-overlay", "added.js"),
+        "export const added = true;\n"
+      );
+    }
+  );
+  const composition = await loadMinimalComposition(fixture);
+  const overlayScope = join(
+    fixture.projectRoot,
+    "game",
+    "mutable-overlay",
+    "scope"
+  );
+  await writeFile(overlayScope, "export const replacement = true;\n");
+
+  await assert.rejects(
+    readRuntimeFile(composition, "/game/src/scope"),
+    /runtime overlay changes target type at game\/src\/scope: directory to file/
+  );
+  await assert.rejects(
+    stageRuntime(
+      composition,
+      join(fixture.projectRoot, "artifacts", "mutable-overlay")
+    ),
+    /runtime overlay changes target type at game\/src\/scope: directory to file/
+  );
+});
+
+test("rejects mapping root type changes during live reads and staging", async (context) => {
+  const fixture = await createMinimalProject(context);
+  const composition = await loadMinimalComposition(fixture);
+  const sourceRoot = join(fixture.projectRoot, "game", "src");
+  await rm(sourceRoot, {
+    recursive: true
+  });
+  await writeFile(sourceRoot, "export const replacement = true;\n");
+
+  await assert.rejects(
+    readRuntimeFile(composition, "/game/src"),
+    /runtime source changed type in game: src/
+  );
+  await assert.rejects(
+    stageRuntime(
+      composition,
+      join(fixture.projectRoot, "artifacts", "changed-root")
+    ),
+    /runtime source changed type in game: src/
+  );
+});
+
 test("contains staging below a new, empty artifact subdirectory", async (context) => {
   const fixture = await createMinimalProject(context);
   const composition = await loadMinimalComposition(fixture);

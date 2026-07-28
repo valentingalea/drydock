@@ -18,7 +18,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     throw new Error("VPS verification requires --artifact");
   }
   options.manifest = JSON.parse(
-    await readFile(resolve(process.cwd(), options.artifact), "utf8")
+    await readFile(resolveArtifactPath(options.artifact, process.env), "utf8")
   );
   await verifyVps(options);
 }
@@ -109,18 +109,20 @@ export async function verifyRoute({
   for (const check of checks) {
     const url = resolveRouteUrl(baseUrl, check.path);
     const response = await fetchImpl(url, {
-      method: "GET",
+      method: "HEAD",
       redirect: "follow",
       signal: AbortSignal.timeout(timeoutMs)
     });
+    const { status } = response;
+    await response.body?.cancel();
 
-    if (response.status !== check.expectedStatus) {
+    if (status !== check.expectedStatus) {
       throw new Error(
-        `${name} route check failed for ${url}: expected ${check.expectedStatus}, got ${response.status}`
+        `${name} route check failed for ${url}: expected ${check.expectedStatus}, got ${status}`
       );
     }
 
-    results.push({ name, path: check.path, status: response.status, url });
+    results.push({ name, path: check.path, status, url });
   }
 
   return results;
@@ -195,6 +197,11 @@ export function resolveRouteUrl(baseUrl, path) {
     .map((segment) => encodeURIComponent(segment))
     .join("/");
   return new URL(encodedPath, baseHref).href;
+}
+
+export function resolveArtifactPath(value, env = {}, cwd = process.cwd()) {
+  const invocationCwd = env.INIT_CWD || cwd;
+  return resolve(invocationCwd, value);
 }
 
 function parseTimeout(value) {

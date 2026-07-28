@@ -16,7 +16,9 @@ builds share the same mapping and overlay implementation.
 
 The project owns all source mappings and reviewed integrations. Drydock supplies only
 `host-bridge.js` and its vendored runtime contract. Development iteration permits dirty
-tracked component files; release builds apply stricter revision checks.
+tracked component files; release builds apply stricter revision checks. Live reads
+revalidate the affected overlay path after source-tree edits, while staging revalidates
+the complete effective tree before copying it.
 
 Mount this under a dedicated hostname or an existing domain path such as `/game/` with
 Caddy `handle_path`. Caddy proxies to the localhost-only origin; the origin itself

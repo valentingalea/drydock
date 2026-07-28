@@ -63,11 +63,13 @@ pnpm --dir drydock smoke:web -- https://game.example/releases/
 
 The verifier expects artifact-selected runtime and Drydock host paths to return `200`.
 Project metadata, tests, package files, and repository internals must return
-`404`. Artifact path segments are URL-encoded before verification, so filenames
-containing URL delimiter characters are checked literally. For a custom entrypoint,
-the release route also checks the static adapter's generated root `index.html`
-redirect; the live route checks the composed entrypoint without requiring that
-release-only file.
+`404`. It resolves the artifact from the game directory that invoked the package
+script and uses metadata-only `HEAD` requests, so checks do not download every
+runtime asset. Artifact path segments are URL-encoded before verification, so
+filenames containing URL delimiter characters are checked literally. For a custom
+entrypoint, the release route also checks the static adapter's generated root
+`index.html` redirect; the live route checks the composed entrypoint without requiring
+that release-only file.
 
 ## Caddy Templates
 

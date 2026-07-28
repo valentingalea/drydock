@@ -76,8 +76,9 @@ adapter/profile identity, optional channel policy, and checksums for staged file
 Recorded remote URLs retain neither user information nor query/fragment data, where
 credentials are commonly embedded. Release provenance preflight completes before a
 build adapter creates staging or output directories. Artifact paths reject
-drive-qualified and Windows-aliased names, and every consumer independently resolves
-the payload root to a real directory contained by its manifest.
+drive-qualified and Windows-aliased names. Consumers require the selected manifest to
+be a regular non-symlink file and independently resolve the payload root to a real
+directory contained by that manifest.
 
 ## Current adapters
 

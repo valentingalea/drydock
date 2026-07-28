@@ -323,12 +323,19 @@ export async function resolveArtifactManifestPath(context, value) {
   let canonicalPath;
   try {
     artifactRoot = await canonicalProjectArtifactRoot(context);
+    const requestedInfo = await lstat(requestedPath);
+    if (requestedInfo.isSymbolicLink() || !requestedInfo.isFile()) {
+      throw new Error("artifact manifest must be a regular non-symbolic-link file");
+    }
     canonicalPath = await realpath(requestedPath);
   } catch (error) {
     throw new Error(`cannot resolve artifact manifest: ${error.message}`);
   }
 
-  if (!pathWithin(artifactRoot, canonicalPath)) {
+  if (
+    canonicalPath !== requestedPath
+    || !pathWithin(artifactRoot, canonicalPath)
+  ) {
     throw new Error("artifact manifest must resolve below project artifacts");
   }
 
