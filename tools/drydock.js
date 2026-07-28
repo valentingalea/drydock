@@ -15,6 +15,7 @@ const SUPPORTED_COMMANDS = new Set([
   "publish"
 ]);
 const DEFAULT_COMMANDS = Object.freeze({
+  build: buildCommand,
   iterate: iterateCommand,
   validate: validateProjectCommand
 });
@@ -272,6 +273,23 @@ async function iterateCommand({ args, ...input }) {
     args: args.slice(1)
   });
   return 0;
+}
+
+async function buildCommand({ args, ...input }) {
+  if (args[0] !== "web-static") {
+    input.stderr.write(
+      "ERROR: usage: build web-static --release PATH [options]\n"
+    );
+    return 2;
+  }
+
+  const { buildStaticWebCommand } = await import(
+    "../platforms/web/build/static/build.js"
+  );
+  return buildStaticWebCommand({
+    ...input,
+    args: args.slice(1)
+  });
 }
 
 function isDirectInvocation(moduleUrl, argvEntry) {
