@@ -13,6 +13,10 @@ files directly. It injects the Drydock web host bridge and applies the same mapp
 overlay order used by staged builds. Refreshing the browser picks up game and component
 edits without creating an artifact.
 
+The browser development host provides local storage but not identity, purchases,
+achievements, or telemetry. The iterator rejects projects requiring unavailable host
+capabilities before opening its listening socket.
+
 The server binds only to `127.0.0.1`. Put Caddy in front of it when a browser needs a
 public hostname or path mount. Copy the adjacent Caddy examples and set their hostname,
 route, and origin values for that deployment.

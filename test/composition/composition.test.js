@@ -280,6 +280,85 @@ test("requires file-only shipping integrations and type-compatible overlays", as
   );
 });
 
+test("rejects nested overlay type changes against base sources", async (context) => {
+  const fixture = await createMinimalProject(
+    context,
+    (descriptor) => {
+      descriptor.runtime.entries.push({
+        component: "game",
+        overlay: true,
+        source: "overlay-directory",
+        target: "game/src"
+      });
+    },
+    async ({ gameRoot }) => {
+      await mkdir(join(gameRoot, "overlay-directory", "value.js"), {
+        recursive: true
+      });
+      await writeFile(
+        join(gameRoot, "overlay-directory", "value.js", "nested.js"),
+        "nested\n"
+      );
+    }
+  );
+
+  await assert.rejects(
+    loadMinimalComposition(fixture),
+    /runtime overlay changes target type at game\/src\/value\.js: file to directory/
+  );
+});
+
+test("rejects nested type changes between overlays", async (context) => {
+  const fixture = await createMinimalProject(
+    context,
+    (descriptor) => {
+      descriptor.runtime.entries.push(
+        {
+          component: "game",
+          overlay: true,
+          source: "first-overlay",
+          target: "game/src/overlay-scope"
+        },
+        {
+          component: "game",
+          overlay: true,
+          source: "second-overlay",
+          target: "game/src"
+        }
+      );
+    },
+    async ({ gameRoot }) => {
+      await mkdir(join(gameRoot, "src", "overlay-scope"));
+      await mkdir(join(gameRoot, "first-overlay"));
+      await writeFile(
+        join(gameRoot, "first-overlay", "new-entry.js"),
+        "first\n"
+      );
+      await mkdir(
+        join(gameRoot, "second-overlay", "overlay-scope", "new-entry.js"),
+        {
+          recursive: true
+        }
+      );
+      await writeFile(
+        join(
+          gameRoot,
+          "second-overlay",
+          "overlay-scope",
+          "new-entry.js",
+          "nested.js"
+        ),
+        "second\n"
+      );
+    }
+  );
+
+  await assert.rejects(
+    loadMinimalComposition(fixture),
+    /runtime overlay changes target type at game\/src\/overlay-scope\/new-entry\.js: file to directory/
+  );
+});
+
 test("contains staging below a new, empty artifact subdirectory", async (context) => {
   const fixture = await createMinimalProject(context);
   const composition = await loadMinimalComposition(fixture);

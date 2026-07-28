@@ -8,12 +8,17 @@ import {
   createServer,
   getProjectEntrypoint,
   parsePort,
-  runtimePathAllowed
+  runtimePathAllowed,
+  startLiveWeb
 } from "../server.js";
 import {
   createMinimalProject,
+  harnessRoot,
   loadMinimalComposition
 } from "../../../../../test/support/minimal-project.js";
+import {
+  resolveProjectContext
+} from "../../../../../tools/drydock.js";
 
 test("live origin selects the project-owned entrypoint", async (context) => {
   const composition = await createComposition(context);
@@ -109,6 +114,36 @@ test("port parsing defaults and validates explicit ports", () => {
   assert.throws(() => parsePort(["--port", "nope"]), /--port/);
   assert.throws(() => parsePort(["--port", "9000", "--port", "9001"]), /once/);
   assert.throws(() => parsePort(["--unknown"]), /unknown/);
+});
+
+test("rejects unsupported host capabilities before listening", async (context) => {
+  const fixture = await createMinimalProject(context, (descriptor) => {
+    descriptor.host.requiredCapabilities = ["identity"];
+  });
+  const projectContext = await resolveProjectContext(
+    fixture.projectPath,
+    {
+      invocationCwd: fixture.projectRoot,
+      selectedHarnessRoot: harnessRoot
+    }
+  );
+  let live;
+
+  try {
+    await assert.rejects(
+      async () => {
+        live = await startLiveWeb({
+          args: ["--port", "0"],
+          context: projectContext
+        });
+      },
+      /web iteration host does not provide required capabilities: identity/
+    );
+  } finally {
+    if (live) {
+      await new Promise((resolveClose) => live.server.close(resolveClose));
+    }
+  }
 });
 
 test("public CLI serves a project outside its working directory", async (context) => {

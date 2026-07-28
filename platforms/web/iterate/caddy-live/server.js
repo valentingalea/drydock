@@ -7,6 +7,9 @@ import {
   createRuntimeComposition,
   readRuntimeFile
 } from "../../../../tools/composition.js";
+import {
+  DEV_HOST_CAPABILITIES
+} from "../../../../contracts/host-bridge/src/index.js";
 import { verifyProjectComponents } from "../../../../tools/components.js";
 import { loadProject } from "../../../../tools/project.js";
 
@@ -113,6 +116,9 @@ export async function startLiveWeb({
 }) {
   const port = parsePort(args);
   const project = await loadProject(context);
+  assertRequiredHostCapabilities(
+    project.descriptor.host.requiredCapabilities
+  );
   const verified = await verifyProjectComponents(project, {
     profile: "development"
   });
@@ -136,6 +142,21 @@ export async function startLiveWeb({
     composition,
     server
   };
+}
+
+export function assertRequiredHostCapabilities(requiredCapabilities) {
+  const unsupported = requiredCapabilities.filter((capability) => (
+    capability === "storage"
+      ? DEV_HOST_CAPABILITIES.storage === "none"
+      : DEV_HOST_CAPABILITIES[capability] !== true
+  ));
+
+  if (unsupported.length > 0) {
+    throw new Error(
+      "web iteration host does not provide required capabilities: "
+      + unsupported.join(", ")
+    );
+  }
 }
 
 export function parsePort(argv) {

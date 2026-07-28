@@ -92,6 +92,11 @@ export async function createRuntimeComposition(verifiedProject) {
     }
   }
 
+  const effectiveTargetKinds = new Map();
+  for (const base of baseEntries) {
+    applyTargetKinds(effectiveTargetKinds, base);
+  }
+
   for (const overlay of overlayEntries) {
     const base = baseEntries.find((entry) => (
       overlay.target === entry.target
@@ -119,6 +124,9 @@ export async function createRuntimeComposition(verifiedProject) {
         + `${baseSource.kind} to ${overlay.kind}`
       );
     }
+
+    assertCompatibleTargetKinds(effectiveTargetKinds, overlay);
+    applyTargetKinds(effectiveTargetKinds, overlay);
   }
 
   const lookupEntries = [
@@ -238,6 +246,7 @@ async function createMapping({
     requestedSourcePath,
     reserved,
     source: declaration.source,
+    sourceKinds: source.sourceKinds,
     target: declaration.target
   });
 }
@@ -277,12 +286,18 @@ async function inspectSafeSource(owner, ownerRoot, requestedPath, displayPath) {
   if (canonicalStat.isFile()) {
     return {
       canonicalPath,
-      kind: "file"
+      kind: "file",
+      sourceKinds: Object.freeze([
+        Object.freeze({
+          kind: "file",
+          path: ""
+        })
+      ])
     };
   }
 
   if (canonicalStat.isDirectory()) {
-    await assertSafeDirectoryTree(
+    const sourceKinds = await inspectSafeDirectoryTree(
       owner,
       ownerRoot,
       requestedPath,
@@ -291,7 +306,8 @@ async function inspectSafeSource(owner, ownerRoot, requestedPath, displayPath) {
     );
     return {
       canonicalPath,
-      kind: "directory"
+      kind: "directory",
+      sourceKinds: Object.freeze(sourceKinds.map(Object.freeze))
     };
   }
 
@@ -300,7 +316,7 @@ async function inspectSafeSource(owner, ownerRoot, requestedPath, displayPath) {
   );
 }
 
-async function assertSafeDirectoryTree(
+async function inspectSafeDirectoryTree(
   owner,
   ownerRoot,
   requestedDir,
@@ -331,6 +347,10 @@ async function assertSafeDirectoryTree(
 
   const nextAncestors = new Set(ancestors);
   nextAncestors.add(canonicalDir);
+  const sourceKinds = [{
+    kind: "directory",
+    path: ""
+  }];
 
   for (const entry of await readdir(canonicalDir, {
     withFileTypes: true
@@ -360,19 +380,59 @@ async function assertSafeDirectoryTree(
 
     const childStat = await stat(canonicalChild);
     if (childStat.isDirectory()) {
-      await assertSafeDirectoryTree(
+      const childKinds = await inspectSafeDirectoryTree(
         owner,
         ownerRoot,
         requestedChild,
         `${displayPath}/${entry.name}`,
         nextAncestors
       );
+      for (const childKind of childKinds) {
+        sourceKinds.push({
+          kind: childKind.kind,
+          path: childKind.path
+            ? posix.join(entry.name, childKind.path)
+            : entry.name
+        });
+      }
     } else if (!childStat.isFile()) {
       throw new CompositionError(
         `runtime directory entry is not a file or directory: `
         + `${displayPath}/${entry.name}`
       );
+    } else {
+      sourceKinds.push({
+        kind: "file",
+        path: entry.name
+      });
     }
+  }
+
+  return sourceKinds;
+}
+
+function assertCompatibleTargetKinds(effectiveTargetKinds, mapping) {
+  for (const sourceKind of mapping.sourceKinds) {
+    const target = sourceKind.path
+      ? posix.join(mapping.target, sourceKind.path)
+      : mapping.target;
+    const effectiveKind = effectiveTargetKinds.get(target);
+
+    if (effectiveKind && effectiveKind !== sourceKind.kind) {
+      throw new CompositionError(
+        `runtime overlay changes target type at ${target}: `
+        + `${effectiveKind} to ${sourceKind.kind}`
+      );
+    }
+  }
+}
+
+function applyTargetKinds(effectiveTargetKinds, mapping) {
+  for (const sourceKind of mapping.sourceKinds) {
+    const target = sourceKind.path
+      ? posix.join(mapping.target, sourceKind.path)
+      : mapping.target;
+    effectiveTargetKinds.set(target, sourceKind.kind);
   }
 }
 
