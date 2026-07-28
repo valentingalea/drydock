@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -102,10 +104,59 @@ test("systemd example invokes the project-aware localhost origin", async () => {
 
 test("port parsing defaults and validates explicit ports", () => {
   assert.equal(parsePort([]), 8090);
+  assert.equal(parsePort(["--port", "0"]), 0);
   assert.equal(parsePort(["--port", "9000"]), 9000);
   assert.throws(() => parsePort(["--port", "nope"]), /--port/);
   assert.throws(() => parsePort(["--port", "9000", "--port", "9001"]), /once/);
   assert.throws(() => parsePort(["--unknown"]), /unknown/);
+});
+
+test("public CLI serves a project outside its working directory", async (context) => {
+  const fixture = await createMinimalProject(context);
+  const entrypoint = resolve(
+    import.meta.dirname,
+    "../../../../../tools/drydock.js"
+  );
+  const child = spawn(
+    process.execPath,
+    [
+      entrypoint,
+      "iterate",
+      "web",
+      "--project",
+      fixture.projectPath,
+      "--port",
+      "0"
+    ],
+    {
+      cwd: resolve(import.meta.dirname, "../../../../.."),
+      stdio: [
+        "ignore",
+        "pipe",
+        "pipe"
+      ]
+    }
+  );
+  context.after(() => {
+    if (child.exitCode === null) {
+      child.kill("SIGTERM");
+    }
+  });
+
+  const origin = await waitForOrigin(child);
+  assert.equal((await fetch(origin)).status, 200);
+  assert.equal(
+    await (await fetch(`${origin}game/src/platform-host.js`)).text(),
+    "export const platform = \"overlay\";\n"
+  );
+  assert.equal(
+    (await fetch(`${origin}shipping/drydock-project.json`)).status,
+    404
+  );
+
+  const exit = once(child, "exit");
+  child.kill("SIGTERM");
+  await exit;
 });
 
 test("server serves declared runtime files and denies repository files", async (context) => {
@@ -146,4 +197,36 @@ test("server serves declared runtime files and denies repository files", async (
 
 async function createComposition(context) {
   return loadMinimalComposition(await createMinimalProject(context));
+}
+
+function waitForOrigin(child) {
+  return new Promise((resolveOrigin, rejectOrigin) => {
+    let stderr = "";
+    let stdout = "";
+    const timeout = setTimeout(() => {
+      rejectOrigin(new Error(
+        `timed out waiting for live origin\nstdout: ${stdout}\nstderr: ${stderr}`
+      ));
+    }, 5000);
+
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+      const match = /Drydock live origin: (http:\/\/127\.0\.0\.1:\d+\/)/u.exec(
+        stdout
+      );
+      if (match) {
+        clearTimeout(timeout);
+        resolveOrigin(match[1]);
+      }
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timeout);
+      rejectOrigin(new Error(
+        `live origin exited before listening (${code})\n${stderr}`
+      ));
+    });
+  });
 }

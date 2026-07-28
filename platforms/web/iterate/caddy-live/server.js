@@ -137,8 +137,8 @@ export function parsePort(argv) {
     }
 
     const value = Number(argv[index + 1]);
-    if (!Number.isInteger(value) || value < 1 || value > 65535) {
-      throw new Error("--port must be an integer from 1 to 65535");
+    if (!Number.isInteger(value) || value < 0 || value > 65535) {
+      throw new Error("--port must be an integer from 0 to 65535");
     }
 
     port = value;
