@@ -53,6 +53,7 @@ Read in this order.
 | `docs/RELEASE.md` | Per-channel setup, repeatable release flow, versioning, CI. |
 | `docs/ROADMAP.md` | Current status and the order to build things in. |
 | `tools/skills/playwright-web-smoke/SKILL.md` | Repo-local Playwright workflow for blank-page and route diagnostics. |
+| `tools/skills/claude-review/SKILL.md` | Repo-local read-only workflow for independent Claude reviews. |
 
 ## Ground rules for contributors
 
