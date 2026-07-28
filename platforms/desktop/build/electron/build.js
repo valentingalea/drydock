@@ -1,46 +1,120 @@
 #!/usr/bin/env node
 const { createHash } = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { cp, mkdir, readdir, readFile, rm, stat, writeFile } = require("node:fs/promises");
-const { dirname, join, relative, resolve } = require("node:path");
+const {
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  writeFile
+} = require("node:fs/promises");
+const {
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep
+} = require("node:path");
 const { pathToFileURL } = require("node:url");
 const Ajv2020 = require("ajv/dist/2020");
 const YAML = require("yaml");
 
-const repoRoot = resolve(__dirname, "../../../..");
 const packageRoot = __dirname;
-const productDefinition = require(resolve(repoRoot, "product/drydock-product.json"));
-const defaultRelease = "contracts/releases/0.1.0.yaml";
 const defaultBuildKey = "desktop";
-const productName = productDefinition.productName;
-const executableName = productDefinition.executableName;
-const bundleId = productDefinition.appId;
 
 if (require.main === module) {
-  const options = parseArgs(process.argv.slice(2));
-  options.verifySubmodule = true;
-  buildElectron(options).catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-  });
+  import(pathToFileURL(resolve(packageRoot, "../../../../tools/drydock.js")).href)
+    .then(({ runCli }) => runCli(
+      [
+        "build",
+        "electron",
+        ...process.argv.slice(2)
+      ],
+      {
+        invocationCwd: process.cwd()
+      }
+    ))
+    .then((exitCode) => {
+      process.exitCode = exitCode;
+    })
+    .catch((error) => {
+      console.error(error.message);
+      process.exitCode = 1;
+    });
 }
 
-async function buildElectron(options = {}) {
-  const productTools = await loadProductTools();
-  if (options.verifySubmodule) {
-    await productTools.verifyPinnedProduct(repoRoot);
+async function buildElectronCommand({
+  args,
+  context,
+  stderr,
+  stdout
+}) {
+  let options;
+  try {
+    options = parseArgs(args);
+  } catch (error) {
+    stderr.write(`ERROR: ${error.message}\n`);
+    return 2;
   }
-  const product = await productTools.loadProduct(repoRoot);
-  const productRevision = await productTools.readProductRevision(repoRoot, product);
+
+  const {
+    loadProject,
+    verifyProjectComponents
+  } = await loadProjectTools();
+  const project = await loadProject(context);
+  const verified = await verifyProjectComponents(project, {
+    profile: options.profile
+  });
+  await buildElectron({
+    context,
+    options,
+    stdout,
+    verified
+  });
+  return 0;
+}
+
+async function buildElectron({
+  context,
+  options,
+  stdout = process.stdout,
+  verified
+}) {
+  if (!context || !verified) {
+    throw new TypeError("context and verified project are required");
+  }
+  if (
+    verified.project.context.projectPath !== context.projectPath
+    || verified.profile !== options.profile
+  ) {
+    throw new TypeError("verified project does not match the build context and profile");
+  }
+
+  const {
+    createRuntimeComposition,
+    resolveProjectPath,
+    stageRuntime
+  } = await loadBuildTools();
   const target = resolveBuildTarget(options);
-  const releasePath = resolve(repoRoot, options.release ?? defaultRelease);
-  const outDir = resolve(
-    repoRoot,
-    options.out ?? join("artifacts", "build", `${target.platform}-${target.arch}`)
+  const identity = identityFromDescriptor(verified.project.descriptor);
+  const releasePath = await resolveReleasePath(
+    context,
+    options.release,
+    resolveProjectPath
+  );
+  const outDir = resolveProjectPath(
+    context,
+    options.out
+      ?? join("artifacts", "build", `${target.platform}-${target.arch}`),
+    "build output"
   );
   const stageDir = resolve(
-    repoRoot,
-    "artifacts",
+    context.artifactRoot,
     "tmp",
     "electron-stage",
     `${target.platform}-${target.arch}`
@@ -49,80 +123,172 @@ async function buildElectron(options = {}) {
   const buildKey = options.buildKey ?? defaultBuildKey;
   const buildNumber = release?.build?.[buildKey];
 
+  if (
+    typeof release?.version !== "string"
+    && typeof release?.version !== "number"
+  ) {
+    throw new Error("release manifest must define version");
+  }
   if (!Number.isInteger(buildNumber)) {
     throw new Error(`release manifest does not define build.${buildKey}`);
   }
 
-  await rm(outDir, { recursive: true, force: true });
-  await rm(stageDir, { recursive: true, force: true });
-  await mkdir(outDir, { recursive: true });
-  await prepareStagedApp({ product, productTools, stageDir, release });
+  const composition = await createRuntimeComposition(verified);
+  await prepareStagedApp({
+    composition,
+    identity,
+    release,
+    stageDir,
+    stageRuntime
+  });
+  await prepareEmptyOutputDirectory(context, outDir);
 
   if (!options.skipPackage) {
-    await runElectronBuilder({ stageDir, outDir, target });
+    await runElectronBuilder({
+      identity,
+      outDir,
+      stageDir,
+      target
+    });
   } else {
-    await createFakeUnpackedOutput({ outDir, target });
+    await createFakeUnpackedOutput({
+      identity,
+      outDir,
+      target
+    });
   }
 
-  await rm(stageDir, { recursive: true, force: true });
+  await rm(stageDir, {
+    force: true,
+    recursive: true
+  });
 
-  const artifactRoot = artifactRootForTarget(target);
+  const artifactRoot = artifactRootForTarget(target, identity);
   await assertDirectory(resolve(outDir, artifactRoot));
 
   const manifest = await createArtifactManifest({
     artifactRoot,
     buildKey,
     buildNumber,
+    context,
+    identity,
     outDir,
+    profile: options.profile,
     release,
     releasePath,
     target,
-    product,
-    productRevision
+    verified
   });
 
-  await validateArtifactManifest(manifest);
+  await validateArtifactManifest(manifest, context.harnessRoot);
   await writeFile(
     resolve(outDir, "drydock-artifact.json"),
     `${JSON.stringify(manifest, null, 2)}\n`
   );
 
-  console.log(`built Electron artifact: ${relative(repoRoot, outDir)}`);
-  return { outDir, manifest };
+  stdout.write(
+    `built Electron artifact: ${portableRelative(context.projectRoot, outDir)}\n`
+  );
+  return {
+    manifest,
+    outDir
+  };
 }
 
-async function prepareStagedApp({ stageDir, release, product, productTools }) {
-  const tools = productTools ?? await loadProductTools();
-  const selectedProduct = product ?? await tools.loadProduct(repoRoot);
-  await mkdir(stageDir, { recursive: true });
+async function prepareStagedApp({
+  composition,
+  identity,
+  release,
+  stageDir,
+  stageRuntime
+}) {
+  if (!composition || typeof stageRuntime !== "function") {
+    throw new TypeError("composition and stageRuntime are required");
+  }
 
-  for (const file of ["main.js", "preload.js", "protocol.js", "host-provider.js"]) {
+  const runtimeRoot = resolve(stageDir, "runtime");
+  await stageRuntime(composition, runtimeRoot);
+
+  for (const file of [
+    "host-provider.js",
+    "main.js",
+    "preload.js",
+    "protocol.js"
+  ]) {
     await cp(resolve(packageRoot, file), resolve(stageDir, file));
   }
 
   await writeFile(
     resolve(stageDir, "package.json"),
-    `${JSON.stringify(createStagedPackage(release), null, 2)}\n`
+    `${JSON.stringify(createStagedPackage(release, identity), null, 2)}\n`
+  );
+  await writeFile(
+    resolve(stageDir, "runtime-policy.json"),
+    `${JSON.stringify(await createRuntimePolicy(
+      runtimeRoot,
+      composition.entrypoint
+    ), null, 2)}\n`
   );
 
-  await tools.stageProduct(selectedProduct, resolve(stageDir, "runtime"));
-  return { entrypoint: selectedProduct.entrypoint };
+  return {
+    entrypoint: composition.entrypoint
+  };
 }
 
-function createStagedPackage(release) {
+function createStagedPackage(release, identity) {
   return {
-    name: `${productDefinition.executableName}-electron-app`,
+    name: `${identity.executableName}-electron-app`,
     version: String(release.version),
-    description: `${productName} product wrapped by the Drydock Electron adapter.`,
+    description: `${identity.productName} wrapped by the Drydock Electron adapter.`,
     author: "Drydock",
     private: true,
     type: "commonjs",
     main: "main.js",
-    productName
+    productName: identity.productName
   };
 }
 
-async function runElectronBuilder({ stageDir, outDir, target }) {
+async function createRuntimePolicy(runtimeRoot, entrypoint) {
+  const runtimePaths = (await listFiles(runtimeRoot))
+    .map((filePath) => portableRelative(runtimeRoot, filePath))
+    .sort();
+  const entrypointPath = resolve(
+    runtimeRoot,
+    ...entrypoint.split("/")
+  );
+  const entrypointHtml = await readFile(entrypointPath, "utf8");
+  const scriptHashes = inlineScriptHashes(entrypointHtml);
+
+  return {
+    runtimePaths,
+    scriptHashes
+  };
+}
+
+function inlineScriptHashes(html) {
+  const hashes = new Set();
+  const scriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  let match;
+
+  while ((match = scriptPattern.exec(html)) !== null) {
+    if (/\ssrc\s*=/i.test(match[1])) {
+      continue;
+    }
+
+    hashes.add(
+      `sha256-${createHash("sha256").update(match[2]).digest("base64")}`
+    );
+  }
+
+  return [...hashes].sort();
+}
+
+async function runElectronBuilder({
+  identity,
+  outDir,
+  stageDir,
+  target
+}) {
   const args = [
     "--dir",
     "--projectDir",
@@ -132,9 +298,9 @@ async function runElectronBuilder({ stageDir, outDir, target }) {
     `--${builderPlatformFlag(target.platform)}`,
     `--${target.arch}`,
     `-c.electronVersion=${electronVersion()}`,
-    `-c.appId=${bundleId}`,
-    `-c.productName=${productName}`,
-    `-c.executableName=${executableName}`,
+    `-c.appId=${identity.bundleId}`,
+    `-c.productName=${identity.productName}`,
+    `-c.executableName=${identity.executableName}`,
     `-c.directories.output=${outDir}`,
     "--publish",
     "never"
@@ -147,17 +313,28 @@ function resolveBuildTarget(options = {}) {
   const platform = normalizePlatform(options.platform ?? process.platform);
   const arch = normalizeArch(options.arch ?? process.arch);
 
-  return { platform, arch };
+  return {
+    arch,
+    platform
+  };
 }
 
 function normalizePlatform(value) {
   const normalized = String(value).toLowerCase();
 
-  if (normalized === "win32" || normalized === "windows" || normalized === "win") {
+  if (
+    normalized === "win32"
+    || normalized === "windows"
+    || normalized === "win"
+  ) {
     return "windows";
   }
 
-  if (normalized === "darwin" || normalized === "macos" || normalized === "mac") {
+  if (
+    normalized === "darwin"
+    || normalized === "macos"
+    || normalized === "mac"
+  ) {
     return "macos";
   }
 
@@ -190,141 +367,270 @@ function builderPlatformFlag(platform) {
   return platform;
 }
 
-function artifactRootForTarget(target) {
+function artifactRootForTarget(target, identity) {
   if (target.platform === "windows") {
     return "win-unpacked";
   }
 
   if (target.platform === "macos") {
-    return join("mac", `${productName}.app`);
+    return join("mac", `${identity.productName}.app`);
   }
 
   return "linux-unpacked";
 }
 
-function executableForTarget(target) {
+function executableForTarget(target, identity) {
   if (target.platform === "windows") {
-    return join("win-unpacked", `${executableName}.exe`);
+    return join("win-unpacked", `${identity.executableName}.exe`);
   }
 
   if (target.platform === "macos") {
-    return join("mac", `${productName}.app`, "Contents", "MacOS", executableName);
+    return join(
+      "mac",
+      `${identity.productName}.app`,
+      "Contents",
+      "MacOS",
+      identity.executableName
+    );
   }
 
-  return join("linux-unpacked", executableName);
+  return join("linux-unpacked", identity.executableName);
 }
 
 async function createArtifactManifest({
   artifactRoot,
   buildKey,
   buildNumber,
-  productRevision,
+  context,
+  identity,
   outDir,
-  product,
+  profile,
   release,
   releasePath,
-  target
+  target,
+  verified
 }) {
   const artifactRootPath = resolve(outDir, artifactRoot);
   const checksums = [];
 
   for (const filePath of await listFiles(artifactRootPath)) {
-    const path = relative(outDir, filePath)
-      .split("\\")
-      .join("/");
-    const value = createHash("sha256").update(await readFile(filePath)).digest("hex");
-    checksums.push({ path, algorithm: "sha256", value });
+    const path = portableRelative(outDir, filePath);
+    const value = createHash("sha256")
+      .update(await readFile(filePath))
+      .digest("hex");
+    checksums.push({
+      algorithm: "sha256",
+      path,
+      value
+    });
   }
 
-  checksums.sort((a, b) => a.path.localeCompare(b.path));
+  checksums.sort((left, right) => left.path.localeCompare(right.path));
 
   return {
     schemaVersion: 2,
-    productId: product.productId,
+    productId: identity.productId,
     version: String(release.version),
     buildNumber,
     buildAdapter: "electron",
     platform: target.platform,
     arch: target.arch,
-    artifactRoot: artifactRoot.split("\\").join("/"),
-    executable: executableForTarget(target).split("\\").join("/"),
-    bundleId,
+    artifactRoot: portablePath(artifactRoot),
+    executable: portablePath(executableForTarget(target, identity)),
+    bundleId: identity.bundleId,
     packageId: null,
     signing: {
       status: "unsigned"
     },
     capabilities: [
-      "storage"
+      ...verified.project.descriptor.host.requiredCapabilities
     ],
     checksums,
     extensions: {
       drydock: {
         adapterPackage: "@drydock/desktop-electron",
         buildKey,
-        entrypoint: product.entrypoint,
-        productContract: product.contractPath,
-        productRevision,
-        release: relative(repoRoot, releasePath).split("\\").join("/")
+        components: componentProvenance(verified),
+        entrypoint: verified.project.descriptor.runtime.entrypoint,
+        profile,
+        project: portableRelative(context.projectRoot, context.projectPath),
+        projectRevision: {
+          commit: verified.projectRevision.commit
+        },
+        release: portableRelative(context.projectRoot, releasePath)
       },
       electron: {
         builder: "electron-builder",
-        productName,
-        executableName,
+        executableName: identity.executableName,
+        productName: identity.productName,
         protocol: "app://drydock"
       }
     }
   };
 }
 
-async function loadProductTools() {
-  return import(pathToFileURL(resolve(repoRoot, "tools/scripts/product.js")).href);
+function componentProvenance(verified) {
+  return Object.fromEntries(
+    Object.entries(verified.components).map(([name, component]) => [
+      name,
+      {
+        commit: (
+          component.revision === "gitlink"
+            ? component.commit
+            : verified.projectRevision.commit
+        ),
+        path: component.path,
+        revision: component.revision
+      }
+    ])
+  );
 }
 
-async function validateArtifactManifest(manifest) {
-  const schema = JSON.parse(
-    await readFile(resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json"), "utf8")
-  );
-  const ajv = new Ajv2020({ allErrors: true, strict: true });
-  const validate = ajv.compile(schema);
-
-  if (!validate(manifest)) {
-    throw new Error(`invalid artifact manifest: ${JSON.stringify(validate.errors, null, 2)}`);
-  }
+function identityFromDescriptor(descriptor) {
+  return {
+    bundleId: descriptor.product.appId,
+    executableName: descriptor.product.executableName,
+    productId: descriptor.product.id,
+    productName: descriptor.product.name
+  };
 }
 
 function parseArgs(argv) {
-  const options = {};
+  const options = {
+    profile: "release"
+  };
+  const seen = new Set();
 
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
 
-    if (arg === "--") {
-      continue;
-    } else if (arg === "--release") {
-      options.release = requireValue(argv, ++i, arg);
-    } else if (arg === "--out") {
-      options.out = requireValue(argv, ++i, arg);
-    } else if (arg === "--platform") {
-      options.platform = requireValue(argv, ++i, arg);
-    } else if (arg === "--arch") {
-      options.arch = requireValue(argv, ++i, arg);
-    } else if (arg === "--build-key") {
-      options.buildKey = requireValue(argv, ++i, arg);
-    } else if (arg === "--skip-package") {
+    if (argument === "--release") {
+      rejectDuplicate(seen, argument);
+      options.release = requireValue(argv, ++index, argument);
+    } else if (argument === "--out") {
+      rejectDuplicate(seen, argument);
+      options.out = requireValue(argv, ++index, argument);
+    } else if (argument === "--platform") {
+      rejectDuplicate(seen, argument);
+      options.platform = requireValue(argv, ++index, argument);
+    } else if (argument === "--arch") {
+      rejectDuplicate(seen, argument);
+      options.arch = requireValue(argv, ++index, argument);
+    } else if (argument === "--build-key") {
+      rejectDuplicate(seen, argument);
+      options.buildKey = requireValue(argv, ++index, argument);
+    } else if (argument === "--profile") {
+      rejectDuplicate(seen, argument);
+      options.profile = requireValue(argv, ++index, argument);
+      if (
+        options.profile !== "development"
+        && options.profile !== "release"
+      ) {
+        throw new Error("--profile must be development or release");
+      }
+    } else if (argument === "--skip-package") {
+      rejectDuplicate(seen, argument);
       options.skipPackage = true;
     } else {
-      throw new Error(`unknown argument: ${arg}`);
+      throw new Error(`unknown Electron argument: ${argument}`);
     }
+  }
+
+  if (!options.release) {
+    throw new Error("--release is required");
+  }
+  if (options.skipPackage && options.profile !== "development") {
+    throw new Error("--skip-package requires --profile development");
   }
 
   return options;
 }
 
-async function createFakeUnpackedOutput({ outDir, target }) {
-  const artifactRoot = resolve(outDir, artifactRootForTarget(target));
-  await mkdir(dirname(resolve(outDir, executableForTarget(target))), { recursive: true });
-  await mkdir(artifactRoot, { recursive: true });
-  await writeFile(resolve(outDir, executableForTarget(target)), "fake executable\n");
+function rejectDuplicate(seen, flag) {
+  if (seen.has(flag)) {
+    throw new Error(`${flag} may be provided only once`);
+  }
+  seen.add(flag);
+}
+
+async function createFakeUnpackedOutput({
+  identity,
+  outDir,
+  target
+}) {
+  const artifactRoot = resolve(
+    outDir,
+    artifactRootForTarget(target, identity)
+  );
+  await mkdir(
+    dirname(resolve(outDir, executableForTarget(target, identity))),
+    {
+      recursive: true
+    }
+  );
+  await mkdir(artifactRoot, {
+    recursive: true
+  });
+  await writeFile(
+    resolve(outDir, executableForTarget(target, identity)),
+    "fake executable\n"
+  );
+}
+
+async function resolveReleasePath(context, value, resolveProjectPath) {
+  const requestedPath = resolveProjectPath(context, value, "release");
+  const releaseRoot = resolve(context.shippingRoot, "releases");
+  let canonicalPath;
+
+  try {
+    canonicalPath = await realpath(requestedPath);
+  } catch (error) {
+    throw new Error(`cannot resolve release manifest: ${error.message}`);
+  }
+
+  if (
+    canonicalPath === releaseRoot
+    || !pathWithin(releaseRoot, canonicalPath)
+  ) {
+    throw new Error("release must resolve below shipping/releases");
+  }
+
+  return canonicalPath;
+}
+
+async function prepareEmptyOutputDirectory(context, outDir) {
+  const artifactRoot = await realpath(context.artifactRoot);
+  if (!pathWithin(artifactRoot, outDir)) {
+    throw new Error("build output must be below the project artifact root");
+  }
+
+  let current = outDir;
+  const missing = [];
+  while (current !== artifactRoot) {
+    try {
+      const info = await lstat(current);
+      if (info.isSymbolicLink()) {
+        throw new Error("build output path must not contain symbolic links");
+      }
+      if (!info.isDirectory()) {
+        throw new Error("build output parent is not a directory");
+      }
+      break;
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+      missing.push(current);
+      current = dirname(current);
+    }
+  }
+
+  for (const path of missing.reverse()) {
+    await mkdir(path);
+  }
+  if ((await readdir(outDir)).length > 0) {
+    throw new Error("build output directory must be empty");
+  }
 }
 
 async function run(command, args) {
@@ -354,21 +660,10 @@ async function assertDirectory(path) {
   }
 }
 
-async function exists(path) {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return false;
-    }
-
-    throw error;
-  }
-}
-
 async function listFiles(root) {
-  const entries = await readdir(root, { withFileTypes: true });
+  const entries = await readdir(root, {
+    withFileTypes: true
+  });
   const files = [];
 
   for (const entry of entries) {
@@ -394,6 +689,76 @@ function requireValue(argv, index, flag) {
   return value;
 }
 
+async function validateArtifactManifest(manifest, harnessRoot) {
+  const schema = JSON.parse(
+    await readFile(
+      resolve(
+        harnessRoot,
+        "contracts/schemas/drydock-artifact.schema.json"
+      ),
+      "utf8"
+    )
+  );
+  const ajv = new Ajv2020({
+    allErrors: true,
+    strict: true
+  });
+  const validate = ajv.compile(schema);
+
+  if (!validate(manifest)) {
+    throw new Error(
+      `invalid artifact manifest: ${JSON.stringify(validate.errors, null, 2)}`
+    );
+  }
+}
+
+async function loadProjectTools() {
+  const [
+    components,
+    project
+  ] = await Promise.all([
+    import(pathToFileURL(resolve(packageRoot, "../../../../tools/components.js")).href),
+    import(pathToFileURL(resolve(packageRoot, "../../../../tools/project.js")).href)
+  ]);
+  return {
+    loadProject: project.loadProject,
+    verifyProjectComponents: components.verifyProjectComponents
+  };
+}
+
+async function loadBuildTools() {
+  const [
+    composition,
+    drydock
+  ] = await Promise.all([
+    import(pathToFileURL(resolve(packageRoot, "../../../../tools/composition.js")).href),
+    import(pathToFileURL(resolve(packageRoot, "../../../../tools/drydock.js")).href)
+  ]);
+  return {
+    createRuntimeComposition: composition.createRuntimeComposition,
+    resolveProjectPath: drydock.resolveProjectPath,
+    stageRuntime: composition.stageRuntime
+  };
+}
+
+function pathWithin(root, candidate) {
+  const pathFromRoot = relative(root, candidate);
+  return (
+    pathFromRoot !== ""
+    && pathFromRoot !== ".."
+    && !pathFromRoot.startsWith(`..${sep}`)
+    && !isAbsolute(pathFromRoot)
+  );
+}
+
+function portableRelative(root, target) {
+  return relative(root, target).split(sep).join("/");
+}
+
+function portablePath(path) {
+  return path.split(sep).join("/");
+}
+
 function electronVersion() {
   return require("electron/package.json").version;
 }
@@ -401,13 +766,16 @@ function electronVersion() {
 module.exports = {
   artifactRootForTarget,
   buildElectron,
+  buildElectronCommand,
   createArtifactManifest,
+  createRuntimePolicy,
   createStagedPackage,
+  electronVersion,
   executableForTarget,
+  inlineScriptHashes,
   normalizeArch,
   normalizePlatform,
   parseArgs,
   prepareStagedApp,
-  resolveBuildTarget,
-  electronVersion
+  resolveBuildTarget
 };

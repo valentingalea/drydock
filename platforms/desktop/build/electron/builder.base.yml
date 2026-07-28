@@ -6,6 +6,7 @@ files:
   - preload.js
   - protocol.js
   - host-provider.js
+  - runtime-policy.json
   - runtime/**/*
 mac:
   target: dir

@@ -276,20 +276,30 @@ async function iterateCommand({ args, ...input }) {
 }
 
 async function buildCommand({ args, ...input }) {
-  if (args[0] !== "web-static") {
-    input.stderr.write(
-      "ERROR: usage: build web-static --release PATH [options]\n"
+  if (args[0] === "web-static") {
+    const { buildStaticWebCommand } = await import(
+      "../platforms/web/build/static/build.js"
     );
-    return 2;
+    return buildStaticWebCommand({
+      ...input,
+      args: args.slice(1)
+    });
   }
 
-  const { buildStaticWebCommand } = await import(
-    "../platforms/web/build/static/build.js"
+  if (args[0] === "electron") {
+    const electron = await import(
+      "../platforms/desktop/build/electron/build.js"
+    );
+    return electron.buildElectronCommand({
+      ...input,
+      args: args.slice(1)
+    });
+  }
+
+  input.stderr.write(
+    "ERROR: usage: build <web-static|electron> --release PATH [options]\n"
   );
-  return buildStaticWebCommand({
-    ...input,
-    args: args.slice(1)
-  });
+  return 2;
 }
 
 function isDirectInvocation(moduleUrl, argvEntry) {

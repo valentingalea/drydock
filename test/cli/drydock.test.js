@@ -217,7 +217,7 @@ test("public build command rejects unknown adapters before project loading", asy
 
   assert.equal(exitCode, 2);
   assert.equal(output.value, "");
-  assert.match(errors.value, /usage: build web-static/);
+  assert.match(errors.value, /usage: build <web-static\|electron>/);
   assert.doesNotMatch(errors.value, /invalid Drydock project/);
 });
 

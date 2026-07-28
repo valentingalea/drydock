@@ -1,13 +1,14 @@
 # Electron Build Adapter
 
-This adapter wraps the contract-composed product in a store-neutral Electron shell.
+This adapter wraps a contract-composed project in a store-neutral Electron shell.
 Store-specific SDKs and upload behavior belong in desktop channel folders, not here.
 
 ## Build
 
 ```sh
-pnpm --filter @drydock/desktop-electron build -- \
-  --release contracts/releases/0.1.0.yaml \
+node drydock/tools/drydock.js build electron \
+  --project shipping/drydock-project.json \
+  --release shipping/releases/0.1.0.yaml \
   --platform linux \
   --arch x64
 ```
@@ -15,22 +16,21 @@ pnpm --filter @drydock/desktop-electron build -- \
 The default output is `artifacts/build/<platform>-<arch>/`, using manifest platform names such as
 `linux`, `windows`, and `macos`.
 
-The build stages a minimal Electron app, consumes `product/drydock-product.json`, adds
-Drydock's generic host runtime, runs `electron-builder --dir`, and writes an
-artifact-schema-v2 `drydock-artifact.json` next to the unpacked output. The product owns
-its adapter; the manifest records the pinned product revision.
+The build validates the external project and its declared components, stages a minimal
+Electron app through the shared runtime composition, runs `electron-builder --dir`, and
+writes `drydock-artifact.json` next to the unpacked output.
 
-The CLI performs strict submodule verification before staging. It refuses a dirty,
-uninitialized, unreachable, or mismatched product pin. It ignores
-`DRYDOCK_PRODUCT_ROOT`. Follow
-[`docs/PRODUCT.md`](../../../../docs/PRODUCT.md) to advance the product revision.
+Release builds require clean, reachable project and component revisions. Use
+`--profile development --skip-package` only for local adapter diagnostics; that path
+creates a fake unpacked executable and is not a publishable build.
 
 ## Runtime Contract
 
 - `main.js` registers a privileged `app://drydock` protocol.
-- `protocol.js` serves only composed runtime paths and adds CSP/security headers. Its
-  script policy authorizes the current product's exact import-map hash without allowing
-  arbitrary inline scripts.
+- `protocol.js` serves only the exact paths in the generated `runtime-policy.json` and
+  adds CSP/security headers.
+- The staged policy hashes the selected entrypoint's inline scripts, including import
+  maps, without enabling arbitrary inline JavaScript.
 - `preload.js` exposes `window.drydockHost` only.
 - `host-provider.js` validates all IPC and implements local file-backed storage.
 

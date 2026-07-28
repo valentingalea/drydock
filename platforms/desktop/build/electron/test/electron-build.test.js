@@ -1,21 +1,34 @@
 const assert = require("node:assert/strict");
-const { mkdtemp, readFile, stat } = require("node:fs/promises");
-const { tmpdir } = require("node:os");
+const { createHash } = require("node:crypto");
+const {
+  mkdir,
+  readFile,
+  stat,
+  writeFile
+} = require("node:fs/promises");
 const { join } = require("node:path");
 const test = require("node:test");
 const {
   artifactRootForTarget,
   buildElectron,
+  createStagedPackage,
   executableForTarget,
   parseArgs,
   prepareStagedApp,
   resolveBuildTarget
 } = require("../build.js");
 
-test("parses Electron build arguments", () => {
+const identity = {
+  bundleId: "dev.example.fixture-game",
+  executableName: "fixture-game",
+  productId: "fixture-game",
+  productName: "Fixture Game"
+};
+
+test("parses project-relative Electron build arguments", () => {
   assert.deepEqual(parseArgs([
     "--release",
-    "release.yaml",
+    "shipping/releases/0.1.0.yaml",
     "--out",
     "artifacts/tmp/test",
     "--platform",
@@ -23,40 +36,96 @@ test("parses Electron build arguments", () => {
     "--arch",
     "x64",
     "--build-key",
-    "steam"
+    "preview",
+    "--profile",
+    "development",
+    "--skip-package"
   ]), {
-    release: "release.yaml",
+    release: "shipping/releases/0.1.0.yaml",
     out: "artifacts/tmp/test",
     platform: "win32",
     arch: "x64",
-    buildKey: "steam"
+    buildKey: "preview",
+    profile: "development",
+    skipPackage: true
   });
 
+  assert.throws(() => parseArgs([]), /--release is required/);
   assert.throws(() => parseArgs(["--arch"]), /--arch requires/);
-  assert.throws(() => parseArgs(["--unknown"]), /unknown argument/);
+  assert.throws(
+    () => parseArgs([
+      "--release",
+      "shipping/releases/0.1.0.yaml",
+      "--skip-package"
+    ]),
+    /requires --profile development/
+  );
+  assert.throws(() => parseArgs([
+    "--release",
+    "shipping/releases/0.1.0.yaml",
+    "--unknown"
+  ]), /unknown Electron argument/);
 });
 
-test("normalizes Electron build targets and output paths", () => {
-  assert.deepEqual(resolveBuildTarget({ platform: "win32", arch: "x64" }), {
-    platform: "windows",
-    arch: "x64"
+test("normalizes Electron build targets and project identity paths", () => {
+  assert.deepEqual(resolveBuildTarget({
+    arch: "x64",
+    platform: "win32"
+  }), {
+    arch: "x64",
+    platform: "windows"
   });
-  assert.deepEqual(resolveBuildTarget({ platform: "darwin", arch: "arm64" }), {
-    platform: "macos",
-    arch: "arm64"
+  assert.deepEqual(resolveBuildTarget({
+    arch: "arm64",
+    platform: "darwin"
+  }), {
+    arch: "arm64",
+    platform: "macos"
   });
 
-  assert.equal(artifactRootForTarget({ platform: "linux", arch: "x64" }), "linux-unpacked");
-  assert.equal(executableForTarget({ platform: "windows", arch: "x64" }), "win-unpacked/line-engine-calibration.exe");
-  assert.throws(() => resolveBuildTarget({ platform: "freebsd", arch: "x64" }), /unsupported/);
+  assert.equal(
+    artifactRootForTarget({
+      arch: "x64",
+      platform: "linux"
+    }, identity),
+    "linux-unpacked"
+  );
+  assert.equal(
+    executableForTarget({
+      arch: "x64",
+      platform: "windows"
+    }, identity),
+    "win-unpacked/fixture-game.exe"
+  );
+  assert.throws(
+    () => resolveBuildTarget({
+      arch: "x64",
+      platform: "freebsd"
+    }),
+    /unsupported/
+  );
 });
 
-test("stages Electron shell and composed product without repo-only files", async () => {
-  const stageDir = await mkdtemp(join(tmpdir(), "drydock-electron-stage-"));
+test("stages Electron shell, project runtime, and exact runtime policy", async (context) => {
+  const state = await createElectronState(context);
+  const {
+    createRuntimeComposition,
+    stageRuntime
+  } = await import("../../../../../tools/composition.js");
+  const composition = await createRuntimeComposition(state.verified);
+  const stageDir = join(
+    state.fixture.projectRoot,
+    "artifacts/tmp/electron-stage/test"
+  );
 
   await prepareStagedApp({
+    composition,
+    identity,
+    release: {
+      version: "0.1.0"
+    },
     stageDir,
-    release: { version: "0.1.0" }
+    stageRuntime
   });
 
   await stat(join(stageDir, "main.js"));
@@ -64,38 +133,59 @@ test("stages Electron shell and composed product without repo-only files", async
   await stat(join(stageDir, "protocol.js"));
   await stat(join(stageDir, "host-provider.js"));
   await stat(join(stageDir, "runtime/index.html"));
-  await stat(join(stageDir, "runtime/vendor/drydock-host-bridge/index.js"));
-  await stat(join(stageDir, "runtime/product/mock-game/index.html"));
-  await stat(join(stageDir, "runtime/product/mock-game/src/bootstrap.js"));
-  await stat(join(stageDir, "runtime/product/mock-game/src/platform-host.js"));
-  await stat(join(stageDir, "runtime/product/mock-game/style/mock.css"));
-  await stat(join(stageDir, "runtime/product/src/core/scope.js"));
-  await stat(join(stageDir, "runtime/product/style/hud.css"));
-  await stat(join(stageDir, "runtime/product/lib/three.module.js"));
-
-  await assert.rejects(stat(join(stageDir, "runtime/product/package.json")), { code: "ENOENT" });
-  await assert.rejects(stat(join(stageDir, "runtime/product/AGENTS.md")), { code: "ENOENT" });
-  await assert.rejects(
-    stat(join(stageDir, "runtime/product/drydock-product.json")),
-    { code: "ENOENT" }
+  await stat(join(stageDir, "runtime/host-bridge.js"));
+  await stat(join(stageDir, "runtime/game/src/value.js"));
+  assert.equal(
+    await readFile(join(stageDir, "runtime/game/src/platform-host.js"), "utf8"),
+    "export const platform = \"overlay\";\n"
   );
-
-  const stagedPackage = JSON.parse(await readFile(join(stageDir, "package.json"), "utf8"));
-  assert.equal(stagedPackage.main, "main.js");
-  assert.equal(stagedPackage.type, "commonjs");
-});
-
-test("Electron build emits a schema-valid artifact manifest", async () => {
-  const out = await mkdtemp(join(tmpdir(), "drydock-electron-out-"));
-  const { manifest } = await buildElectron({
-    release: "contracts/releases/0.1.0.yaml",
-    out,
-    platform: "linux",
-    arch: "x64",
-    skipPackage: true
+  await assert.rejects(stat(join(stageDir, "runtime/shipping")), {
+    code: "ENOENT"
   });
 
-  await stat(join(out, "linux-unpacked/line-engine-calibration"));
+  const stagedPackage = JSON.parse(
+    await readFile(join(stageDir, "package.json"), "utf8")
+  );
+  assert.deepEqual(
+    stagedPackage,
+    createStagedPackage({
+      version: "0.1.0"
+    }, identity)
+  );
+
+  const policy = JSON.parse(
+    await readFile(join(stageDir, "runtime-policy.json"), "utf8")
+  );
+  assert.ok(policy.runtimePaths.includes("index.html"));
+  assert.ok(policy.runtimePaths.includes("game/src/value.js"));
+  assert.ok(!policy.runtimePaths.includes("drydock-artifact.json"));
+  const inlineScript = "\n{\"imports\":{\"fixture\":\"./game/src/value.js\"}}\n";
+  assert.deepEqual(policy.scriptHashes, [
+    `sha256-${createHash("sha256").update(inlineScript).digest("base64")}`
+  ]);
+});
+
+test("Electron build emits a generic schema-valid artifact", async (context) => {
+  const state = await createElectronState(context);
+  const out = join(
+    state.fixture.projectRoot,
+    "artifacts/build/linux-x64"
+  );
+  const output = captureStream();
+  const { manifest } = await buildElectron({
+    context: state.context,
+    options: {
+      arch: "x64",
+      platform: "linux",
+      profile: "development",
+      release: "shipping/releases/0.1.0.yaml",
+      skipPackage: true
+    },
+    stdout: output,
+    verified: state.verified
+  });
+
+  await stat(join(out, "linux-unpacked/fixture-game"));
   await stat(join(out, "drydock-artifact.json"));
 
   assert.equal(manifest.schemaVersion, 2);
@@ -103,11 +193,116 @@ test("Electron build emits a schema-valid artifact manifest", async () => {
   assert.equal(manifest.platform, "linux");
   assert.equal(manifest.arch, "x64");
   assert.equal(manifest.artifactRoot, "linux-unpacked");
-  assert.equal(manifest.executable, "linux-unpacked/line-engine-calibration");
-  assert.equal(manifest.productId, "line-engine-calibration");
-  assert.equal(manifest.buildNumber, 100);
+  assert.equal(manifest.executable, "linux-unpacked/fixture-game");
+  assert.equal(manifest.productId, "fixture-game");
+  assert.equal(manifest.buildNumber, 9);
   assert.deepEqual(manifest.capabilities, ["storage"]);
-  assert.equal(manifest.extensions.drydock.entrypoint, "product/mock-game/index.html");
-  assert.match(manifest.extensions.drydock.productRevision.commit, /^[a-f0-9]{40}$/);
+  assert.equal(manifest.extensions.drydock.entrypoint, "index.html");
+  assert.equal(
+    manifest.extensions.drydock.project,
+    "shipping/drydock-project.json"
+  );
+  assert.equal(manifest.extensions.drydock.profile, "development");
+  assert.match(
+    manifest.extensions.drydock.projectRevision.commit,
+    /^[a-f0-9]{40}$/
+  );
   assert.equal(manifest.extensions.electron.protocol, "app://drydock");
+  assert.equal(
+    output.value,
+    "built Electron artifact: artifacts/build/linux-x64\n"
+  );
 });
+
+test("public CLI dispatches the Electron build outside project cwd", async (context) => {
+  const state = await createElectronState(context);
+  const { runCli } = await import("../../../../../tools/drydock.js");
+  const output = captureStream();
+  const errors = captureStream();
+  const exitCode = await runCli([
+    "build",
+    "electron",
+    "--project",
+    state.fixture.projectPath,
+    "--release",
+    "shipping/releases/0.1.0.yaml",
+    "--platform",
+    "windows",
+    "--arch",
+    "x64",
+    "--profile",
+    "development",
+    "--skip-package"
+  ], {
+    invocationCwd: state.harnessRoot,
+    stderr: errors,
+    stdout: output
+  });
+
+  assert.equal(exitCode, 0, errors.value);
+  assert.equal(errors.value, "");
+  assert.equal(
+    output.value,
+    "built Electron artifact: artifacts/build/windows-x64\n"
+  );
+  await stat(join(
+    state.fixture.projectRoot,
+    "artifacts/build/windows-x64/win-unpacked/fixture-game.exe"
+  ));
+});
+
+async function createElectronState(context) {
+  const {
+    createMinimalProject,
+    harnessRoot,
+    loadMinimalVerifiedProject
+  } = await import("../../../../../test/support/minimal-project.js");
+  const fixture = await createMinimalProject(
+    context,
+    undefined,
+    async ({
+      gameRoot,
+      shippingRoot
+    }) => {
+      await writeFile(
+        join(gameRoot, "index.html"),
+        [
+          "<!doctype html>",
+          "<script type=\"importmap\">",
+          "{\"imports\":{\"fixture\":\"./game/src/value.js\"}}",
+          "</script>",
+          ""
+        ].join("\n")
+      );
+      await mkdir(join(shippingRoot, "releases"));
+      await writeFile(
+        join(shippingRoot, "releases", "0.1.0.yaml"),
+        "version: 0.1.0\nbuild:\n  desktop: 9\n"
+      );
+    }
+  );
+  const {
+    resolveProjectContext
+  } = await import("../../../../../tools/drydock.js");
+  const projectContext = await resolveProjectContext(fixture.projectPath, {
+    invocationCwd: fixture.projectRoot,
+    selectedHarnessRoot: harnessRoot
+  });
+  const verified = await loadMinimalVerifiedProject(fixture);
+
+  return {
+    context: projectContext,
+    fixture,
+    harnessRoot,
+    verified
+  };
+}
+
+function captureStream() {
+  return {
+    value: "",
+    write(chunk) {
+      this.value += chunk;
+    }
+  };
+}
