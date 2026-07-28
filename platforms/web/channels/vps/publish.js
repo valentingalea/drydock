@@ -2,7 +2,10 @@
 import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import Ajv2020 from "ajv/dist/2020.js";
+import {
+  validateArtifactManifest,
+  verifyArtifactChecksums
+} from "../../../../tools/artifacts.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
@@ -19,6 +22,7 @@ export async function publishVps(options = {}) {
   const manifestPath = await resolveExistingPath(options.manifest ?? options._[0]);
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   await validateManifest(manifest);
+  await verifyArtifactChecksums(manifest, manifestPath);
 
   const artifactRoot = resolve(dirname(manifestPath), manifest.artifactRoot);
   const root = resolve(
@@ -85,18 +89,13 @@ export function parseArgs(argv) {
 }
 
 async function validateManifest(manifest) {
-  const schema = JSON.parse(
-    await readFile(resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json"), "utf8")
-  );
-  const ajv = new Ajv2020({ allErrors: true, strict: true });
-  const validate = ajv.compile(schema);
-
-  if (!validate(manifest)) {
-    throw new Error(`invalid artifact manifest: ${JSON.stringify(validate.errors, null, 2)}`);
-  }
+  await validateArtifactManifest(manifest, repoRoot);
 
   if (manifest.platform !== "web" || manifest.buildAdapter !== "web-static") {
     throw new Error("VPS channel only accepts web-static artifacts");
+  }
+  if (manifest.releasable !== true) {
+    throw new Error("VPS publish rejects an artifact that is not releasable");
   }
 }
 

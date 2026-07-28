@@ -4,8 +4,11 @@ import { createReadStream, createWriteStream } from "node:fs";
 import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import Ajv2020 from "ajv/dist/2020.js";
 import yazl from "yazl";
+import {
+  validateArtifactManifest,
+  verifyArtifactChecksums
+} from "../../../../tools/artifacts.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const defaultOut = "artifacts/channels/downloads";
@@ -22,6 +25,7 @@ export async function packageDownloads(options = {}) {
   const manifestPath = await resolveExistingPath(options.manifest ?? options._[0]);
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   await validateManifest(manifest);
+  await verifyArtifactChecksums(manifest, manifestPath);
 
   const sourceRoot = resolve(dirname(manifestPath), manifest.artifactRoot);
   await assertDirectory(sourceRoot);
@@ -101,7 +105,11 @@ export async function verifyDownloads(options = {}) {
 
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? 5000;
-  const zipName = options.name ?? "line-engine-calibration-0.1.0-windows-x64.zip";
+  const zipName = options.name;
+  if (!zipName) {
+    throw new Error("downloads verification requires --name");
+  }
+  assertZipName(zipName);
   const checks = [
     { path: "/", status: 200 },
     { path: "/index.html", status: 200 },
@@ -276,18 +284,13 @@ async function renderIndex({ checksumName, digest, manifest, size, zipName }) {
 }
 
 async function validateManifest(manifest) {
-  const schema = JSON.parse(
-    await readFile(resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json"), "utf8")
-  );
-  const ajv = new Ajv2020({ allErrors: true, strict: true });
-  const validate = ajv.compile(schema);
-
-  if (!validate(manifest)) {
-    throw new Error(`invalid artifact manifest: ${JSON.stringify(validate.errors, null, 2)}`);
-  }
+  await validateArtifactManifest(manifest, repoRoot);
 
   if (manifest.buildAdapter !== "electron") {
     throw new Error("downloads channel currently accepts Electron artifacts only");
+  }
+  if (manifest.releasable !== true) {
+    throw new Error("downloads packaging rejects an artifact that is not releasable");
   }
 }
 

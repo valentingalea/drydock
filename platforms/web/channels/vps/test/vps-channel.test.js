@@ -39,9 +39,14 @@ test("VPS publish copies a packaged web artifact to the deploy root", async (con
     undefined,
     async ({ shippingRoot }) => {
       await mkdir(join(shippingRoot, "releases"));
+      await mkdir(join(shippingRoot, "channels"));
       await writeFile(
         join(shippingRoot, "releases", "0.1.0.yaml"),
         "version: 0.1.0\nbuild:\n  vps: 8\n"
+      );
+      await writeFile(
+        join(shippingRoot, "channels", "vps.yaml"),
+        "route: fixture-vps\n"
       );
     }
   );
@@ -62,9 +67,25 @@ test("VPS publish copies a packaged web artifact to the deploy root", async (con
     verified
   });
 
+  const manifestPath = join(out, "drydock-artifact.json");
+  await assert.rejects(
+    publishVps({
+      _: [manifestPath],
+      root
+    }),
+    /artifact that is not releasable/
+  );
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.releasable = true;
+  manifest.provenance.adapter.profile = "release";
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`
+  );
+
   await writeFile(join(root, "stale.txt"), "old\n");
   await publishVps({
-    _: [join(out, "drydock-artifact.json")],
+    _: [manifestPath],
     root
   });
 

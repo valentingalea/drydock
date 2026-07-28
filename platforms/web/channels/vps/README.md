@@ -3,11 +3,11 @@
 This channel publishes a packaged web artifact to a Caddy-served directory. It is the
 release path, not the live iteration path.
 
-The static adapter has already resolved `product/drydock-product.json`, added Drydock's
-generic host runtime, and recorded the product revision before this channel sees the
-artifact. The VPS publisher consumes the schema-v2 manifest and packaged tree only; it
-never reads the product checkout. See
-[`docs/PRODUCT.md`](../../../../docs/PRODUCT.md) for the composition contract.
+The static adapter has already resolved the external project contract, added Drydock's
+generic host runtime, and recorded project/component provenance before this channel sees
+the artifact. The VPS publisher consumes the schema-v3 manifest and packaged tree only;
+it never reads source checkouts and rejects artifacts unless `releasable` is explicitly
+`true`.
 
 ## Deployment State
 

@@ -10,10 +10,9 @@ It is still not a store release path:
 - no store metadata;
 - no store upload.
 
-The package contains the contract-composed product and Drydock host runtime produced by
-the Electron adapter. This channel never reads `product/`, an external product checkout,
-or the product contract; it packages only the artifact named by
-`drydock-artifact.json`.
+The package contains the contract-composed game and Drydock host runtime produced by the
+Electron adapter. This channel never reads source checkouts or project declarations; it
+packages only the artifact named by `drydock-artifact.json`.
 
 ## Public Route
 
@@ -27,16 +26,17 @@ The configured Caddy route should expose only:
 It deliberately does not expose `drydock-artifact.json`, unpacked build directories,
 repo files, or directory browsing.
 
-For the proof product, package names have this shape:
+Package names derive from artifact identity:
 
-- `line-engine-calibration-0.1.0-windows-x64.zip`
-- `line-engine-calibration-0.1.0-windows-x64.zip.sha256`
+- `example-game-0.1.0-windows-x64.zip`
+- `example-game-0.1.0-windows-x64.zip.sha256`
 
 ## Package Flow
 
 ```sh
-pnpm --filter @drydock/desktop-electron build -- \
-  --release contracts/releases/0.1.0.yaml \
+node drydock/tools/drydock.js build electron \
+  --project shipping/drydock-project.json \
+  --release shipping/releases/0.1.0.yaml \
   --platform windows \
   --arch x64
 
@@ -47,17 +47,17 @@ pnpm --filter @drydock/channel-downloads run publish -- \
   artifacts/channels/downloads
 
 pnpm --filter @drydock/channel-downloads run verify -- \
-  --base-url https://games.example.com/drydock-downloads/
+  --base-url https://games.example.com/drydock-downloads/ \
+  --name example-game-0.1.0-windows-x64.zip
 ```
 
 The package script consumes `drydock-artifact.json`, preserves the artifact root inside
 the zip, writes a SHA-256 checksum, and renders `index.html`. The publish script replaces
 the configured download root with only public package files.
 
-The schema-v2 input manifest preserves `extensions.drydock.productRevision`, so the
-download can be traced to the exact product contract, tag, and commit selected by
-Drydock. The workflow is documented in
-[`docs/PRODUCT.md`](../../../../docs/PRODUCT.md).
+The schema-v3 input manifest preserves checksummed project/release declarations and
+exact project, Drydock, and component revisions. Packaging rejects development
+artifacts unless `releasable` is explicitly `true`.
 
 ## Windows Signing
 

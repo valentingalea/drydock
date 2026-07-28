@@ -1,14 +1,15 @@
 {
-  "schemaVersion": 2,
-  "productId": "line-engine-calibration",
+  "schemaVersion": 3,
+  "releasable": true,
+  "productId": "fixture-game",
   "version": "0.1.0",
-  "buildNumber": 100,
+  "buildNumber": 7,
   "buildAdapter": "electron",
   "platform": "windows",
   "arch": "x64",
   "artifactRoot": "win-unpacked",
-  "executable": "win-unpacked/line-engine-calibration.exe",
-  "bundleId": "dev.drydock.line-engine-calibration",
+  "executable": "win-unpacked/fixture-game.exe",
+  "bundleId": "dev.example.fixture-game",
   "packageId": null,
   "signing": {
     "status": "unsigned"
@@ -16,25 +17,58 @@
   "capabilities": [
     "storage"
   ],
-  "checksums": [],
+  "checksums": [
+    {
+      "path": "win-unpacked/fixture-game.exe",
+      "algorithm": "sha256",
+      "value": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ],
+  "provenance": {
+    "project": {
+      "descriptor": {
+        "path": "shipping/drydock-project.json",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "commit": "1111111111111111111111111111111111111111",
+      "remote": "https://example.com/fixture-game.git",
+      "tag": "v0.1.0"
+    },
+    "drydock": {
+      "commit": "2222222222222222222222222222222222222222"
+    },
+    "release": {
+      "path": "shipping/releases/0.1.0.yaml",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+    },
+    "components": {
+      "game": {
+        "path": "game",
+        "revision": "project",
+        "commit": "1111111111111111111111111111111111111111"
+      },
+      "shipping": {
+        "path": "shipping",
+        "revision": "project",
+        "commit": "1111111111111111111111111111111111111111"
+      }
+    },
+    "adapter": {
+      "id": "electron",
+      "package": "@drydock/desktop-electron",
+      "profile": "release"
+    },
+    "channelPolicy": null
+  },
   "extensions": {
     "drydock": {
-      "adapterPackage": "@drydock/desktop-electron",
       "buildKey": "desktop",
-      "productContract": "product/drydock-product.json",
-      "productRevision": {
-        "path": "product",
-        "contract": "product/drydock-product.json",
-        "commit": "52e9ec6a8feb51200a268754a8f08d8777a0992e",
-        "remote": "https://github.com/valentingalea/Line-Engine.git",
-        "tag": "v0.0.1"
-      },
-      "release": "contracts/releases/0.1.0.yaml"
+      "entrypoint": "index.html"
     },
     "electron": {
       "builder": "electron-builder",
-      "productName": "Line Engine Calibration",
-      "executableName": "line-engine-calibration",
+      "productName": "Fixture Game",
+      "executableName": "fixture-game",
       "protocol": "app://drydock"
     }
   }

@@ -5,6 +5,11 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import YAML from "yaml";
 import {
+  createArtifactProvenance,
+  loadChannelPolicy,
+  validateArtifactManifest
+} from "../../../../tools/artifacts.js";
+import {
   createRuntimeComposition,
   stageRuntime
 } from "../../../../tools/composition.js";
@@ -80,6 +85,11 @@ export async function buildStaticWeb({
     throw new Error(`release manifest does not define build.${channel}`);
   }
 
+  const channelPolicy = await loadChannelPolicy({
+    channel,
+    context,
+    value: options.channelPolicy
+  });
   const composition = await createRuntimeComposition(verified);
   await stageRuntime(composition, outDir);
 
@@ -101,8 +111,18 @@ export async function buildStaticWeb({
   checksums.sort((left, right) => left.path.localeCompare(right.path));
 
   const descriptor = verified.project.descriptor;
+  const provenance = await createArtifactProvenance({
+    adapter: {
+      id: "web-static",
+      package: "@drydock/web-static"
+    },
+    channelPolicy,
+    releasePath,
+    verified
+  });
   const manifest = {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    releasable: verified.profile === "release",
     productId: descriptor.product.id,
     version: String(release.version),
     buildNumber,
@@ -118,22 +138,15 @@ export async function buildStaticWeb({
     },
     capabilities: [...descriptor.host.requiredCapabilities],
     checksums,
+    provenance,
     extensions: {
       drydock: {
-        adapterPackage: "@drydock/web-static",
-        channel,
-        channelConfig: release.channels?.[channel] ?? {},
-        components: componentProvenance(verified),
-        entrypoint: composition.entrypoint,
-        project: portableRelative(context.projectRoot, context.projectPath),
-        projectRevision: {
-          commit: verified.projectRevision.commit
-        },
-        release: portableRelative(context.projectRoot, releasePath)
+        entrypoint: composition.entrypoint
       }
     }
   };
 
+  await validateArtifactManifest(manifest, context.harnessRoot);
   await writeFile(
     resolve(outDir, "drydock-artifact.json"),
     `${JSON.stringify(manifest, null, 2)}\n`
@@ -166,6 +179,9 @@ export function parseArgs(argv) {
     } else if (argument === "--channel") {
       rejectDuplicate(seen, argument);
       options.channel = requireValue(argv, ++index, argument);
+    } else if (argument === "--channel-policy") {
+      rejectDuplicate(seen, argument);
+      options.channelPolicy = requireValue(argv, ++index, argument);
     } else if (argument === "--profile") {
       rejectDuplicate(seen, argument);
       options.profile = requireValue(argv, ++index, argument);
@@ -225,23 +241,6 @@ async function resolveReleasePath(context, value) {
   }
 
   return canonicalPath;
-}
-
-function componentProvenance(verified) {
-  return Object.fromEntries(
-    Object.entries(verified.components).map(([name, component]) => [
-      name,
-      {
-        commit: (
-          component.revision === "gitlink"
-            ? component.commit
-            : verified.projectRevision.commit
-        ),
-        path: component.path,
-        revision: component.revision
-      }
-    ])
-  );
 }
 
 async function listFiles(root) {

@@ -32,6 +32,8 @@ test("parses project-relative static build arguments", () => {
       "artifacts/tmp/test",
       "--channel",
       "preview",
+      "--channel-policy",
+      "shipping/channels/preview.yaml",
       "--profile",
       "development"
     ]),
@@ -39,6 +41,7 @@ test("parses project-relative static build arguments", () => {
       release: "shipping/releases/0.1.0.yaml",
       out: "artifacts/tmp/test",
       channel: "preview",
+      channelPolicy: "shipping/channels/preview.yaml",
       profile: "development"
     }
   );
@@ -121,32 +124,34 @@ test("static build stages project composition and emits a generic artifact", asy
 
   assert.equal(validate(manifest), true, JSON.stringify(validate.errors, null, 2));
   assert.equal(manifest.platform, "web");
-  assert.equal(manifest.schemaVersion, 2);
+  assert.equal(manifest.schemaVersion, 3);
+  assert.equal(manifest.releasable, false);
   assert.equal(manifest.buildAdapter, "web-static");
   assert.equal(manifest.productId, "fixture-game");
   assert.equal(manifest.buildNumber, 7);
   assert.deepEqual(manifest.capabilities, ["storage"]);
   assert.equal(manifest.extensions.drydock.entrypoint, "index.html");
   assert.equal(
-    manifest.extensions.drydock.project,
+    manifest.provenance.channelPolicy.snapshot.route,
+    "fixture-preview"
+  );
+  assert.equal(
+    manifest.provenance.project.descriptor.path,
     "shipping/drydock-project.json"
   );
   assert.equal(
-    manifest.extensions.drydock.release,
+    manifest.provenance.release.path,
     "shipping/releases/0.1.0.yaml"
   );
-  assert.equal(
-    manifest.extensions.drydock.channelConfig.route,
-    "fixture-preview"
-  );
   assert.match(
-    manifest.extensions.drydock.projectRevision.commit,
+    manifest.provenance.project.commit,
     /^[a-f0-9]{40}$/
   );
   assert.equal(
-    manifest.extensions.drydock.components.game.commit,
-    manifest.extensions.drydock.projectRevision.commit
+    manifest.provenance.components.game.commit,
+    manifest.provenance.project.commit
   );
+  assert.equal(manifest.provenance.adapter.profile, "development");
   assert.equal(
     output.value,
     "built static web artifact: artifacts/build/preview\n"
@@ -237,6 +242,7 @@ async function createBuildProject(context) {
     async ({ shippingRoot }) => {
       const releaseRoot = join(shippingRoot, "releases");
       await mkdir(releaseRoot);
+      await mkdir(join(shippingRoot, "channels"));
       await writeFile(
         join(releaseRoot, "0.1.0.yaml"),
         [
@@ -249,6 +255,14 @@ async function createBuildProject(context) {
           "    route: fixture-preview",
           ""
         ].join("\n")
+      );
+      await writeFile(
+        join(shippingRoot, "channels", "preview.yaml"),
+        "route: fixture-preview\n"
+      );
+      await writeFile(
+        join(shippingRoot, "channels", "vps.yaml"),
+        "route: fixture-vps\n"
       );
     }
   );

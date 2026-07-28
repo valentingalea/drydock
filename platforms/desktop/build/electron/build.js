@@ -21,7 +21,6 @@ const {
   sep
 } = require("node:path");
 const { pathToFileURL } = require("node:url");
-const Ajv2020 = require("ajv/dist/2020");
 const YAML = require("yaml");
 
 const packageRoot = __dirname;
@@ -96,9 +95,11 @@ async function buildElectron({
   }
 
   const {
+    createArtifactProvenance,
     createRuntimeComposition,
     resolveProjectPath,
-    stageRuntime
+    stageRuntime,
+    validateArtifactManifest
   } = await loadBuildTools();
   const target = resolveBuildTarget(options);
   const identity = identityFromDescriptor(verified.project.descriptor);
@@ -166,16 +167,22 @@ async function buildElectron({
   const artifactRoot = artifactRootForTarget(target, identity);
   await assertDirectory(resolve(outDir, artifactRoot));
 
+  const provenance = await createArtifactProvenance({
+    adapter: {
+      id: "electron",
+      package: "@drydock/desktop-electron"
+    },
+    releasePath,
+    verified
+  });
   const manifest = await createArtifactManifest({
     artifactRoot,
     buildKey,
     buildNumber,
-    context,
     identity,
     outDir,
-    profile: options.profile,
+    provenance,
     release,
-    releasePath,
     target,
     verified
   });
@@ -401,12 +408,10 @@ async function createArtifactManifest({
   artifactRoot,
   buildKey,
   buildNumber,
-  context,
   identity,
   outDir,
-  profile,
+  provenance,
   release,
-  releasePath,
   target,
   verified
 }) {
@@ -428,7 +433,8 @@ async function createArtifactManifest({
   checksums.sort((left, right) => left.path.localeCompare(right.path));
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    releasable: verified.profile === "release",
     productId: identity.productId,
     version: String(release.version),
     buildNumber,
@@ -446,18 +452,11 @@ async function createArtifactManifest({
       ...verified.project.descriptor.host.requiredCapabilities
     ],
     checksums,
+    provenance,
     extensions: {
       drydock: {
-        adapterPackage: "@drydock/desktop-electron",
         buildKey,
-        components: componentProvenance(verified),
-        entrypoint: verified.project.descriptor.runtime.entrypoint,
-        profile,
-        project: portableRelative(context.projectRoot, context.projectPath),
-        projectRevision: {
-          commit: verified.projectRevision.commit
-        },
-        release: portableRelative(context.projectRoot, releasePath)
+        entrypoint: verified.project.descriptor.runtime.entrypoint
       },
       electron: {
         builder: "electron-builder",
@@ -467,23 +466,6 @@ async function createArtifactManifest({
       }
     }
   };
-}
-
-function componentProvenance(verified) {
-  return Object.fromEntries(
-    Object.entries(verified.components).map(([name, component]) => [
-      name,
-      {
-        commit: (
-          component.revision === "gitlink"
-            ? component.commit
-            : verified.projectRevision.commit
-        ),
-        path: component.path,
-        revision: component.revision
-      }
-    ])
-  );
 }
 
 function identityFromDescriptor(descriptor) {
@@ -689,29 +671,6 @@ function requireValue(argv, index, flag) {
   return value;
 }
 
-async function validateArtifactManifest(manifest, harnessRoot) {
-  const schema = JSON.parse(
-    await readFile(
-      resolve(
-        harnessRoot,
-        "contracts/schemas/drydock-artifact.schema.json"
-      ),
-      "utf8"
-    )
-  );
-  const ajv = new Ajv2020({
-    allErrors: true,
-    strict: true
-  });
-  const validate = ajv.compile(schema);
-
-  if (!validate(manifest)) {
-    throw new Error(
-      `invalid artifact manifest: ${JSON.stringify(validate.errors, null, 2)}`
-    );
-  }
-}
-
 async function loadProjectTools() {
   const [
     components,
@@ -728,16 +687,20 @@ async function loadProjectTools() {
 
 async function loadBuildTools() {
   const [
+    artifacts,
     composition,
     drydock
   ] = await Promise.all([
+    import(pathToFileURL(resolve(packageRoot, "../../../../tools/artifacts.js")).href),
     import(pathToFileURL(resolve(packageRoot, "../../../../tools/composition.js")).href),
     import(pathToFileURL(resolve(packageRoot, "../../../../tools/drydock.js")).href)
   ]);
   return {
+    createArtifactProvenance: artifacts.createArtifactProvenance,
     createRuntimeComposition: composition.createRuntimeComposition,
     resolveProjectPath: drydock.resolveProjectPath,
-    stageRuntime: composition.stageRuntime
+    stageRuntime: composition.stageRuntime,
+    validateArtifactManifest: artifacts.validateArtifactManifest
   };
 }
 

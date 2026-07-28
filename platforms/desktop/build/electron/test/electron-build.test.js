@@ -188,7 +188,8 @@ test("Electron build emits a generic schema-valid artifact", async (context) => 
   await stat(join(out, "linux-unpacked/fixture-game"));
   await stat(join(out, "drydock-artifact.json"));
 
-  assert.equal(manifest.schemaVersion, 2);
+  assert.equal(manifest.schemaVersion, 3);
+  assert.equal(manifest.releasable, false);
   assert.equal(manifest.buildAdapter, "electron");
   assert.equal(manifest.platform, "linux");
   assert.equal(manifest.arch, "x64");
@@ -198,15 +199,16 @@ test("Electron build emits a generic schema-valid artifact", async (context) => 
   assert.equal(manifest.buildNumber, 9);
   assert.deepEqual(manifest.capabilities, ["storage"]);
   assert.equal(manifest.extensions.drydock.entrypoint, "index.html");
-  assert.equal(
-    manifest.extensions.drydock.project,
-    "shipping/drydock-project.json"
-  );
-  assert.equal(manifest.extensions.drydock.profile, "development");
   assert.match(
-    manifest.extensions.drydock.projectRevision.commit,
+    manifest.provenance.project.commit,
     /^[a-f0-9]{40}$/
   );
+  assert.equal(
+    manifest.provenance.project.descriptor.path,
+    "shipping/drydock-project.json"
+  );
+  assert.equal(manifest.provenance.adapter.profile, "development");
+  assert.equal(manifest.provenance.channelPolicy, null);
   assert.equal(manifest.extensions.electron.protocol, "app://drydock");
   assert.equal(
     output.value,

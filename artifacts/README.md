@@ -13,12 +13,11 @@ artifacts/
 └─ tmp/         # short-lived staging directories
 ```
 
-Static web and Electron builds stage the runtime selected by
-`product/drydock-product.json`; their schema-v2 manifests record the exact product
-gitlink, remote, tag, and contract under `extensions.drydock.productRevision`. Channel
-folders consume those manifests and staged artifacts, never live files from `product/`
-or an external iteration checkout.
+Static web and Electron builds stage only the runtime selected by the external project
+contract. Their schema-v3 manifests record checksummed project and release declarations,
+exact project/Drydock/component commits, adapter profile, and any channel-policy
+snapshot under `provenance`. Channel folders consume those manifests and reject
+artifacts unless `releasable` is explicitly `true`.
 
 Do not hand-edit or commit generated files from these folders. This README is the only
-tracked file under the artifact root. See [`docs/PRODUCT.md`](../docs/PRODUCT.md) for the
-composition and product-pin workflow.
+tracked file under the artifact root.
