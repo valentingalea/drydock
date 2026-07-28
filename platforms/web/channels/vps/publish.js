@@ -6,12 +6,12 @@ import {
   readFile,
   realpath,
   rm,
-  stat,
   writeFile
 } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  resolveArtifactPayloadRoot,
   resolveArtifactManifestPath,
   validateArtifactManifest,
   verifyArtifactChecksums
@@ -70,14 +70,12 @@ export async function publishVps({
   await validateManifest(manifest);
   await verifyArtifactChecksums(manifest, manifestPath);
 
-  const artifactRoot = resolve(dirname(manifestPath), manifest.artifactRoot);
+  const artifactRoot = await resolveArtifactPayloadRoot(manifest, manifestPath);
   const rootBase = await resolveOperationalRoot(
     options.root ?? env.DRYDOCK_VPS_ROOT
   );
   const deploymentId = deploymentIdFromManifest(manifest);
   const root = resolve(rootBase, deploymentId);
-
-  await assertDirectory(artifactRoot);
 
   if (options.dryRun) {
     stdout.write(`would deploy ${artifactRoot} -> ${root}\n`);
@@ -187,14 +185,6 @@ async function validateManifest(manifest) {
   }
   if (manifest.releasable !== true) {
     throw new Error("VPS publish rejects an artifact that is not releasable");
-  }
-}
-
-async function assertDirectory(path) {
-  const info = await stat(path);
-
-  if (!info.isDirectory()) {
-    throw new Error(`artifact root is not a directory: ${path}`);
   }
 }
 

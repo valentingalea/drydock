@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import yazl from "yazl";
 import {
   prepareArtifactOutputDirectory,
+  resolveArtifactPayloadRoot,
   resolveArtifactManifestPath,
   validateArtifactManifest,
   verifyArtifactChecksums
@@ -73,8 +74,7 @@ export async function packageDownloads({
   await validateManifest(manifest);
   await verifyArtifactChecksums(manifest, manifestPath);
 
-  const sourceRoot = resolve(dirname(manifestPath), manifest.artifactRoot);
-  await assertDirectory(sourceRoot);
+  const sourceRoot = await resolveArtifactPayloadRoot(manifest, manifestPath);
 
   const requestedOutDir = resolveProjectPath(
     context,
@@ -347,14 +347,6 @@ async function sha256File(path) {
   });
 
   return hash.digest("hex");
-}
-
-async function assertDirectory(path) {
-  const info = await stat(path);
-
-  if (!info.isDirectory()) {
-    throw new Error(`artifact root is not a directory: ${path}`);
-  }
 }
 
 async function listFiles(root) {

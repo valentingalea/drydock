@@ -85,13 +85,17 @@ export function validateProjectSemantics(descriptor) {
   }
 
   if (
-    descriptor.product.name === "."
-    || descriptor.product.name === ".."
-    || /[\/\\\0]/u.test(descriptor.product.name)
+    unsafePortableFilename(descriptor.product.name)
   ) {
     issues.push(
       "product name must be safe for a platform application filename"
     );
+  }
+  if (unsafePortableFilename(descriptor.product.id)) {
+    issues.push("product id must be safe for a platform filename");
+  }
+  if (unsafePortableFilename(descriptor.product.executableName)) {
+    issues.push("product executable name must be safe for a platform filename");
   }
 
   for (const capability of descriptor.host.requiredCapabilities) {
@@ -360,17 +364,45 @@ function safeRelativePathIssue(value) {
     return "must be a non-empty relative path";
   }
 
+  const segments = value.split("/");
   if (
     value.startsWith("/")
     || value.includes("\\")
-    || value.includes("\0")
     || value.endsWith("/")
-    || value.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+    || segments.some((segment) => (
+      segment === ""
+      || segment === "."
+      || segment === ".."
+      || unsafePortableFilename(segment)
+    ))
   ) {
     return "must be a normalized project-relative path";
   }
 
   return null;
+}
+
+function unsafePortableFilename(value) {
+  if (
+    typeof value !== "string"
+    || value.length === 0
+    || value === "."
+    || value === ".."
+    || /[<>:"\/\\|?*\u0000-\u001F]/u.test(value)
+    || /[. ]$/u.test(value)
+  ) {
+    return true;
+  }
+
+  const basename = value.split(".", 1)[0].toLowerCase();
+  return (
+    basename === "con"
+    || basename === "prn"
+    || basename === "aux"
+    || basename === "nul"
+    || /^com[1-9]$/u.test(basename)
+    || /^lpt[1-9]$/u.test(basename)
+  );
 }
 
 function pathsOverlap(left, right) {

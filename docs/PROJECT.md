@@ -47,8 +47,10 @@ The main fields are:
 - `runtime`: entrypoint and ordered source-to-runtime mappings;
 - `artifacts.root`: always `artifacts`.
 
-Component paths and mapping paths are repository-relative and may not escape their
-owners. Source restrictions apply to the complete component-root-plus-source path, so
+Component paths and mapping paths are portable repository-relative paths: they may not
+use drive qualifiers, Windows-reserved filenames, forbidden filename characters, or
+segments ending in dots or spaces, and may not escape their owners. Source restrictions
+apply to the complete component-root-plus-source path, so
 nested component roots cannot reintroduce project tests, docs, secrets, Git metadata,
 or artifacts. Any component below root `shipping/` may select only an explicit file
 below `shipping/integrations/`; a shipping overlay must also set `overlay: true`.

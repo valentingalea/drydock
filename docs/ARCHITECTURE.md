@@ -75,7 +75,9 @@ A releasable artifact records checksummed project/release declarations, exact re
 adapter/profile identity, optional channel policy, and checksums for staged files.
 Recorded remote URLs retain neither user information nor query/fragment data, where
 credentials are commonly embedded. Release provenance preflight completes before a
-build adapter creates staging or output directories.
+build adapter creates staging or output directories. Artifact paths reject
+drive-qualified and Windows-aliased names, and every consumer independently resolves
+the payload root to a real directory contained by its manifest.
 
 ## Current adapters
 

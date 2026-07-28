@@ -177,7 +177,7 @@ test("downloads package script creates zip, checksum, and index from an artifact
         out: "artifacts/packages/downloads"
       }
     }),
-    /artifact root is not a directory/
+    /artifact root must be a real directory/
   );
 });
 

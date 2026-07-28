@@ -198,6 +198,58 @@ test("rejects NUL bytes in descriptor paths", async () => {
   );
 });
 
+test("rejects Windows path aliases and drive-qualified paths", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.components.game.path = "C:/game";
+  descriptor.runtime.entries[0].target = "host-bridge.js.";
+  descriptor.runtime.entries[1].source = "src/AUX.txt";
+
+  const issues = validateProjectSemantics(descriptor);
+  assert.equal(
+    issues.includes(
+      "component game path must be a normalized project-relative path: C:/game"
+    ),
+    true
+  );
+  assert.equal(
+    issues.includes(
+      "runtime entry 0 target must be a normalized project-relative path: host-bridge.js."
+    ),
+    true
+  );
+  assert.equal(
+    issues.includes(
+      "runtime entry 1 source must be a normalized project-relative path: src/AUX.txt"
+    ),
+    true
+  );
+});
+
+test("rejects Windows-reserved product filenames", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.product.id = "nul";
+  descriptor.product.name = "Example Game.";
+  descriptor.product.executableName = "lpt1.exe";
+
+  const issues = validateProjectSemantics(descriptor);
+  assert.equal(
+    issues.includes("product id must be safe for a platform filename"),
+    true
+  );
+  assert.equal(
+    issues.includes(
+      "product name must be safe for a platform application filename"
+    ),
+    true
+  );
+  assert.equal(
+    issues.includes(
+      "product executable name must be safe for a platform filename"
+    ),
+    true
+  );
+});
+
 test("rejects overlapping component roots and reserved component roots", async () => {
   const descriptor = await readFixture("valid/minimal.json");
   descriptor.components.assets = {

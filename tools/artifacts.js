@@ -264,6 +264,55 @@ export async function verifyArtifactChecksums(manifest, manifestPath) {
   }
 }
 
+export async function resolveArtifactPayloadRoot(manifest, manifestPath) {
+  const value = manifest?.artifactRoot;
+  const segments = typeof value === "string" ? value.split("/") : [];
+  if (
+    typeof value !== "string"
+    || value.length === 0
+    || /^[A-Za-z]:/u.test(value)
+    || value.startsWith("/")
+    || value.includes("\\")
+    || value.includes("\0")
+    || (
+      value !== "."
+      && segments.some((segment) => (
+        segment === ""
+        || segment === "."
+        || segment === ".."
+      ))
+    )
+  ) {
+    throw new Error("artifact root must be a portable relative path");
+  }
+
+  const manifestRoot = await realpath(dirname(manifestPath));
+  const requestedRoot = resolve(manifestRoot, ...value.split("/"));
+  if (!pathAtOrWithin(manifestRoot, requestedRoot)) {
+    throw new Error("artifact root escapes its manifest directory");
+  }
+
+  let info;
+  let canonicalRoot;
+  try {
+    info = await lstat(requestedRoot);
+    canonicalRoot = await realpath(requestedRoot);
+  } catch (error) {
+    throw new Error(`cannot resolve artifact root: ${error.message}`);
+  }
+  if (info.isSymbolicLink() || !info.isDirectory()) {
+    throw new Error("artifact root must be a real directory");
+  }
+  if (
+    canonicalRoot !== requestedRoot
+    || !pathAtOrWithin(manifestRoot, canonicalRoot)
+  ) {
+    throw new Error("artifact root resolves outside its manifest directory");
+  }
+
+  return canonicalRoot;
+}
+
 export async function resolveArtifactManifestPath(context, value) {
   const requestedPath = resolveProjectPath(context, value, "artifact manifest");
   if (requestedPath.split(sep).at(-1) !== "drydock-artifact.json") {

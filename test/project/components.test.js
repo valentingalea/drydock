@@ -71,7 +71,7 @@ test("rejects missing and untracked project components", async (context) => {
 });
 
 test("treats descriptor component paths as literal Git pathspecs", async (context) => {
-  const path = ":(glob)**";
+  const path = "generated[ab]";
   const fixture = await createGitProject(
     context,
     async (descriptor, { projectRoot }) => {
@@ -89,7 +89,7 @@ test("treats descriptor component paths as literal Git pathspecs", async (contex
     },
     {
       ignoredPaths: [
-        `/${path}/`
+        "/generated\\[ab\\]/"
       ]
     }
   );

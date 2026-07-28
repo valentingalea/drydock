@@ -15,6 +15,7 @@ import test from "node:test";
 import {
   createArtifactProvenance,
   loadChannelPolicy,
+  resolveArtifactPayloadRoot,
   sanitizeRemoteUrl,
   validateArtifactManifest,
   verifyArtifactChecksums
@@ -188,6 +189,61 @@ test("artifact schema requires explicit, profile-consistent releasability", asyn
   await assert.rejects(
     validateArtifactManifest(inconsistent, harnessRoot),
     /invalid artifact manifest/
+  );
+
+  for (const artifactRoot of [
+    "C:/external-artifact",
+    "C:relative",
+    "./payload",
+    "payload//nested",
+    "payload.",
+    "CON"
+  ]) {
+    const nonportable = structuredClone(manifest);
+    nonportable.artifactRoot = artifactRoot;
+    await assert.rejects(
+      validateArtifactManifest(nonportable, harnessRoot),
+      /invalid artifact manifest/
+    );
+  }
+});
+
+test("artifact payload roots require canonical manifest containment", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "drydock-artifact-root-"));
+  context.after(() => rm(root, {
+    force: true,
+    recursive: true
+  }));
+  const manifestPath = join(root, "drydock-artifact.json");
+  const payloadRoot = join(root, "payload");
+  await mkdir(payloadRoot);
+  await writeFile(manifestPath, "{}\n");
+
+  assert.equal(
+    await resolveArtifactPayloadRoot({
+      artifactRoot: "payload"
+    }, manifestPath),
+    payloadRoot
+  );
+  await assert.rejects(
+    resolveArtifactPayloadRoot({
+      artifactRoot: "../outside"
+    }, manifestPath),
+    /artifact root must be a portable relative path/
+  );
+  await assert.rejects(
+    resolveArtifactPayloadRoot({
+      artifactRoot: "C:outside"
+    }, manifestPath),
+    /artifact root must be a portable relative path/
+  );
+
+  await symlink(payloadRoot, join(root, "linked-payload"));
+  await assert.rejects(
+    resolveArtifactPayloadRoot({
+      artifactRoot: "linked-payload"
+    }, manifestPath),
+    /artifact root must be a real directory/
   );
 });
 
