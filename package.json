@@ -8,7 +8,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "test": "node --test test/cli/*.test.js test/project/*.test.js contracts/host-bridge/test/*.test.js contracts/product/test/*.test.js platforms/web/iterate/caddy-live/test/*.test.js platforms/web/build/static/test/*.test.js platforms/web/channels/vps/test/*.test.js platforms/desktop/build/electron/test/*.test.js platforms/desktop/channels/downloads/test/*.test.js",
+    "test": "node --test test/cli/*.test.js test/composition/*.test.js test/project/*.test.js contracts/host-bridge/test/*.test.js contracts/product/test/*.test.js platforms/web/iterate/caddy-live/test/*.test.js platforms/web/build/static/test/*.test.js platforms/web/channels/vps/test/*.test.js platforms/desktop/build/electron/test/*.test.js platforms/desktop/channels/downloads/test/*.test.js",
     "submodule:update": "git submodule update --init --recursive",
     "validate:product": "tools/scripts/verify-product.sh --strict",
     "vendor": "node tools/scripts/vendor-runtime.js",
