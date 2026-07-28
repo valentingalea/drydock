@@ -1,5 +1,4 @@
 const assert = require("node:assert/strict");
-const { createHash } = require("node:crypto");
 const { mkdir, mkdtemp, readFile, stat, writeFile } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
 const { join, resolve } = require("node:path");
@@ -14,6 +13,7 @@ const {
 } = require("../host-provider.js");
 const {
   contentSecurityPolicy,
+  createContentSecurityPolicy,
   resolveSafeRuntimePath,
   runtimePathAllowed,
   serveAppRequest
@@ -21,68 +21,102 @@ const {
 
 const repoRoot = resolve(__dirname, "../../../../..");
 
-test("Electron protocol allowlist mirrors composed product runtime paths", () => {
-  assert.equal(runtimePathAllowed("/"), true);
-  assert.equal(runtimePathAllowed("/index.html"), true);
-  assert.equal(runtimePathAllowed("/host-bridge.js"), true);
-  assert.equal(runtimePathAllowed("/vendor/drydock-host-bridge/index.js"), true);
-  assert.equal(runtimePathAllowed("/product/mock-game/"), true);
-  assert.equal(runtimePathAllowed("/product/mock-game/index.html"), true);
-  assert.equal(runtimePathAllowed("/product/mock-game/src/bootstrap.js"), true);
-  assert.equal(runtimePathAllowed("/product/mock-game/style/mock.css"), true);
-  assert.equal(runtimePathAllowed("/product/src/core/scope.js"), true);
-  assert.equal(runtimePathAllowed("/product/style/hud.css"), true);
-  assert.equal(runtimePathAllowed("/product/lib/three.module.js"), true);
+test("Electron protocol allowlist accepts only staged runtime policy paths", () => {
+  const runtimePaths = [
+    "game/src/main.js",
+    "host-bridge.js",
+    "index.html",
+    "vendor/drydock-host-bridge/index.js"
+  ];
 
-  assert.equal(runtimePathAllowed("/package.json"), false);
-  assert.equal(runtimePathAllowed("/drydock-artifact.json"), false);
-  assert.equal(runtimePathAllowed("/.git/config"), false);
-  assert.equal(runtimePathAllowed("/AGENTS.md"), false);
-  assert.equal(runtimePathAllowed("/package.json"), false);
+  assert.equal(runtimePathAllowed("/", runtimePaths), true);
+  assert.equal(runtimePathAllowed("/index.html", runtimePaths), true);
+  assert.equal(runtimePathAllowed("/host-bridge.js", runtimePaths), true);
+  assert.equal(runtimePathAllowed("/game/src/main.js", runtimePaths), true);
+  assert.equal(
+    runtimePathAllowed("/vendor/drydock-host-bridge/index.js", runtimePaths),
+    true
+  );
+
+  assert.equal(runtimePathAllowed("/package.json", runtimePaths), false);
+  assert.equal(runtimePathAllowed("/drydock-artifact.json", runtimePaths), false);
+  assert.equal(runtimePathAllowed("/.git/config", runtimePaths), false);
+  assert.equal(runtimePathAllowed("/../secret.txt", runtimePaths), false);
+  assert.equal(runtimePathAllowed("/game\\src\\main.js", runtimePaths), false);
 });
 
-test("Electron CSP authorizes the exact Line Engine import map", async () => {
-  const html = await readFile(resolve(repoRoot, "product/mock-game/index.html"), "utf8");
-  const importMap = html.match(/<script type="importmap">([\s\S]*?)<\/script>/)?.[1];
-
-  assert.ok(importMap, "Line Engine mock import map is missing");
-  const hash = createHash("sha256").update(importMap).digest("base64");
-  assert.match(contentSecurityPolicy, new RegExp(`sha256-${hash.replace(/[+/=]/g, "\\$&")}`));
-  const scriptPolicy = contentSecurityPolicy.split("; ")
+test("Electron CSP accepts reviewed inline-script hashes without unsafe-inline", () => {
+  const policy = createContentSecurityPolicy([
+    "sha256-DV2rnjt8VaGp9BWYzkk/F9naieRwafKYVsxAf3g4gsQ="
+  ]);
+  const scriptPolicy = policy
+    .split("; ")
     .find((directive) => directive.startsWith("script-src "));
+
+  assert.match(policy, /default-src 'self'/);
+  assert.match(policy, /sha256-DV2rnjt8VaGp9BWYzkk/);
   assert.doesNotMatch(scriptPolicy, /unsafe-inline/);
+  assert.doesNotMatch(contentSecurityPolicy, /sha256-/);
+  assert.throws(
+    () => createContentSecurityPolicy(["sha256-not valid"]),
+    /invalid script hash/
+  );
 });
 
-test("Electron protocol denies path traversal and sends security headers", async () => {
+test("Electron protocol denies traversal and sends security headers", async () => {
   const runtimeRoot = await mkdtemp(join(tmpdir(), "drydock-electron-runtime-"));
-  await mkdir(join(runtimeRoot, "product"), { recursive: true });
-  await writeFile(join(runtimeRoot, "index.html"), "<!doctype html><title>Drydock</title>");
-  await writeFile(join(runtimeRoot, "product/main.js"), "export {};");
+  await mkdir(join(runtimeRoot, "game"), {
+    recursive: true
+  });
+  await writeFile(
+    join(runtimeRoot, "index.html"),
+    "<!doctype html><title>Drydock</title>"
+  );
+  await writeFile(join(runtimeRoot, "game/main.js"), "export {};");
+  const options = {
+    contentSecurityPolicy,
+    runtimePaths: [
+      "game/main.js",
+      "index.html"
+    ],
+    runtimeRoot
+  };
 
   assert.equal(
-    resolveSafeRuntimePath(runtimeRoot, "/product/main.js"),
-    join(runtimeRoot, "product/main.js")
+    resolveSafeRuntimePath(runtimeRoot, "/game/main.js"),
+    join(runtimeRoot, "game/main.js")
   );
-  assert.throws(() => resolveSafeRuntimePath(runtimeRoot, "/../secret.txt"), /path escapes/);
+  assert.throws(
+    () => resolveSafeRuntimePath(runtimeRoot, "/../secret.txt"),
+    /path escapes/
+  );
 
   const ok = await serveAppRequest(
-    { url: "app://drydock/", method: "GET" },
-    { runtimeRoot }
+    {
+      method: "GET",
+      url: "app://drydock/"
+    },
+    options
   );
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get("Content-Security-Policy"), /default-src 'self'/);
   assert.match(contentSecurityPolicy, /object-src 'none'/);
-  assert.match(contentSecurityPolicy, /sha256-DV2rnjt8VaGp9BWYzkk/);
 
   const denied = await serveAppRequest(
-    { url: "app://drydock/package.json", method: "GET" },
-    { runtimeRoot }
+    {
+      method: "GET",
+      url: "app://drydock/package.json"
+    },
+    options
   );
   assert.equal(denied.status, 404);
 
   const wrongHost = await serveAppRequest(
-    { url: "app://other/index.html", method: "GET" },
-    { runtimeRoot }
+    {
+      method: "GET",
+      url: "app://other/index.html"
+    },
+    options
   );
   assert.equal(wrongHost.status, 404);
 });
@@ -113,9 +147,17 @@ test("Electron IPC dispatch validates service, method, arity, and frame origin",
   const save = await invokeHost(host, {
     service: "storage",
     method: "save",
-    args: ["slot1", { value: true }]
+    args: [
+      "slot1",
+      {
+        value: true
+      }
+    ]
   });
-  assert.deepEqual(save, { ok: true, value: null });
+  assert.deepEqual(save, {
+    ok: true,
+    value: null
+  });
 
   const badMethod = await invokeHost(host, {
     service: "storage",
@@ -137,12 +179,15 @@ test("Electron IPC dispatch validates service, method, arity, and frame origin",
 test("Electron preload exposes only the typed host bridge wrapper", async () => {
   const preload = await readFile(resolve(__dirname, "../preload.js"), "utf8");
 
-  assert.match(preload, /contextBridge\.exposeInMainWorld\("drydockHost", drydockHost\)/);
+  assert.match(
+    preload,
+    /contextBridge\.exposeInMainWorld\("drydockHost", drydockHost\)/
+  );
   assert.match(preload, /drydock:host|IPC_CHANNEL/);
   assert.doesNotMatch(preload, /exposeInMainWorld\([^)]*ipcRenderer/s);
 });
 
-test("Electron main process keeps security defaults explicit", async () => {
+test("Electron main process keeps security defaults and staged policy explicit", async () => {
   const main = await readFile(resolve(__dirname, "../main.js"), "utf8");
 
   assert.match(main, /protocol\.registerSchemesAsPrivileged/);
@@ -151,6 +196,8 @@ test("Electron main process keeps security defaults explicit", async () => {
   assert.match(main, /contextIsolation: true/);
   assert.match(main, /nodeIntegration: false/);
   assert.match(main, /sandbox: true/);
+  assert.match(main, /runtime-policy\.json/);
   assert.match(main, /setPermissionRequestHandler/);
   assert.match(main, /setWindowOpenHandler/);
+  assert.doesNotMatch(main, /DRYDOCK_RUNTIME_ROOT/);
 });

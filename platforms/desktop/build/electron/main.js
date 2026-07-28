@@ -1,4 +1,4 @@
-const { existsSync } = require("node:fs");
+const { existsSync, readFileSync } = require("node:fs");
 const path = require("node:path");
 const { app, BrowserWindow, ipcMain, protocol, session } = require("electron");
 const { createElectronHostProvider, registerHostIpc } = require("./host-provider.js");
@@ -21,17 +21,27 @@ if (typeof app.enableSandbox === "function") {
 }
 
 function resolveRuntimeRoot() {
-  if (process.env.DRYDOCK_RUNTIME_ROOT) {
-    return path.resolve(process.env.DRYDOCK_RUNTIME_ROOT);
-  }
-
   const packagedRuntimeRoot = path.resolve(__dirname, "runtime");
 
   if (existsSync(path.join(packagedRuntimeRoot, "index.html"))) {
     return packagedRuntimeRoot;
   }
 
-  throw new Error("composed Electron runtime is missing; build or set DRYDOCK_RUNTIME_ROOT");
+  throw new Error("composed Electron runtime is missing; build the application first");
+}
+
+function loadRuntimePolicy() {
+  const policyPath = path.resolve(__dirname, "runtime-policy.json");
+  const policy = JSON.parse(readFileSync(policyPath, "utf8"));
+
+  if (
+    !Array.isArray(policy.runtimePaths)
+    || !Array.isArray(policy.scriptHashes)
+  ) {
+    throw new Error("Electron runtime policy is invalid");
+  }
+
+  return policy;
 }
 
 function createWindowOptions(options = {}) {
@@ -59,8 +69,12 @@ function configureSession(defaultSession) {
   });
 }
 
-function registerAppProtocol(protocolModule, runtimeRoot) {
-  protocolModule.handle(appScheme, createAppProtocolHandler({ runtimeRoot }));
+function registerAppProtocol(protocolModule, runtimeRoot, runtimePolicy) {
+  protocolModule.handle(appScheme, createAppProtocolHandler({
+    runtimePaths: runtimePolicy.runtimePaths,
+    runtimeRoot,
+    scriptHashes: runtimePolicy.scriptHashes
+  }));
 }
 
 function createWindow(options = {}) {
@@ -82,8 +96,9 @@ function createWindow(options = {}) {
 
 async function boot() {
   const runtimeRoot = resolveRuntimeRoot();
+  const runtimePolicy = loadRuntimePolicy();
 
-  registerAppProtocol(protocol, runtimeRoot);
+  registerAppProtocol(protocol, runtimeRoot, runtimePolicy);
   await registerHostIpc(
     ipcMain,
     createElectronHostProvider({ userDataPath: app.getPath("userData") })
@@ -110,6 +125,7 @@ module.exports = {
   configureSession,
   createWindow,
   createWindowOptions,
+  loadRuntimePolicy,
   registerAppProtocol,
   resolveRuntimeRoot
 };
