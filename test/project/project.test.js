@@ -153,6 +153,17 @@ test("schema rejects unknown host capabilities and revision modes", async (conte
   );
 });
 
+test("rejects a product display name that can escape platform output paths", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.product.name = "../escaped";
+
+  assert.ok(
+    validateProjectSemantics(descriptor).includes(
+      "product name must be safe for a platform application filename"
+    )
+  );
+});
+
 test("rejects overlapping component roots and reserved component roots", async () => {
   const descriptor = await readFixture("valid/minimal.json");
   descriptor.components.assets = {
@@ -270,6 +281,19 @@ test("applies source restrictions to component roots and nested shipping roots",
     issues.includes(
       "runtime entry 4 may select only explicit shipping integrations: "
       + "shipping/channels/vps.yaml"
+    )
+  );
+});
+
+test("requires shipping integrations to overlay game runtime", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  const integration = descriptor.runtime.entries.find((entry) => entry.overlay);
+  delete integration.overlay;
+
+  assert.ok(
+    validateProjectSemantics(descriptor).includes(
+      "runtime entry 2 shipping integration must be an overlay: "
+      + "shipping/integrations/drydock/platform-host.js"
     )
   );
 });

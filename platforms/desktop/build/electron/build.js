@@ -144,6 +144,14 @@ async function buildElectron({
     throw new Error(`release manifest does not define build.${buildKey}`);
   }
 
+  const provenance = await createArtifactProvenance({
+    adapter: {
+      id: "electron",
+      package: "@drydock/desktop-electron"
+    },
+    releasePath,
+    verified
+  });
   const composition = await createRuntimeComposition(verified);
   try {
     await prepareStagedApp({
@@ -173,14 +181,6 @@ async function buildElectron({
     const artifactRoot = artifactRootForTarget(target, identity);
     await assertDirectory(resolve(outDir, artifactRoot));
 
-    const provenance = await createArtifactProvenance({
-      adapter: {
-        id: "electron",
-        package: "@drydock/desktop-electron"
-      },
-      releasePath,
-      verified
-    });
     const manifest = await createArtifactManifest({
       artifactRoot,
       buildKey,
@@ -413,7 +413,7 @@ function artifactRootForTarget(target, identity) {
   }
 
   if (target.platform === "macos") {
-    return join("mac", `${identity.productName}.app`);
+    return join("mac", macBundleName(identity));
   }
 
   return "linux-unpacked";
@@ -427,7 +427,7 @@ function executableForTarget(target, identity) {
   if (target.platform === "macos") {
     return join(
       "mac",
-      `${identity.productName}.app`,
+      macBundleName(identity),
       "Contents",
       "MacOS",
       identity.executableName
@@ -435,6 +435,20 @@ function executableForTarget(target, identity) {
   }
 
   return join("linux-unpacked", identity.executableName);
+}
+
+function macBundleName(identity) {
+  const name = identity?.productName;
+  if (
+    typeof name !== "string"
+    || name.length === 0
+    || name === "."
+    || name === ".."
+    || /[\/\\\0]/u.test(name)
+  ) {
+    throw new Error("product name must be safe for a macOS application filename");
+  }
+  return `${name}.app`;
 }
 
 async function createArtifactManifest({

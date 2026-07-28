@@ -22,7 +22,9 @@ writes `drydock-artifact.json` next to the unpacked output.
 It invokes the adapter package's pinned `electron-builder` CLI directly through Node;
 no global binary or caller-modified `PATH` is required.
 
-Release builds require clean, reachable project and component revisions. Use
+Release builds complete provenance, declaration, revision, and Drydock-gitlink
+preflight before creating staging or output. The product display name may contain
+spaces but must be safe as a macOS application filename. Use
 `--profile development --skip-package` only for local adapter diagnostics; that path
 creates a fake unpacked executable and is not a publishable build.
 

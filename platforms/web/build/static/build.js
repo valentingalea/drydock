@@ -96,6 +96,15 @@ export async function buildStaticWeb({
     context,
     value: options.channelPolicy
   });
+  const provenance = await createArtifactProvenance({
+    adapter: {
+      id: "web-static",
+      package: "@drydock/web-static"
+    },
+    channelPolicy,
+    releasePath,
+    verified
+  });
   const composition = await createRuntimeComposition(verified);
   await stageRuntime(composition, outDir);
   if (composition.entrypoint !== "index.html") {
@@ -123,15 +132,6 @@ export async function buildStaticWeb({
   checksums.sort((left, right) => left.path.localeCompare(right.path));
 
   const descriptor = verified.project.descriptor;
-  const provenance = await createArtifactProvenance({
-    adapter: {
-      id: "web-static",
-      package: "@drydock/web-static"
-    },
-    channelPolicy,
-    releasePath,
-    verified
-  });
   const manifest = {
     schemaVersion: 3,
     releasable: verified.profile === "release",

@@ -59,8 +59,9 @@ export async function createArtifactProvenance({
     commit: verified.projectRevision.commit
   };
 
-  if (projectRemote) {
-    project.remote = projectRemote;
+  const publicProjectRemote = sanitizeRemoteUrl(projectRemote);
+  if (publicProjectRemote) {
+    project.remote = publicProjectRemote;
   }
   if (projectTag) {
     project.tag = projectTag;
@@ -83,6 +84,25 @@ export async function createArtifactProvenance({
       sha256: releaseSha256
     }
   };
+}
+
+export function sanitizeRemoteUrl(value) {
+  if (!value) {
+    return null;
+  }
+
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return value;
+  }
+
+  if (url.username || url.password) {
+    url.username = "";
+    url.password = "";
+  }
+  return url.href;
 }
 
 async function verifyReleaseInputsTracked({

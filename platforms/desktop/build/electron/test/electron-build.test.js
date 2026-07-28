@@ -104,6 +104,16 @@ test("normalizes Electron build targets and project identity paths", () => {
     "win-unpacked/fixture-game.exe"
   );
   assert.throws(
+    () => artifactRootForTarget({
+      arch: "arm64",
+      platform: "macos"
+    }, {
+      ...identity,
+      productName: "../escape"
+    }),
+    /product name must be safe/
+  );
+  assert.throws(
     () => resolveBuildTarget({
       arch: "x64",
       platform: "freebsd"
@@ -448,6 +458,42 @@ test("Electron build rejects host capabilities it cannot provide", async (contex
     }),
     /Electron host does not provide required capabilities: achievements/
   );
+});
+
+test("Electron release preflight fails before staging or output", async (context) => {
+  const state = await createElectronState(context);
+  const stageDir = join(
+    state.fixture.projectRoot,
+    "artifacts/tmp/electron-stage/linux-x64"
+  );
+  const outDir = join(
+    state.fixture.projectRoot,
+    "artifacts/build/release-preflight"
+  );
+
+  await assert.rejects(
+    buildElectron({
+      context: state.context,
+      options: {
+        arch: "x64",
+        out: "artifacts/build/release-preflight",
+        platform: "linux",
+        profile: "release",
+        release: "shipping/releases/0.1.0.yaml"
+      },
+      verified: {
+        ...state.verified,
+        profile: "release"
+      }
+    }),
+    /Drydock at the project drydock\/ gitlink/
+  );
+  await assert.rejects(stat(stageDir), {
+    code: "ENOENT"
+  });
+  await assert.rejects(stat(outDir), {
+    code: "ENOENT"
+  });
 });
 
 test("public CLI dispatches the Electron build outside project cwd", async (context) => {

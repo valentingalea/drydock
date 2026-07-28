@@ -230,6 +230,36 @@ test("static build rejects host capabilities its browser host cannot provide", a
   );
 });
 
+test("static release preflight fails before creating build output", async (context) => {
+  const fixture = await createBuildProject(context);
+  const projectContext = await resolveContext(fixture);
+  const development = await loadMinimalVerifiedProject(fixture);
+  const outDir = join(
+    fixture.projectRoot,
+    "artifacts/build/release-preflight"
+  );
+
+  await assert.rejects(
+    buildStaticWeb({
+      context: projectContext,
+      options: {
+        channel: "preview",
+        out: "artifacts/build/release-preflight",
+        profile: "release",
+        release: "shipping/releases/0.1.0.yaml"
+      },
+      verified: {
+        ...development,
+        profile: "release"
+      }
+    }),
+    /Drydock at the project drydock\/ gitlink/
+  );
+  await assert.rejects(stat(outDir), {
+    code: "ENOENT"
+  });
+});
+
 test("static command contains release and output paths inside the project", async (context) => {
   const fixture = await createBuildProject(context);
   const projectContext = await resolveContext(fixture);

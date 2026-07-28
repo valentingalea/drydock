@@ -15,6 +15,7 @@ import test from "node:test";
 import {
   createArtifactProvenance,
   loadChannelPolicy,
+  sanitizeRemoteUrl,
   validateArtifactManifest,
   verifyArtifactChecksums
 } from "../../tools/artifacts.js";
@@ -23,6 +24,19 @@ import {
   harnessRoot,
   loadMinimalVerifiedProject
 } from "../support/minimal-project.js";
+
+test("removes credentials from provenance remote URLs", () => {
+  assert.equal(
+    sanitizeRemoteUrl(
+      "https://release-user:secret-token@example.com/games/fixture.git"
+    ),
+    "https://example.com/games/fixture.git"
+  );
+  assert.equal(
+    sanitizeRemoteUrl("git@example.com:games/fixture.git"),
+    "git@example.com:games/fixture.git"
+  );
+});
 
 test("records portable project, release, component, and policy provenance", async (context) => {
   const fixture = await createProvenanceProject(context);

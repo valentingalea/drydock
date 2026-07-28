@@ -40,7 +40,8 @@ The main fields are:
 
 - `schemaVersion`: descriptor JSON schema;
 - `drydockContract`: composition/CLI semantics required by the project;
-- `product`: stable ID, display name, executable name, and application ID;
+- `product`: stable ID, display name, executable name, and application ID; the display
+  name may contain spaces but not path separators or dot-directory names;
 - `host`: required host protocol and capabilities;
 - `components`: project-owned directories and exact gitlinks;
 - `runtime`: entrypoint and ordered source-to-runtime mappings;

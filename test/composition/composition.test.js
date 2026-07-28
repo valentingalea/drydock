@@ -226,6 +226,18 @@ test("rejects restricted descendants and symbolic-link cycles", async (context) 
 });
 
 test("requires file-only shipping integrations and type-compatible overlays", async (context) => {
+  const baseShippingIntegration = await createMinimalProject(
+    context,
+    (descriptor) => {
+      const overlay = descriptor.runtime.entries.find((entry) => entry.overlay);
+      delete overlay.overlay;
+    }
+  );
+  await assert.rejects(
+    loadMinimalComposition(baseShippingIntegration),
+    /shipping integration must be an overlay/
+  );
+
   const shippingDirectory = await createMinimalProject(context, (descriptor) => {
     const overlay = descriptor.runtime.entries.find((entry) => entry.overlay);
     overlay.source = "integrations/drydock";

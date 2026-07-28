@@ -79,6 +79,11 @@ export async function createRuntimeComposition(verifiedProject) {
         `shipping integration must be an explicit file: ${sourcePolicy.path}`
       );
     }
+    if (sourcePolicy.shipping && !mapping.overlay) {
+      throw new CompositionError(
+        `shipping integration must be an overlay: ${sourcePolicy.path}`
+      );
+    }
 
     if (mapping.overlay) {
       overlayEntries.push(mapping);

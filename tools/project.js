@@ -84,6 +84,16 @@ export function validateProjectSemantics(descriptor) {
     );
   }
 
+  if (
+    descriptor.product.name === "."
+    || descriptor.product.name === ".."
+    || /[\/\\\0]/u.test(descriptor.product.name)
+  ) {
+    issues.push(
+      "product name must be safe for a platform application filename"
+    );
+  }
+
   for (const capability of descriptor.host.requiredCapabilities) {
     if (!Object.hasOwn(DEFAULT_CAPABILITIES, capability)) {
       issues.push(`unknown required host capability: ${capability}`);
@@ -146,10 +156,16 @@ export function validateProjectSemantics(descriptor) {
         );
       }
 
-      if (sourcePolicy.shipping && !sourcePolicy.shippingIntegration) {
-        issues.push(
-          `${label} may select only explicit shipping integrations: ${sourcePolicy.path}`
-        );
+      if (sourcePolicy.shipping) {
+        if (!sourcePolicy.shippingIntegration) {
+          issues.push(
+            `${label} may select only explicit shipping integrations: ${sourcePolicy.path}`
+          );
+        } else if (entry.overlay !== true) {
+          issues.push(
+            `${label} shipping integration must be an overlay: ${sourcePolicy.path}`
+          );
+        }
       }
     }
 

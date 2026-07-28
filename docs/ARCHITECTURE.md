@@ -70,6 +70,8 @@ BUILD -> INTEGRATE -> PACKAGE / SIGN -> PUBLISH
 Development builds set `releasable: false`. Downstream release consumers reject them.
 A releasable artifact records checksummed project/release declarations, exact revisions,
 adapter/profile identity, optional channel policy, and checksums for staged files.
+Recorded remote URLs never retain embedded usernames or passwords. Release provenance
+preflight completes before a build adapter creates staging or output directories.
 
 ## Current adapters
 
