@@ -245,6 +245,50 @@ test("staged Electron policy preserves a custom entrypoint", async (context) => 
   });
 });
 
+test("staged Electron policy hashes every served HTML document", async (context) => {
+  const secondaryScript = "\nwindow.secondaryPage = true;\n";
+  const state = await createElectronState(context, {
+    secondaryHtml: [
+      "<!doctype html>",
+      "<script>",
+      "window.secondaryPage = true;",
+      "</script>",
+      ""
+    ].join("\n")
+  });
+  const {
+    createRuntimeComposition,
+    stageRuntime
+  } = await import("../../../../../tools/composition.js");
+  const composition = await createRuntimeComposition(state.verified);
+  const stageDir = join(
+    state.fixture.projectRoot,
+    "artifacts/tmp/electron-stage/multi-page"
+  );
+
+  await prepareStagedApp({
+    composition,
+    identity,
+    release: {
+      version: "0.1.0"
+    },
+    stageDir,
+    stageRuntime
+  });
+
+  const policy = JSON.parse(
+    await readFile(join(stageDir, "runtime-policy.json"), "utf8")
+  );
+  const entrypointScript = "\n{\"imports\":{\"fixture\":\"./game/src/value.js\"}}\n";
+  assert.ok(policy.runtimePaths.includes("game/src/secondary.html"));
+  assert.deepEqual(policy.scriptHashes, [
+    entrypointScript,
+    secondaryScript
+  ].map((script) => (
+    `sha256-${createHash("sha256").update(script).digest("base64")}`
+  )).sort());
+});
+
 test("Electron build emits a generic schema-valid artifact", async (context) => {
   const state = await createElectronState(context);
   const out = join(
@@ -402,7 +446,8 @@ async function createElectronState(context, {
   entrypoint = "index.html",
   requiredCapabilities = [
     "storage"
-  ]
+  ],
+  secondaryHtml = null
 } = {}) {
   const {
     createMinimalProject,
@@ -440,6 +485,12 @@ async function createElectronState(context, {
         await writeFile(
           join(gameRoot, "start.html"),
           "<!doctype html><title>Custom entrypoint</title>\n"
+        );
+      }
+      if (secondaryHtml !== null) {
+        await writeFile(
+          join(gameRoot, "src", "secondary.html"),
+          secondaryHtml
         );
       }
       await mkdir(join(shippingRoot, "releases"));

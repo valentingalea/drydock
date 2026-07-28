@@ -49,8 +49,10 @@ The main fields are:
 Component paths and mapping paths are repository-relative and may not escape their
 owners. A shipping overlay must name an explicit file and set `overlay: true`.
 Validation requires the final overlaid entrypoint to exist as a file. Drydock reserves
-its host-runtime paths and `drydock-artifact.json`; custom web entrypoints also leave
-root `index.html` available for Drydock's relative redirect document.
+its host-runtime paths, generated metadata, and channel-private root paths:
+`.drydock-channel`, `.git/`, `drydock-artifact.json`, `package.json`, and `shipping/`.
+Custom web entrypoints also leave root `index.html` available for Drydock's relative
+redirect document.
 
 ## Revision profiles
 

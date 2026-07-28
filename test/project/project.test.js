@@ -277,6 +277,34 @@ test("rejects portable case-folded path collisions", async () => {
   );
 });
 
+test("rejects channel-private runtime targets portably", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  const targets = [
+    ".Drydock-Channel",
+    ".GIT/config",
+    "Package.json",
+    "Shipping/drydock-project.json"
+  ];
+
+  for (const [index, target] of targets.entries()) {
+    descriptor.runtime.entries.push({
+      component: "game",
+      source: `private-${index}`,
+      target
+    });
+  }
+
+  const issues = validateProjectSemantics(descriptor);
+  for (const [index, target] of targets.entries()) {
+    assert.ok(
+      issues.includes(
+        `runtime entry ${index + 3} overlaps reserved Drydock runtime: ${target}`
+      ),
+      target
+    );
+  }
+});
+
 test("rejects an entrypoint that no base mapping supplies", async () => {
   const descriptor = await readFixture("valid/minimal.json");
   descriptor.runtime.entrypoint = "missing.html";

@@ -14,6 +14,7 @@ const {
 } = require("node:fs/promises");
 const {
   dirname,
+  extname,
   isAbsolute,
   join,
   relative,
@@ -264,21 +265,33 @@ function createStagedPackage(release, identity) {
 }
 
 async function createRuntimePolicy(runtimeRoot, entrypoint) {
-  const runtimePaths = (await listFiles(runtimeRoot))
+  const runtimeFiles = await listFiles(runtimeRoot);
+  const runtimePaths = runtimeFiles
     .map((filePath) => portableRelative(runtimeRoot, filePath))
     .sort();
-  const entrypointPath = resolve(
-    runtimeRoot,
-    ...entrypoint.split("/")
-  );
-  const entrypointHtml = await readFile(entrypointPath, "utf8");
-  const scriptHashes = inlineScriptHashes(entrypointHtml);
+  const scriptHashes = await runtimeScriptHashes(runtimeFiles);
 
   return {
     entrypoint,
     runtimePaths,
     scriptHashes
   };
+}
+
+async function runtimeScriptHashes(runtimeFiles) {
+  const hashes = new Set();
+
+  for (const filePath of runtimeFiles) {
+    if (extname(filePath).toLowerCase() !== ".html") {
+      continue;
+    }
+
+    for (const hash of inlineScriptHashes(await readFile(filePath, "utf8"))) {
+      hashes.add(hash);
+    }
+  }
+
+  return [...hashes].sort();
 }
 
 function inlineScriptHashes(html) {

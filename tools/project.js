@@ -15,8 +15,12 @@ const RESERVED_COMPONENT_ROOTS = [
   "drydock"
 ];
 const RESERVED_RUNTIME_TARGETS = [
+  ".drydock-channel",
+  ".git",
   "drydock-artifact.json",
   "host-bridge.js",
+  "package.json",
+  "shipping",
   "vendor/drydock-host-bridge"
 ];
 const RESTRICTED_SOURCE_SEGMENTS = new Set([
