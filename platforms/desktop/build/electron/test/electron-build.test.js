@@ -10,7 +10,7 @@ const {
   writeFile
 } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
-const { join } = require("node:path");
+const { join, resolve } = require("node:path");
 const test = require("node:test");
 const {
   artifactRootForTarget,
@@ -19,7 +19,8 @@ const {
   executableForTarget,
   parseArgs,
   prepareStagedApp,
-  resolveBuildTarget
+  resolveBuildTarget,
+  runElectronBuilder
 } = require("../build.js");
 
 const identity = {
@@ -107,6 +108,45 @@ test("normalizes Electron build targets and project identity paths", () => {
       platform: "freebsd"
     }),
     /unsupported/
+  );
+});
+
+test("invokes the package-local Electron builder without a PATH lookup", async () => {
+  let invocation;
+  const outDir = resolve("fixture-project", "artifacts/build/linux-x64");
+  const stageDir = resolve(
+    "fixture-project",
+    "artifacts/tmp/electron-stage/linux-x64"
+  );
+  await runElectronBuilder({
+    identity,
+    outDir,
+    runCommand: async (command, args) => {
+      invocation = {
+        args,
+        command
+      };
+    },
+    stageDir,
+    target: {
+      arch: "x64",
+      platform: "linux"
+    }
+  });
+
+  assert.equal(invocation.command, process.execPath);
+  assert.equal(
+    invocation.args[0],
+    require.resolve("electron-builder/cli.js")
+  );
+  assert.deepEqual(
+    invocation.args.slice(1, 5),
+    [
+      "--dir",
+      "--projectDir",
+      stageDir,
+      "--config"
+    ]
   );
 });
 

@@ -666,7 +666,7 @@ function assertUnrestrictedSource(owner, ownerRoot, canonicalPath, displayPath) 
   if (
     sourceFromOwner
       .split(sep)
-      .some((segment) => RESTRICTED_DIRECTORY_NAMES.has(segment))
+      .some((segment) => RESTRICTED_DIRECTORY_NAMES.has(segment.toLowerCase()))
   ) {
     throw new CompositionError(
       `runtime source selects a restricted path in ${owner}: ${displayPath}`

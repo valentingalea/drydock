@@ -9,6 +9,7 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import {
+  assertRequiredHostCapabilities,
   buildStaticWeb,
   buildStaticWebCommand,
   parseArgs
@@ -201,6 +202,34 @@ test("static build materializes a web root for a custom entrypoint", async (cont
   );
 });
 
+test("static build rejects host capabilities its browser host cannot provide", async (context) => {
+  const fixture = await createBuildProject(context, {
+    requiredCapabilities: [
+      "storage",
+      "identity"
+    ]
+  });
+  const projectContext = await resolveContext(fixture);
+  const verified = await loadMinimalVerifiedProject(fixture);
+
+  assert.throws(
+    () => assertRequiredHostCapabilities(["storage", "identity"]),
+    /web-static host does not provide required capabilities: identity/
+  );
+  await assert.rejects(
+    buildStaticWeb({
+      context: projectContext,
+      options: {
+        channel: "preview",
+        profile: "development",
+        release: "shipping/releases/0.1.0.yaml"
+      },
+      verified
+    }),
+    /web-static host does not provide required capabilities: identity/
+  );
+});
+
 test("static command contains release and output paths inside the project", async (context) => {
   const fixture = await createBuildProject(context);
   const projectContext = await resolveContext(fixture);
@@ -279,11 +308,15 @@ test("public CLI builds from outside the project working directory", async (cont
 });
 
 async function createBuildProject(context, {
-  entrypoint = "index.html"
+  entrypoint = "index.html",
+  requiredCapabilities = [
+    "storage"
+  ]
 } = {}) {
   return createMinimalProject(
     context,
     (descriptor) => {
+      descriptor.host.requiredCapabilities = requiredCapabilities;
       if (entrypoint !== "index.html") {
         descriptor.runtime.entrypoint = entrypoint;
         descriptor.runtime.entries[0] = {

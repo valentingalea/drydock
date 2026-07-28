@@ -17,6 +17,10 @@ export const DEFAULT_CAPABILITIES = Object.freeze({
   purchases: false,
   identity: false
 });
+export const DEV_HOST_CAPABILITIES = Object.freeze({
+  ...DEFAULT_CAPABILITIES,
+  storage: "local"
+});
 
 const STORAGE_MODES = new Set(["none", "local", "cloud"]);
 
@@ -115,7 +119,7 @@ export function createMemoryStorageAdapter(initialValues = undefined) {
 
 export function createDevHost(options = {}) {
   const capabilities = normalizeCapabilities({
-    storage: "local",
+    ...DEV_HOST_CAPABILITIES,
     ...options.capabilities
   });
   const storageAdapter = capabilities.storage === "none"

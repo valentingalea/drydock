@@ -41,6 +41,10 @@ The artifact contains the committed VPS policy snapshot. The publisher verifies 
 manifest and every staged checksum, requires `releasable: true`, then replaces only
 `<DRYDOCK_VPS_ROOT>/<deploymentId>`.
 
+The built-in browser host guarantees local `storage` only. Static web builds reject
+projects that require achievements, telemetry, purchases, or identity until a web
+adapter supplies those capabilities.
+
 Verify the configured public routes using the same artifact:
 
 ```sh

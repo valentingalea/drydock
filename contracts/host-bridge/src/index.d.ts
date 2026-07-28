@@ -62,6 +62,7 @@ export type Host = {
 };
 
 export declare const DEFAULT_CAPABILITIES: Readonly<HostCapabilities>;
+export declare const DEV_HOST_CAPABILITIES: Readonly<HostCapabilities>;
 
 export declare function ok<T = null>(value?: T): HostOk<T>;
 export declare function fail(

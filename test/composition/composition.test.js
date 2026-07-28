@@ -203,8 +203,8 @@ test("rejects restricted descendants and symbolic-link cycles", async (context) 
     context,
     undefined,
     async ({ gameRoot }) => {
-      await mkdir(join(gameRoot, "src", "tests"));
-      await writeFile(join(gameRoot, "src", "tests", "private.js"), "private\n");
+      await mkdir(join(gameRoot, "src", "Tests"));
+      await writeFile(join(gameRoot, "src", "Tests", "private.js"), "private\n");
     }
   );
   await assert.rejects(

@@ -302,6 +302,7 @@ function inlineScriptHashes(html) {
 async function runElectronBuilder({
   identity,
   outDir,
+  runCommand = run,
   stageDir,
   target
 }) {
@@ -322,7 +323,13 @@ async function runElectronBuilder({
     "never"
   ];
 
-  await run("electron-builder", args);
+  await runCommand(
+    process.execPath,
+    [
+      require.resolve("electron-builder/cli.js"),
+      ...args
+    ]
+  );
 }
 
 function resolveBuildTarget(options = {}) {
@@ -651,8 +658,7 @@ async function run(command, args) {
   await new Promise((resolveRun, rejectRun) => {
     const child = spawn(command, args, {
       cwd: packageRoot,
-      stdio: "inherit",
-      shell: process.platform === "win32"
+      stdio: "inherit"
     });
 
     child.on("error", rejectRun);
@@ -777,5 +783,6 @@ module.exports = {
   normalizePlatform,
   parseArgs,
   prepareStagedApp,
-  resolveBuildTarget
+  resolveBuildTarget,
+  runElectronBuilder
 };

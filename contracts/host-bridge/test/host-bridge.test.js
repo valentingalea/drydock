@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DEV_HOST_CAPABILITIES,
   HOST_PROTOCOL_VERSION,
   HostErrorCode,
   assertHostConformance,
@@ -63,13 +64,14 @@ test("dev host reports local storage and unsupported optional services", async (
   const host = createDevHost();
 
   assert.equal(host.protocolVersion, HOST_PROTOCOL_VERSION);
-  assert.deepEqual(await host.capabilities(), {
+  assert.deepEqual(DEV_HOST_CAPABILITIES, {
     storage: "local",
     achievements: false,
     telemetry: false,
     purchases: false,
     identity: false
   });
+  assert.deepEqual(await host.capabilities(), DEV_HOST_CAPABILITIES);
 
   const achievement = await host.achievements.unlock("first_win");
   assert.equal(achievement.ok, false);

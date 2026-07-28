@@ -5,6 +5,9 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import YAML from "yaml";
 import {
+  DEV_HOST_CAPABILITIES
+} from "../../../../contracts/host-bridge/src/index.js";
+import {
   createArtifactProvenance,
   loadChannelPolicy,
   validateArtifactManifest
@@ -65,6 +68,9 @@ export async function buildStaticWeb({
     throw new TypeError("verified project does not match the build context and profile");
   }
 
+  assertRequiredHostCapabilities(
+    verified.project.descriptor.host.requiredCapabilities
+  );
   const releasePath = await resolveReleasePath(context, options.release);
   const outDir = resolveProjectPath(
     context,
@@ -209,6 +215,20 @@ export function parseArgs(argv) {
   }
 
   return options;
+}
+
+export function assertRequiredHostCapabilities(requiredCapabilities) {
+  const unsupported = requiredCapabilities.filter((capability) => (
+    capability === "storage"
+      ? DEV_HOST_CAPABILITIES.storage === "none"
+      : DEV_HOST_CAPABILITIES[capability] !== true
+  ));
+
+  if (unsupported.length > 0) {
+    throw new Error(
+      `web-static host does not provide required capabilities: ${unsupported.join(", ")}`
+    );
+  }
 }
 
 function rejectDuplicate(seen, flag) {

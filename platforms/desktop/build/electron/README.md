@@ -19,6 +19,8 @@ The default output is `artifacts/build/<platform>-<arch>/`, using manifest platf
 The build validates the external project and its declared components, stages a minimal
 Electron app through the shared runtime composition, runs `electron-builder --dir`, and
 writes `drydock-artifact.json` next to the unpacked output.
+It invokes the adapter package's pinned `electron-builder` CLI directly through Node;
+no global binary or caller-modified `PATH` is required.
 
 Release builds require clean, reachable project and component revisions. Use
 `--profile development --skip-package` only for local adapter diagnostics; that path
