@@ -214,7 +214,7 @@ async function verifyProjectOwnedComponent(component, projectRepository, issues)
     projectRepository.root,
     "ls-files",
     "--",
-    component.path
+    literalPathspec(component.path)
   );
   if (!trackedFiles) {
     issues.push(`project component ${component.name} has no tracked files`);
@@ -227,7 +227,7 @@ async function verifyGitlinkComponent(component, projectRepository, issues) {
     "ls-files",
     "--stage",
     "--",
-    component.path
+    literalPathspec(component.path)
   );
   const gitlink = staged
     .split("\n")
@@ -360,6 +360,10 @@ async function git(cwd, ...args) {
 
 function gitMessage(error) {
   return String(error?.stderr || error?.message || error).trim();
+}
+
+function literalPathspec(path) {
+  return `:(top,literal)${path}`;
 }
 
 function pathWithin(root, candidate) {

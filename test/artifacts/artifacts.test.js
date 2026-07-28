@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
+  appendFile,
   mkdir,
   mkdtemp,
   readFile,
@@ -95,6 +96,60 @@ test("release provenance requires the project's exact drydock gitlink", async (c
   );
 });
 
+test("release provenance requires tracked project declarations", async (context) => {
+  const cases = [
+    {
+      ignoredPath: "/shipping/drydock-project.json",
+      label: "project descriptor"
+    },
+    {
+      ignoredPath: "/shipping/releases/0.1.0.yaml",
+      label: "release declaration"
+    },
+    {
+      ignoredPath: "/shipping/channels/preview.yaml",
+      label: "channel policy"
+    }
+  ];
+
+  for (const selected of cases) {
+    await context.test(selected.label, async (subcontext) => {
+      const fixture = await createProvenanceProject(
+        subcontext,
+        selected.ignoredPath
+      );
+      const verified = await loadMinimalVerifiedProject(fixture);
+      const releasePath = join(
+        fixture.shippingRoot,
+        "releases",
+        "0.1.0.yaml"
+      );
+      const channelPolicy = await loadChannelPolicy({
+        channel: "preview",
+        context: verified.project.context
+      });
+
+      await assert.rejects(
+        createArtifactProvenance({
+          adapter: {
+            id: "web-static",
+            package: "@drydock/web-static"
+          },
+          channelPolicy,
+          releasePath,
+          verified: {
+            ...verified,
+            profile: "release"
+          }
+        }),
+        new RegExp(
+          `release ${selected.label} must be tracked at project commit`
+        )
+      );
+    });
+  }
+});
+
 test("artifact schema requires explicit, profile-consistent releasability", async () => {
   const fixturePath = resolve(
     harnessRoot,
@@ -158,11 +213,11 @@ test("artifact verification requires an exact regular-file checksum set", async 
   );
 });
 
-async function createProvenanceProject(context) {
+async function createProvenanceProject(context, ignoredPath = null) {
   return createMinimalProject(
     context,
     undefined,
-    async ({ shippingRoot }) => {
+    async ({ projectRoot, shippingRoot }) => {
       await mkdir(join(shippingRoot, "releases"));
       await mkdir(join(shippingRoot, "channels"));
       await writeFile(
@@ -173,6 +228,12 @@ async function createProvenanceProject(context) {
         join(shippingRoot, "channels", "preview.yaml"),
         "route: fixture-preview\n"
       );
+      if (ignoredPath) {
+        await appendFile(
+          join(projectRoot, ".gitignore"),
+          `${ignoredPath}\n`
+        );
+      }
     }
   );
 }

@@ -70,6 +70,36 @@ test("rejects missing and untracked project components", async (context) => {
   );
 });
 
+test("treats descriptor component paths as literal Git pathspecs", async (context) => {
+  const path = ":(glob)**";
+  const fixture = await createGitProject(
+    context,
+    async (descriptor, { projectRoot }) => {
+      descriptor.components.generated = {
+        path,
+        revision: "project"
+      };
+      await mkdir(join(projectRoot, path), {
+        recursive: true
+      });
+      await writeFile(
+        join(projectRoot, path, "ignored.js"),
+        "export const ignored = true;\n"
+      );
+    },
+    {
+      ignoredPaths: [
+        `/${path}/`
+      ]
+    }
+  );
+
+  await assert.rejects(
+    loadAndVerify(fixture),
+    hasIssue("project component generated has no tracked files")
+  );
+});
+
 test("rejects a component root that becomes a symbolic link", async (context) => {
   const fixture = await createGitProject(context);
   const external = join(fixture.root, "external-game");
@@ -208,7 +238,14 @@ async function createGitProject(context, mutateDescriptor, options = {}) {
     join(shippingRoot, "drydock-project.json"),
     `${JSON.stringify(descriptor, null, 2)}\n`
   );
-  await writeFile(join(projectRoot, ".gitignore"), "/artifacts/\n");
+  await writeFile(
+    join(projectRoot, ".gitignore"),
+    [
+      "/artifacts/",
+      ...(options.ignoredPaths ?? []),
+      ""
+    ].join("\n")
+  );
 
   git(projectRoot, "init", "-b", "main");
   configureRepository(projectRoot);

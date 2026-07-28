@@ -30,6 +30,11 @@ export async function createArtifactProvenance({
 }) {
   const { context } = verified.project;
   if (verified.profile === "release") {
+    await verifyReleaseInputsTracked({
+      channelPolicy,
+      releasePath,
+      verified
+    });
     await verifyReleaseHarness(verified);
   }
 
@@ -78,6 +83,57 @@ export async function createArtifactProvenance({
       sha256: releaseSha256
     }
   };
+}
+
+async function verifyReleaseInputsTracked({
+  channelPolicy = null,
+  releasePath,
+  verified
+}) {
+  const { context } = verified.project;
+  const declarations = [
+    {
+      label: "project descriptor",
+      path: context.projectPath
+    },
+    {
+      label: "release declaration",
+      path: releasePath
+    }
+  ];
+
+  if (channelPolicy) {
+    declarations.push({
+      label: "channel policy",
+      path: resolve(
+        context.projectRoot,
+        ...channelPolicy.path.split("/")
+      )
+    });
+  }
+
+  for (const declaration of declarations) {
+    const path = portableRelative(context.projectRoot, declaration.path);
+    let objectType;
+    try {
+      objectType = await git(
+        context.projectRoot,
+        "cat-file",
+        "-t",
+        `${verified.projectRevision.commit}:${path}`
+      );
+    } catch {
+      throw new Error(
+        `release ${declaration.label} must be tracked at project commit: ${path}`
+      );
+    }
+
+    if (objectType !== "blob") {
+      throw new Error(
+        `release ${declaration.label} is not a tracked file at project commit: ${path}`
+      );
+    }
+  }
 }
 
 export async function loadChannelPolicy({
