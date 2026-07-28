@@ -23,11 +23,19 @@ domains into the repository templates.
 
 ## Release Route
 
-Build and publish the static artifact:
+Build and publish the static artifact. The committed VPS policy supplies a unique
+`deploymentId`; the operational root is supplied explicitly and the publisher deploys
+to `<root>/<deploymentId>`:
 
 ```sh
-pnpm --filter @drydock/web-static build -- --release contracts/releases/0.1.0.yaml
-pnpm --filter @drydock/channel-vps run publish -- artifacts/build/web-static/drydock-artifact.json
+node drydock/tools/drydock.js build web-static \
+  --project shipping/drydock-project.json \
+  --release shipping/releases/0.1.0.yaml
+
+DRYDOCK_VPS_ROOT=/srv/games \
+  node drydock/tools/drydock.js publish vps \
+    --project shipping/drydock-project.json \
+    --artifact artifacts/build/web-static/drydock-artifact.json
 ```
 
 Validate Caddy before reload:
@@ -41,6 +49,7 @@ Verify both public routes after a change:
 
 ```sh
 pnpm --filter @drydock/channel-vps run verify -- \
+  --artifact artifacts/build/web-static/drydock-artifact.json \
   --live-url https://games.example.com/drydock/ \
   --release-url https://games.example.com/drydock-release/
 ```

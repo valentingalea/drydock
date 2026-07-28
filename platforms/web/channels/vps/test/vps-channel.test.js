@@ -4,6 +4,7 @@ import {
   mkdtemp,
   readFile,
   stat,
+  symlink,
   writeFile
 } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
@@ -11,7 +12,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { buildStaticWeb } from "../../../build/static/build.js";
-import { resolveProjectContext } from "../../../../../tools/drydock.js";
+import {
+  resolveProjectContext,
+  runCli
+} from "../../../../../tools/drydock.js";
 import {
   createMinimalProject,
   harnessRoot,
@@ -21,15 +25,23 @@ import { parseArgs, publishVps } from "../publish.js";
 import {
   parseArgs as parseVerifyArgs,
   resolveRouteUrl,
+  runtimePathsFromManifest,
   verifyVps
 } from "../verify.js";
 
 test("parses VPS publish arguments", () => {
-  assert.deepEqual(parseArgs(["artifact.json", "--root", "/tmp/drydock", "--dry-run"]), {
-    _: ["artifact.json"],
-    root: "/tmp/drydock",
+  assert.deepEqual(parseArgs([
+    "--artifact",
+    "artifacts/build/web/drydock-artifact.json",
+    "--root",
+    "/srv/games",
+    "--dry-run"
+  ]), {
+    artifact: "artifacts/build/web/drydock-artifact.json",
+    root: "/srv/games",
     dryRun: true
   });
+  assert.throws(() => parseArgs([]), /--artifact is required/);
   assert.throws(() => parseArgs(["--root"]), /--root requires/);
 });
 
@@ -46,7 +58,7 @@ test("VPS publish copies a packaged web artifact to the deploy root", async (con
       );
       await writeFile(
         join(shippingRoot, "channels", "vps.yaml"),
-        "route: fixture-vps\n"
+        "deploymentId: fixture-game\nroute: fixture-vps\n"
       );
     }
   );
@@ -70,8 +82,11 @@ test("VPS publish copies a packaged web artifact to the deploy root", async (con
   const manifestPath = join(out, "drydock-artifact.json");
   await assert.rejects(
     publishVps({
-      _: [manifestPath],
-      root
+      context: projectContext,
+      options: {
+        artifact: "artifacts/build/web-static/drydock-artifact.json",
+        root
+      }
     }),
     /artifact that is not releasable/
   );
@@ -83,31 +98,92 @@ test("VPS publish copies a packaged web artifact to the deploy root", async (con
     `${JSON.stringify(manifest, null, 2)}\n`
   );
 
-  await writeFile(join(root, "stale.txt"), "old\n");
-  await publishVps({
-    _: [manifestPath],
-    root
-  });
+  const cliOutput = captureStream();
+  const cliErrors = captureStream();
+  assert.equal(
+    await runCli([
+      "publish",
+      "vps",
+      "--project",
+      fixture.projectPath,
+      "--artifact",
+      "artifacts/build/web-static/drydock-artifact.json",
+      "--root",
+      root,
+      "--dry-run"
+    ], {
+      invocationCwd: harnessRoot,
+      stderr: cliErrors,
+      stdout: cliOutput
+    }),
+    0,
+    cliErrors.value
+  );
+  assert.equal(cliErrors.value, "");
+  assert.match(cliOutput.value, /would deploy .*fixture-game/);
 
-  await stat(join(root, "index.html"));
-  await stat(join(root, "game/src/platform-host.js"));
-  await stat(join(root, "game/src/value.js"));
-  await stat(join(root, "host-bridge.js"));
-  await stat(join(root, "drydock-artifact.json"));
-  await stat(join(root, ".drydock-channel"));
-  await assert.rejects(stat(join(root, "stale.txt")), { code: "ENOENT" });
+  const linkedRoot = join(fixture.projectRoot, "linked-vps-root");
+  await symlink(root, linkedRoot, "dir");
+  await assert.rejects(
+    publishVps({
+      context: projectContext,
+      options: {
+        artifact: "artifacts/build/web-static/drydock-artifact.json",
+        root: linkedRoot,
+        dryRun: true
+      }
+    }),
+    /must not be a symbolic link/
+  );
+
+  await writeFile(join(root, "stale.txt"), "old\n");
+  const result = await publishVps({
+    context: projectContext,
+    options: {
+      artifact: "artifacts/build/web-static/drydock-artifact.json",
+      root
+    }
+  });
+  const deployedRoot = join(root, "fixture-game");
+
+  assert.equal(result.root, deployedRoot);
+  await stat(join(deployedRoot, "index.html"));
+  await stat(join(deployedRoot, "game/src/platform-host.js"));
+  await stat(join(deployedRoot, "game/src/value.js"));
+  await stat(join(deployedRoot, "host-bridge.js"));
+  await stat(join(deployedRoot, "drydock-artifact.json"));
+  await stat(join(deployedRoot, ".drydock-channel"));
+  await stat(join(root, "stale.txt"));
 });
+
+function captureStream() {
+  return {
+    value: "",
+    write(chunk) {
+      this.value += chunk;
+    }
+  };
+}
 
 test("VPS Caddy templates keep allowlisted file serving explicit", async () => {
   const wholeDomain = await readFile(join(import.meta.dirname, "../caddy.example"), "utf8");
   const pathMounted = await readFile(join(import.meta.dirname, "../caddy.path.example"), "utf8");
 
   assert.match(wholeDomain, /DRYDOCK_WEB_ROOT/);
-  assert.match(wholeDomain, /\/srv\/drydock\/web/);
-  assert.match(wholeDomain, /\/product\/\*/);
+  assert.doesNotMatch(wholeDomain, /\/srv\//);
+  assert.match(wholeDomain, /\/package\.json/);
+  assert.match(wholeDomain, /\/\.git\/\*/);
+  assert.match(wholeDomain, /\/shipping\/\*/);
+  assert.match(wholeDomain, /\/drydock-artifact\.json/);
+  assert.doesNotMatch(wholeDomain, /\/product\/\*/);
   assert.doesNotMatch(wholeDomain, /try_files \{path\} \/index\.html/);
-  assert.match(pathMounted, /handle_path \/drydock-release\/\*/);
-  assert.match(pathMounted, /\/product\/\*/);
+  assert.match(pathMounted, /handle_path \/\{\$DRYDOCK_ROUTE\}\/\*/);
+  assert.match(pathMounted, /DRYDOCK_WEB_ROOT/);
+  assert.doesNotMatch(pathMounted, /\/srv\//);
+  assert.match(pathMounted, /\/package\.json/);
+  assert.match(pathMounted, /\/\.git\/\*/);
+  assert.match(pathMounted, /\/shipping\/\*/);
+  assert.doesNotMatch(pathMounted, /\/product\/\*/);
   assert.doesNotMatch(pathMounted, /try_files \{path\} \/index\.html/);
 });
 
@@ -121,6 +197,8 @@ test("parses VPS verify arguments and env defaults", () => {
   });
 
   assert.deepEqual(parseVerifyArgs([
+    "--artifact",
+    "artifacts/build/web/drydock-artifact.json",
     "--live-url",
     "https://example.com/live/",
     "--release-url",
@@ -128,6 +206,7 @@ test("parses VPS verify arguments and env defaults", () => {
     "--timeout-ms",
     "1000"
   ]), {
+    artifact: "artifacts/build/web/drydock-artifact.json",
     liveUrl: "https://example.com/live/",
     releaseUrl: "https://example.com/release/",
     timeoutMs: 1000
@@ -139,8 +218,8 @@ test("parses VPS verify arguments and env defaults", () => {
 
 test("VPS verifier preserves path-mounted route prefixes", () => {
   assert.equal(
-    resolveRouteUrl("https://example.com/drydock", "/product/mock-game/index.html"),
-    "https://example.com/drydock/product/mock-game/index.html"
+    resolveRouteUrl("https://example.com/drydock", "/game/src/main.js"),
+    "https://example.com/drydock/game/src/main.js"
   );
   assert.equal(
     resolveRouteUrl("https://example.com/drydock-release/", "/"),
@@ -149,19 +228,37 @@ test("VPS verifier preserves path-mounted route prefixes", () => {
 });
 
 test("VPS verifier checks public allow and deny paths for both route mounts", async () => {
+  const manifest = {
+    checksums: [
+      {
+        path: "index.html"
+      },
+      {
+        path: "game/src/main.js"
+      },
+      {
+        path: "vendor/bridge/index.html"
+      }
+    ]
+  };
+  const runtimePaths = runtimePathsFromManifest(manifest);
+  const deniedPaths = new Set([
+    "/package.json",
+    "/.git/config",
+    "/shipping/drydock-project.json",
+    "/drydock-artifact.json",
+    "/.drydock-channel"
+  ]);
   const server = createHttpServer((request, response) => {
     const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
-    const denied = pathname.endsWith("/package.json")
-      || pathname.endsWith("/.git/config")
-      || pathname.endsWith("/product/.git")
-      || pathname.endsWith("/product/AGENTS.md")
-      || pathname.endsWith("/product/package.json")
-      || pathname.endsWith("/product/test/unit/scope.test.js")
-      || pathname.endsWith("/product/drydock-product.json")
-      || pathname.endsWith("/drydock-artifact.json")
-      || pathname.endsWith("/.drydock-channel");
+    const routePath = pathname.replace(
+      /^\/(?:drydock-release|drydock)/,
+      ""
+    ) || "/";
+    const denied = deniedPaths.has(routePath);
+    const allowed = runtimePaths.includes(routePath);
 
-    response.writeHead(denied ? 404 : 200, {
+    response.writeHead(denied ? 404 : allowed ? 200 : 500, {
       "Content-Type": "text/plain; charset=utf-8"
     });
     response.end(denied ? "not found" : "ok");
@@ -177,11 +274,18 @@ test("VPS verifier checks public allow and deny paths for both route mounts", as
     const results = await verifyVps({
       liveUrl: `${root}/drydock/`,
       releaseUrl: `${root}/drydock-release/`,
+      manifest,
       timeoutMs: 1000
     });
 
-    assert.equal(results.length, 58);
-    assert.equal(results.filter((result) => result.status === 404).length, 18);
+    assert.equal(
+      results.length,
+      2 * (runtimePaths.length + deniedPaths.size)
+    );
+    assert.equal(
+      results.filter((result) => result.status === 404).length,
+      2 * deniedPaths.size
+    );
   } finally {
     await new Promise((resolveClose) => server.close(resolveClose));
   }

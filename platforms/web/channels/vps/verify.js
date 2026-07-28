@@ -1,48 +1,41 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 const defaultTimeoutMs = 5000;
-
-const runtimeAllowedPaths = [
-  "/",
-  "/index.html",
-  "/host-bridge.js",
-  "/vendor/drydock-host-bridge/index.js",
-  "/product/mock-game/",
-  "/product/mock-game/index.html",
-  "/product/mock-game/src/bootstrap.js",
-  "/product/mock-game/src/boot-guard.js",
-  "/product/mock-game/src/game.js",
-  "/product/mock-game/src/platform-host.js",
-  "/product/mock-game/style/mock.css",
-  "/product/src/core/app-state.js",
-  "/product/src/core/clock.js",
-  "/product/src/core/scope.js",
-  "/product/src/dev/debug-panel.js",
-  "/product/src/dev/fps.js",
-  "/product/src/ui/status-line.js",
-  "/product/style/debug.css",
-  "/product/style/hud.css",
-  "/product/lib/three.module.js"
-];
 
 const deniedPaths = [
   "/package.json",
   "/.git/config",
-  "/product/.git",
-  "/product/AGENTS.md",
-  "/product/package.json",
-  "/product/test/unit/scope.test.js",
-  "/product/drydock-product.json",
+  "/shipping/drydock-project.json",
   "/drydock-artifact.json",
   "/.drydock-channel"
 ];
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const options = parseArgs(process.argv.slice(2), process.env);
+  if (!options.artifact) {
+    throw new Error("VPS verification requires --artifact");
+  }
+  options.manifest = JSON.parse(
+    await readFile(resolve(process.cwd(), options.artifact), "utf8")
+  );
   await verifyVps(options);
 }
 
 export async function verifyVps(options = {}) {
+  const runtimePaths = (
+    options.runtimePaths
+    ?? (
+      options.manifest
+        ? runtimePathsFromManifest(options.manifest)
+        : null
+    )
+  );
+  if (!Array.isArray(runtimePaths) || runtimePaths.length === 0) {
+    throw new Error("VPS verification requires artifact-derived runtime paths");
+  }
+
   const routes = [];
 
   if (options.liveUrl) {
@@ -64,7 +57,12 @@ export async function verifyVps(options = {}) {
   const results = [];
 
   for (const route of routes) {
-    results.push(...await verifyRoute({ ...route, fetchImpl, timeoutMs }));
+    results.push(...await verifyRoute({
+      ...route,
+      fetchImpl,
+      runtimePaths,
+      timeoutMs
+    }));
   }
 
   for (const result of results) {
@@ -75,9 +73,15 @@ export async function verifyVps(options = {}) {
   return results;
 }
 
-export async function verifyRoute({ name, baseUrl, fetchImpl = fetch, timeoutMs = defaultTimeoutMs }) {
+export async function verifyRoute({
+  name,
+  baseUrl,
+  fetchImpl = fetch,
+  runtimePaths,
+  timeoutMs = defaultTimeoutMs
+}) {
   const checks = [
-    ...runtimeAllowedPaths.map((path) => ({ path, expectedStatus: 200 })),
+    ...runtimePaths.map((path) => ({ path, expectedStatus: 200 })),
     ...deniedPaths.map((path) => ({ path, expectedStatus: 404 }))
   ];
   const results = [];
@@ -102,6 +106,22 @@ export async function verifyRoute({ name, baseUrl, fetchImpl = fetch, timeoutMs 
   return results;
 }
 
+export function runtimePathsFromManifest(manifest) {
+  const paths = new Set([
+    "/"
+  ]);
+
+  for (const checksum of manifest.checksums ?? []) {
+    const path = `/${checksum.path}`;
+    paths.add(path);
+    if (checksum.path.endsWith("/index.html")) {
+      paths.add(`/${checksum.path.slice(0, -"index.html".length)}`);
+    }
+  }
+
+  return [...paths].sort();
+}
+
 export function parseArgs(argv, env = {}) {
   const options = {
     liveUrl: env.DRYDOCK_LIVE_URL,
@@ -113,6 +133,8 @@ export function parseArgs(argv, env = {}) {
 
     if (arg === "--") {
       continue;
+    } else if (arg === "--artifact") {
+      options.artifact = requireValue(argv, ++i, arg);
     } else if (arg === "--live-url") {
       options.liveUrl = requireValue(argv, ++i, arg);
     } else if (arg === "--release-url") {

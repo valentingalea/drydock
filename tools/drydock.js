@@ -18,6 +18,7 @@ const DEFAULT_COMMANDS = Object.freeze({
   build: buildCommand,
   iterate: iterateCommand,
   package: packageCommand,
+  publish: publishCommand,
   validate: validateProjectCommand
 });
 
@@ -315,6 +316,23 @@ async function packageCommand({ args, ...input }) {
     "../platforms/desktop/channels/downloads/package.js"
   );
   return packageDownloadsCommand({
+    ...input,
+    args: args.slice(1)
+  });
+}
+
+async function publishCommand({ args, ...input }) {
+  if (args[0] !== "vps") {
+    input.stderr.write(
+      "ERROR: usage: publish vps --artifact PATH [options]\n"
+    );
+    return 2;
+  }
+
+  const { publishVpsCommand } = await import(
+    "../platforms/web/channels/vps/publish.js"
+  );
+  return publishVpsCommand({
     ...input,
     args: args.slice(1)
   });

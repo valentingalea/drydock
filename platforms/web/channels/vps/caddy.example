@@ -1,18 +1,16 @@
-drydock.example.com {
+game.example.com {
 	encode gzip zstd
 
-	root * {$DRYDOCK_WEB_ROOT:/srv/drydock/web}
+	root * {$DRYDOCK_WEB_ROOT}
 
-	@allowed path / /index.html /host-bridge.js /vendor/drydock-host-bridge/* /product/*
-	handle @allowed {
-		file_server
-	}
-
-	handle {
+	@private path /package.json /.git/* /shipping/* /drydock-artifact.json /.drydock-channel
+	handle @private {
 		respond 404
 	}
 
+	file_server
+
 	log {
-		output file /var/log/caddy/drydock-release-access.log
+		output file /var/log/caddy/game-release-access.log
 	}
 }

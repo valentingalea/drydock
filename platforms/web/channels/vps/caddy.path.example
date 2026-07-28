@@ -1,17 +1,15 @@
 existing.example.com {
 	encode gzip zstd
 
-	redir /drydock-release /drydock-release/ 308
-	handle_path /drydock-release/* {
-		root * {$DRYDOCK_WEB_ROOT:/srv/drydock/web}
+	redir /{$DRYDOCK_ROUTE} /{$DRYDOCK_ROUTE}/ 308
+	handle_path /{$DRYDOCK_ROUTE}/* {
+		root * {$DRYDOCK_WEB_ROOT}
 
-		@drydock_release_allowed path / /index.html /host-bridge.js /vendor/drydock-host-bridge/* /product/*
-		handle @drydock_release_allowed {
-			file_server
-		}
-
-		handle {
+		@private path /package.json /.git/* /shipping/* /drydock-artifact.json /.drydock-channel
+		handle @private {
 			respond 404
 		}
+
+		file_server
 	}
 }

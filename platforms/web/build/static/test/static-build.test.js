@@ -262,7 +262,7 @@ async function createBuildProject(context) {
       );
       await writeFile(
         join(shippingRoot, "channels", "vps.yaml"),
-        "route: fixture-vps\n"
+        "deploymentId: fixture-game\nroute: fixture-vps\n"
       );
     }
   );
