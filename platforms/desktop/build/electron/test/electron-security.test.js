@@ -15,8 +15,10 @@ const {
   contentSecurityPolicy,
   createContentSecurityPolicy,
   resolveSafeRuntimePath,
+  runtimeEntrypointUrl,
   runtimePathAllowed,
-  serveAppRequest
+  serveAppRequest,
+  validateRuntimePolicy
 } = require("../protocol.js");
 
 const repoRoot = resolve(__dirname, "../../../../..");
@@ -60,6 +62,39 @@ test("Electron CSP accepts reviewed inline-script hashes without unsafe-inline",
   assert.throws(
     () => createContentSecurityPolicy(["sha256-not valid"]),
     /invalid script hash/
+  );
+});
+
+test("Electron runtime policy launches its declared entrypoint", () => {
+  const policy = {
+    entrypoint: "ui/start page.html",
+    runtimePaths: [
+      "ui/start page.html"
+    ],
+    scriptHashes: []
+  };
+
+  assert.equal(validateRuntimePolicy(policy), policy);
+  assert.equal(
+    runtimeEntrypointUrl(policy),
+    "app://drydock/ui/start%20page.html"
+  );
+  assert.throws(
+    () => runtimeEntrypointUrl({
+      ...policy,
+      entrypoint: "index.html"
+    }),
+    /invalid entrypoint/
+  );
+  assert.throws(
+    () => validateRuntimePolicy({
+      ...policy,
+      entrypoint: "../start.html",
+      runtimePaths: [
+        "../start.html"
+      ]
+    }),
+    /invalid entrypoint/
   );
 });
 
@@ -197,6 +232,8 @@ test("Electron main process keeps security defaults and staged policy explicit",
   assert.match(main, /nodeIntegration: false/);
   assert.match(main, /sandbox: true/);
   assert.match(main, /runtime-policy\.json/);
+  assert.match(main, /runtimeEntrypointUrl\(runtimePolicy\)/);
+  assert.doesNotMatch(main, /app:\/\/drydock\/index\.html/);
   assert.match(main, /setPermissionRequestHandler/);
   assert.match(main, /setWindowOpenHandler/);
   assert.doesNotMatch(main, /DRYDOCK_RUNTIME_ROOT/);

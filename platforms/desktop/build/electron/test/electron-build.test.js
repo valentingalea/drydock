@@ -160,6 +160,7 @@ test("stages Electron shell, project runtime, and exact runtime policy", async (
   const policy = JSON.parse(
     await readFile(join(stageDir, "runtime-policy.json"), "utf8")
   );
+  assert.equal(policy.entrypoint, "index.html");
   assert.ok(policy.runtimePaths.includes("index.html"));
   assert.ok(policy.runtimePaths.includes("game/src/value.js"));
   assert.ok(!policy.runtimePaths.includes("drydock-artifact.json"));
@@ -167,6 +168,41 @@ test("stages Electron shell, project runtime, and exact runtime policy", async (
   assert.deepEqual(policy.scriptHashes, [
     `sha256-${createHash("sha256").update(inlineScript).digest("base64")}`
   ]);
+});
+
+test("staged Electron policy preserves a custom entrypoint", async (context) => {
+  const state = await createElectronState(context, {
+    entrypoint: "ui/start.html"
+  });
+  const {
+    createRuntimeComposition,
+    stageRuntime
+  } = await import("../../../../../tools/composition.js");
+  const composition = await createRuntimeComposition(state.verified);
+  const stageDir = join(
+    state.fixture.projectRoot,
+    "artifacts/tmp/electron-stage/custom"
+  );
+
+  await prepareStagedApp({
+    composition,
+    identity,
+    release: {
+      version: "0.1.0"
+    },
+    stageDir,
+    stageRuntime
+  });
+
+  const policy = JSON.parse(
+    await readFile(join(stageDir, "runtime-policy.json"), "utf8")
+  );
+  assert.equal(policy.entrypoint, "ui/start.html");
+  assert.ok(policy.runtimePaths.includes("ui/start.html"));
+  await stat(join(stageDir, "runtime/ui/start.html"));
+  await assert.rejects(stat(join(stageDir, "runtime/index.html")), {
+    code: "ENOENT"
+  });
 });
 
 test("Electron build emits a generic schema-valid artifact", async (context) => {
@@ -250,6 +286,15 @@ test("Electron build rejects a symlinked output ancestor", async (context) => {
     }),
     /build output path must not contain symbolic links/
   );
+  await assert.rejects(
+    stat(join(
+      state.fixture.projectRoot,
+      "artifacts/tmp/electron-stage/linux-x64"
+    )),
+    {
+      code: "ENOENT"
+    }
+  );
 });
 
 test("public CLI dispatches the Electron build outside project cwd", async (context) => {
@@ -289,7 +334,9 @@ test("public CLI dispatches the Electron build outside project cwd", async (cont
   ));
 });
 
-async function createElectronState(context) {
+async function createElectronState(context, {
+  entrypoint = "index.html"
+} = {}) {
   const {
     createMinimalProject,
     harnessRoot,
@@ -297,7 +344,16 @@ async function createElectronState(context) {
   } = await import("../../../../../test/support/minimal-project.js");
   const fixture = await createMinimalProject(
     context,
-    undefined,
+    (descriptor) => {
+      if (entrypoint !== "index.html") {
+        descriptor.runtime.entrypoint = entrypoint;
+        descriptor.runtime.entries[0] = {
+          component: "game",
+          source: "start.html",
+          target: entrypoint
+        };
+      }
+    },
     async ({
       gameRoot,
       shippingRoot
@@ -312,6 +368,12 @@ async function createElectronState(context) {
           ""
         ].join("\n")
       );
+      if (entrypoint !== "index.html") {
+        await writeFile(
+          join(gameRoot, "start.html"),
+          "<!doctype html><title>Custom entrypoint</title>\n"
+        );
+      }
       await mkdir(join(shippingRoot, "releases"));
       await writeFile(
         join(shippingRoot, "releases", "0.1.0.yaml"),

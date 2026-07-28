@@ -1,8 +1,14 @@
-const { existsSync, readFileSync } = require("node:fs");
+const { readFileSync, statSync } = require("node:fs");
 const path = require("node:path");
 const { app, BrowserWindow, ipcMain, protocol, session } = require("electron");
 const { createElectronHostProvider, registerHostIpc } = require("./host-provider.js");
-const { appHost, appScheme, createAppProtocolHandler } = require("./protocol.js");
+const {
+  appHost,
+  appScheme,
+  createAppProtocolHandler,
+  runtimeEntrypointUrl,
+  validateRuntimePolicy
+} = require("./protocol.js");
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -20,28 +26,35 @@ if (typeof app.enableSandbox === "function") {
   app.enableSandbox();
 }
 
-function resolveRuntimeRoot() {
+function resolveRuntimeRoot(runtimePolicy) {
+  validateRuntimePolicy(runtimePolicy);
   const packagedRuntimeRoot = path.resolve(__dirname, "runtime");
 
-  if (existsSync(path.join(packagedRuntimeRoot, "index.html"))) {
-    return packagedRuntimeRoot;
+  const entrypointPath = path.resolve(
+    packagedRuntimeRoot,
+    ...runtimePolicy.entrypoint.split("/")
+  );
+
+  try {
+    if (statSync(entrypointPath).isFile()) {
+      return packagedRuntimeRoot;
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
   }
 
-  throw new Error("composed Electron runtime is missing; build the application first");
+  throw new Error(
+    `composed Electron runtime entrypoint is missing: ${runtimePolicy.entrypoint}`
+  );
 }
 
 function loadRuntimePolicy() {
   const policyPath = path.resolve(__dirname, "runtime-policy.json");
   const policy = JSON.parse(readFileSync(policyPath, "utf8"));
 
-  if (
-    !Array.isArray(policy.runtimePaths)
-    || !Array.isArray(policy.scriptHashes)
-  ) {
-    throw new Error("Electron runtime policy is invalid");
-  }
-
-  return policy;
+  return validateRuntimePolicy(policy);
 }
 
 function createWindowOptions(options = {}) {
@@ -77,7 +90,7 @@ function registerAppProtocol(protocolModule, runtimeRoot, runtimePolicy) {
   }));
 }
 
-function createWindow(options = {}) {
+function createWindow(runtimePolicy, options = {}) {
   const win = new BrowserWindow(createWindowOptions(options));
 
   win.removeMenu();
@@ -90,13 +103,13 @@ function createWindow(options = {}) {
     }
   });
 
-  win.loadURL(`${appScheme}://${appHost}/index.html`);
+  win.loadURL(runtimeEntrypointUrl(runtimePolicy));
   return win;
 }
 
 async function boot() {
-  const runtimeRoot = resolveRuntimeRoot();
   const runtimePolicy = loadRuntimePolicy();
+  const runtimeRoot = resolveRuntimeRoot(runtimePolicy);
 
   registerAppProtocol(protocol, runtimeRoot, runtimePolicy);
   await registerHostIpc(
@@ -104,11 +117,11 @@ async function boot() {
     createElectronHostProvider({ userDataPath: app.getPath("userData") })
   );
   configureSession(session.defaultSession);
-  createWindow();
+  createWindow(runtimePolicy);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      createWindow(runtimePolicy);
     }
   });
 }

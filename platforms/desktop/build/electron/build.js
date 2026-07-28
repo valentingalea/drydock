@@ -135,71 +135,73 @@ async function buildElectron({
   }
 
   const composition = await createRuntimeComposition(verified);
-  await prepareStagedApp({
-    composition,
-    identity,
-    release,
-    stageDir,
-    stageRuntime
-  });
-  await prepareEmptyOutputDirectory(context, outDir);
-
-  if (!options.skipPackage) {
-    await runElectronBuilder({
+  try {
+    await prepareStagedApp({
+      composition,
       identity,
-      outDir,
+      release,
       stageDir,
-      target
+      stageRuntime
     });
-  } else {
-    await createFakeUnpackedOutput({
+    await prepareEmptyOutputDirectory(context, outDir);
+
+    if (!options.skipPackage) {
+      await runElectronBuilder({
+        identity,
+        outDir,
+        stageDir,
+        target
+      });
+    } else {
+      await createFakeUnpackedOutput({
+        identity,
+        outDir,
+        target
+      });
+    }
+
+    const artifactRoot = artifactRootForTarget(target, identity);
+    await assertDirectory(resolve(outDir, artifactRoot));
+
+    const provenance = await createArtifactProvenance({
+      adapter: {
+        id: "electron",
+        package: "@drydock/desktop-electron"
+      },
+      releasePath,
+      verified
+    });
+    const manifest = await createArtifactManifest({
+      artifactRoot,
+      buildKey,
+      buildNumber,
       identity,
       outDir,
-      target
+      provenance,
+      release,
+      target,
+      verified
+    });
+
+    await validateArtifactManifest(manifest, context.harnessRoot);
+    await writeFile(
+      resolve(outDir, "drydock-artifact.json"),
+      `${JSON.stringify(manifest, null, 2)}\n`
+    );
+
+    stdout.write(
+      `built Electron artifact: ${portableRelative(context.projectRoot, outDir)}\n`
+    );
+    return {
+      manifest,
+      outDir
+    };
+  } finally {
+    await rm(stageDir, {
+      force: true,
+      recursive: true
     });
   }
-
-  await rm(stageDir, {
-    force: true,
-    recursive: true
-  });
-
-  const artifactRoot = artifactRootForTarget(target, identity);
-  await assertDirectory(resolve(outDir, artifactRoot));
-
-  const provenance = await createArtifactProvenance({
-    adapter: {
-      id: "electron",
-      package: "@drydock/desktop-electron"
-    },
-    releasePath,
-    verified
-  });
-  const manifest = await createArtifactManifest({
-    artifactRoot,
-    buildKey,
-    buildNumber,
-    identity,
-    outDir,
-    provenance,
-    release,
-    target,
-    verified
-  });
-
-  await validateArtifactManifest(manifest, context.harnessRoot);
-  await writeFile(
-    resolve(outDir, "drydock-artifact.json"),
-    `${JSON.stringify(manifest, null, 2)}\n`
-  );
-
-  stdout.write(
-    `built Electron artifact: ${portableRelative(context.projectRoot, outDir)}\n`
-  );
-  return {
-    manifest,
-    outDir
-  };
 }
 
 async function prepareStagedApp({
@@ -267,6 +269,7 @@ async function createRuntimePolicy(runtimeRoot, entrypoint) {
   const scriptHashes = inlineScriptHashes(entrypointHtml);
 
   return {
+    entrypoint,
     runtimePaths,
     scriptHashes
   };

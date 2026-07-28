@@ -29,8 +29,9 @@ creates a fake unpacked executable and is not a publishable build.
 - `main.js` registers a privileged `app://drydock` protocol.
 - `protocol.js` serves only the exact paths in the generated `runtime-policy.json` and
   adds CSP/security headers.
-- The staged policy hashes the selected entrypoint's inline scripts, including import
-  maps, without enabling arbitrary inline JavaScript.
+- The staged policy records and launches the selected entrypoint and hashes its inline
+  scripts, including import maps, without enabling arbitrary inline JavaScript.
+- Temporary runtime staging is removed on both successful and failed build attempts.
 - `preload.js` exposes `window.drydockHost` only.
 - `host-provider.js` validates all IPC and implements local file-backed storage.
 

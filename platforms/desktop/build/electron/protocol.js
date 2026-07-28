@@ -61,6 +61,44 @@ function runtimePathAllowed(pathname, runtimePaths) {
   );
 }
 
+function validateRuntimePolicy(policy) {
+  if (
+    !policy
+    || typeof policy !== "object"
+    || typeof policy.entrypoint !== "string"
+    || !Array.isArray(policy.runtimePaths)
+    || !Array.isArray(policy.scriptHashes)
+  ) {
+    throw new Error("Electron runtime policy is invalid");
+  }
+
+  const normalizedEntrypoint = normalizeRuntimePath(`/${policy.entrypoint}`);
+  if (
+    normalizedEntrypoint !== policy.entrypoint
+    || !policy.runtimePaths.includes(policy.entrypoint)
+  ) {
+    throw new Error("Electron runtime policy has an invalid entrypoint");
+  }
+
+  for (const runtimePath of policy.runtimePaths) {
+    if (normalizeRuntimePath(`/${runtimePath}`) !== runtimePath) {
+      throw new Error("Electron runtime policy contains an invalid runtime path");
+    }
+  }
+
+  createContentSecurityPolicy(policy.scriptHashes);
+  return policy;
+}
+
+function runtimeEntrypointUrl(policy) {
+  validateRuntimePolicy(policy);
+  const encodedPath = policy.entrypoint
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `${appScheme}://${appHost}/${encodedPath}`;
+}
+
 function createAppProtocolHandler(options = {}) {
   const {
     runtimePaths,
@@ -231,6 +269,8 @@ module.exports = {
   createAppProtocolHandler,
   createContentSecurityPolicy,
   resolveSafeRuntimePath,
+  runtimeEntrypointUrl,
   runtimePathAllowed,
-  serveAppRequest
+  serveAppRequest,
+  validateRuntimePolicy
 };
