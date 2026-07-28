@@ -44,8 +44,10 @@ node drydock/tools/drydock.js package downloads \
   --project shipping/drydock-project.json \
   --artifact artifacts/build/windows-x64/drydock-artifact.json
 
-pnpm --filter @drydock/channel-downloads run publish -- \
-  artifacts/channels/downloads
+DRYDOCK_DOWNLOADS_ROOT=/srv/games \
+  node drydock/tools/drydock.js publish downloads \
+    --project shipping/drydock-project.json \
+    --source artifacts/packages/downloads
 
 pnpm --filter @drydock/channel-downloads run verify -- \
   --base-url https://games.example.com/drydock-downloads/ \
@@ -53,8 +55,9 @@ pnpm --filter @drydock/channel-downloads run verify -- \
 ```
 
 The package script consumes `drydock-artifact.json`, preserves the artifact root inside
-the zip, writes a SHA-256 checksum, and renders `index.html`. The publish script replaces
-the configured download root with only public package files.
+the zip, writes a SHA-256 checksum, and renders `index.html`. The publish script verifies
+those checksums and replaces only `<operational-root>/<deploymentId>`, where
+`deploymentId` comes from `shipping/channels/downloads.yaml`.
 
 The schema-v3 input manifest preserves checksummed project/release declarations and
 exact project, Drydock, and component revisions. Packaging rejects development

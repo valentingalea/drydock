@@ -259,7 +259,7 @@ test("public publish command rejects unknown adapters before project loading", a
 
   assert.equal(exitCode, 2);
   assert.equal(output.value, "");
-  assert.match(errors.value, /usage: publish vps/);
+  assert.match(errors.value, /usage: publish <downloads\|vps>/);
   assert.doesNotMatch(errors.value, /invalid Drydock project/);
 });
 

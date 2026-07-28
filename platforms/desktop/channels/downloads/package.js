@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import yazl from "yazl";
 import {
@@ -146,32 +146,6 @@ function rejectDuplicate(seen, flag) {
   seen.add(flag);
 }
 
-export async function publishDownloads(options = {}) {
-  if (!options.source && !options._[0]) {
-    throw new Error("usage: node publish.js <downloads-dir> [--root path] [--dry-run]");
-  }
-
-  const source = await resolveExistingPath(options.source ?? options._[0]);
-  const root = resolve(options.root ?? "/var/www/drydock-downloads");
-  const files = await publicDownloadFiles(source);
-
-  if (options.dryRun) {
-    console.log(`would publish ${files.length} download files: ${source} -> ${root}`);
-    return { dryRun: true, files, root, source };
-  }
-
-  await rm(root, { recursive: true, force: true });
-  await mkdir(root, { recursive: true });
-
-  for (const file of files) {
-    await cp(resolve(source, file), resolve(root, file));
-  }
-
-  await writeFile(resolve(root, ".drydock-channel"), "downloads\n");
-  console.log(`published download files: ${source} -> ${root}`);
-  return { dryRun: false, files, root, source };
-}
-
 export async function verifyDownloads(options = {}) {
   const baseUrl = options.baseUrl ?? process.env.DRYDOCK_DOWNLOADS_URL;
 
@@ -310,27 +284,6 @@ async function createZip({ artifactRoot, manifestPath, prefix, sourceRoot, zipPa
   });
 }
 
-async function publicDownloadFiles(source) {
-  const files = [];
-
-  for (const entry of await readdir(source, { withFileTypes: true })) {
-    if (!entry.isFile()) {
-      continue;
-    }
-
-    if (
-      entry.name === "index.html"
-      || entry.name.endsWith(".zip")
-      || entry.name.endsWith(".zip.sha256")
-    ) {
-      files.push(entry.name);
-    }
-  }
-
-  files.sort();
-  return files;
-}
-
 async function renderIndex({ checksumName, digest, manifest, size, zipName }) {
   const sizeMb = (size / 1024 / 1024).toFixed(1);
 
@@ -370,23 +323,6 @@ async function validateManifest(manifest) {
   }
 }
 
-async function resolveExistingPath(path) {
-  const candidates = isAbsolute(path)
-    ? [path]
-    : [
-        resolve(process.cwd(), path),
-        resolve(repoRoot, path)
-      ];
-
-  for (const candidate of candidates) {
-    if (await exists(candidate)) {
-      return candidate;
-    }
-  }
-
-  return candidates.at(-1);
-}
-
 async function sha256File(path) {
   const hash = createHash("sha256");
 
@@ -405,19 +341,6 @@ async function assertDirectory(path) {
 
   if (!info.isDirectory()) {
     throw new Error(`artifact root is not a directory: ${path}`);
-  }
-}
-
-async function exists(path) {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      return false;
-    }
-
-    throw error;
   }
 }
 

@@ -1,9 +1,9 @@
 existing.example.com {
 	encode gzip zstd
 
-	redir /drydock-downloads /drydock-downloads/ 308
-	handle_path /drydock-downloads/* {
-		root * {$DRYDOCK_DOWNLOAD_ROOT:/srv/drydock/downloads}
+	redir /{$DRYDOCK_DOWNLOAD_ROUTE} /{$DRYDOCK_DOWNLOAD_ROUTE}/ 308
+	handle_path /{$DRYDOCK_DOWNLOAD_ROUTE}/* {
+		root * {$DRYDOCK_DOWNLOAD_ROOT}
 
 		@drydock_downloads_allowed path / /index.html /*.zip /*.zip.sha256
 		handle @drydock_downloads_allowed {

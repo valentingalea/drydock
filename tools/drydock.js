@@ -322,9 +322,19 @@ async function packageCommand({ args, ...input }) {
 }
 
 async function publishCommand({ args, ...input }) {
+  if (args[0] === "downloads") {
+    const { publishDownloadsCommand } = await import(
+      "../platforms/desktop/channels/downloads/publish.js"
+    );
+    return publishDownloadsCommand({
+      ...input,
+      args: args.slice(1)
+    });
+  }
+
   if (args[0] !== "vps") {
     input.stderr.write(
-      "ERROR: usage: publish vps --artifact PATH [options]\n"
+      "ERROR: usage: publish <downloads|vps> [options]\n"
     );
     return 2;
   }

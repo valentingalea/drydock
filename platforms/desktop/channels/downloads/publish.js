@@ -1,4 +1,274 @@
 #!/usr/bin/env node
-import { parseArgs, publishDownloads } from "./package.js";
+import { createHash } from "node:crypto";
+import {
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile
+} from "node:fs/promises";
+import {
+  isAbsolute,
+  relative,
+  resolve,
+  sep
+} from "node:path";
+import { loadChannelPolicy } from "../../../../tools/artifacts.js";
+import { resolveProjectPath } from "../../../../tools/drydock.js";
 
-await publishDownloads(parseArgs(process.argv.slice(2)));
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const { runCli } = await import("../../../../tools/drydock.js");
+  process.exitCode = await runCli([
+    "publish",
+    "downloads",
+    ...process.argv.slice(2)
+  ], {
+    invocationCwd: process.cwd()
+  });
+}
+
+export async function publishDownloadsCommand({
+  args,
+  context,
+  stderr,
+  stdout
+}) {
+  let options;
+  try {
+    options = parsePublishArgs(args);
+  } catch (error) {
+    stderr.write(`ERROR: ${error.message}\n`);
+    return 2;
+  }
+
+  await publishDownloads({
+    context,
+    options,
+    stdout
+  });
+  return 0;
+}
+
+export async function publishDownloads({
+  context,
+  env = process.env,
+  options,
+  stdout = process.stdout
+}) {
+  if (!context) {
+    throw new TypeError("project context is required");
+  }
+
+  const source = await resolvePackageSource(context, options.source);
+  const policy = await loadChannelPolicy({
+    channel: "downloads",
+    context,
+    value: options.channelPolicy
+  });
+  const deploymentId = deploymentIdFromPolicy(policy);
+  const rootBase = await resolveOperationalRoot(
+    options.root ?? env.DRYDOCK_DOWNLOADS_ROOT
+  );
+  const root = resolve(rootBase, deploymentId);
+  const files = await verifiedPublicFiles(source);
+
+  if (options.dryRun) {
+    stdout.write(
+      `would publish ${files.length} download files: ${source} -> ${root}\n`
+    );
+    return {
+      deploymentId,
+      dryRun: true,
+      files,
+      root,
+      source
+    };
+  }
+
+  await rm(root, { recursive: true, force: true });
+  await mkdir(root, { recursive: true });
+
+  for (const file of files) {
+    await cp(resolve(source, file), resolve(root, file));
+  }
+
+  await writeFile(resolve(root, ".drydock-channel"), "downloads\n");
+  stdout.write(`published download files: ${source} -> ${root}\n`);
+  return {
+    deploymentId,
+    dryRun: false,
+    files,
+    root,
+    source
+  };
+}
+
+export function parsePublishArgs(argv) {
+  const options = {};
+  const seen = new Set();
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (argument === "--source") {
+      rejectDuplicate(seen, argument);
+      options.source = requireValue(argv, ++index, argument);
+    } else if (argument === "--root") {
+      rejectDuplicate(seen, argument);
+      options.root = requireValue(argv, ++index, argument);
+    } else if (argument === "--channel-policy") {
+      rejectDuplicate(seen, argument);
+      options.channelPolicy = requireValue(argv, ++index, argument);
+    } else if (argument === "--dry-run") {
+      rejectDuplicate(seen, argument);
+      options.dryRun = true;
+    } else {
+      throw new Error(`unknown downloads publish argument: ${argument}`);
+    }
+  }
+
+  if (!options.source) {
+    throw new Error("--source is required");
+  }
+  return options;
+}
+
+async function resolvePackageSource(context, value) {
+  const requested = resolveProjectPath(context, value, "downloads source");
+  let artifactRoot;
+  let source;
+  try {
+    artifactRoot = await realpath(context.artifactRoot);
+    source = await realpath(requested);
+  } catch (error) {
+    throw new Error(`cannot resolve downloads source: ${error.message}`);
+  }
+
+  if (
+    source !== requested
+    || !pathWithin(artifactRoot, source)
+  ) {
+    throw new Error(
+      "downloads source must be a real directory below project artifacts"
+    );
+  }
+  if (!(await lstat(source)).isDirectory()) {
+    throw new Error("downloads source must be a directory");
+  }
+  return source;
+}
+
+function deploymentIdFromPolicy(policy) {
+  const deploymentId = policy?.snapshot?.deploymentId;
+  if (
+    typeof deploymentId !== "string"
+    || !/^[a-z0-9][a-z0-9._-]*$/u.test(deploymentId)
+  ) {
+    throw new Error(
+      "downloads channel policy requires a valid deploymentId"
+    );
+  }
+  return deploymentId;
+}
+
+async function resolveOperationalRoot(value) {
+  if (!value) {
+    throw new Error(
+      "downloads publish requires --root or DRYDOCK_DOWNLOADS_ROOT"
+    );
+  }
+  if (!isAbsolute(value)) {
+    throw new Error("downloads operational root must be an absolute path");
+  }
+
+  const root = resolve(value);
+  if (root === resolve(root, "..")) {
+    throw new Error(
+      "downloads operational root must not be a filesystem root"
+    );
+  }
+
+  const info = await lstat(root);
+  if (info.isSymbolicLink()) {
+    throw new Error(
+      "downloads operational root must not be a symbolic link"
+    );
+  }
+  if (!info.isDirectory()) {
+    throw new Error("downloads operational root must be a directory");
+  }
+  return realpath(root);
+}
+
+async function verifiedPublicFiles(source) {
+  const entries = await readdir(source, {
+    withFileTypes: true
+  });
+  const files = entries
+    .filter((entry) => (
+      entry.isFile()
+      && (
+        entry.name === "index.html"
+        || entry.name.endsWith(".zip")
+        || entry.name.endsWith(".zip.sha256")
+      )
+    ))
+    .map((entry) => entry.name)
+    .sort();
+  const zipNames = files.filter((name) => name.endsWith(".zip"));
+
+  if (!files.includes("index.html") || zipNames.length === 0) {
+    throw new Error(
+      "downloads source requires index.html and at least one zip"
+    );
+  }
+
+  for (const zipName of zipNames) {
+    const checksumName = `${zipName}.sha256`;
+    if (!files.includes(checksumName)) {
+      throw new Error(`downloads source is missing ${checksumName}`);
+    }
+    await verifyChecksum(source, zipName, checksumName);
+  }
+  return files;
+}
+
+async function verifyChecksum(source, zipName, checksumName) {
+  const line = await readFile(resolve(source, checksumName), "utf8");
+  const match = /^([a-f0-9]{64})  ([a-z0-9][a-z0-9._-]+\.zip)\n$/u.exec(line);
+  if (!match || match[2] !== zipName) {
+    throw new Error(`invalid download checksum file: ${checksumName}`);
+  }
+
+  const actual = createHash("sha256")
+    .update(await readFile(resolve(source, zipName)))
+    .digest("hex");
+  if (actual !== match[1]) {
+    throw new Error(`download checksum mismatch: ${zipName}`);
+  }
+}
+
+function pathWithin(root, candidate) {
+  const path = relative(root, candidate);
+  return path !== ""
+    && path !== ".."
+    && !path.startsWith(`..${sep}`)
+    && !isAbsolute(path);
+}
+
+function rejectDuplicate(seen, flag) {
+  if (seen.has(flag)) {
+    throw new Error(`${flag} may be provided only once`);
+  }
+  seen.add(flag);
+}
+
+function requireValue(argv, index, flag) {
+  const value = argv[index];
+  if (!value || value.startsWith("--")) {
+    throw new Error(`${flag} requires a value`);
+  }
+  return value;
+}

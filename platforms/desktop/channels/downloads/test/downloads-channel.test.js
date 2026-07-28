@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  stat,
+  symlink,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,10 +16,13 @@ import {
   packageDownloads,
   parseArgs,
   parsePackageArgs,
-  publishDownloads,
   resolveRouteUrl,
   verifyDownloads
 } from "../package.js";
+import {
+  parsePublishArgs,
+  publishDownloads
+} from "../publish.js";
 import {
   resolveProjectContext,
   runCli
@@ -87,9 +97,9 @@ const manifest = {
 test("downloads Caddy template exposes only the current package and checksum", async () => {
   const caddy = await readFile(join(import.meta.dirname, "../caddy.path.example"), "utf8");
 
-  assert.match(caddy, /handle_path \/drydock-downloads\/\*/);
+  assert.match(caddy, /handle_path \/\{\$DRYDOCK_DOWNLOAD_ROUTE\}\/\*/);
   assert.match(caddy, /DRYDOCK_DOWNLOAD_ROOT/);
-  assert.match(caddy, /\/srv\/drydock\/downloads/);
+  assert.doesNotMatch(caddy, /\/srv\//);
   assert.match(caddy, /\/\*\.zip/);
   assert.match(caddy, /\/\*\.zip\.sha256/);
   assert.match(caddy, /respond 404/);
@@ -111,6 +121,18 @@ test("parses downloads channel arguments", () => {
     name: "fixture-game-0.1.0-windows-x64.zip"
   });
   assert.throws(() => parsePackageArgs([]), /--artifact is required/);
+  assert.deepEqual(parsePublishArgs([
+    "--source",
+    "artifacts/packages/downloads",
+    "--root",
+    "/srv/games",
+    "--dry-run"
+  ]), {
+    dryRun: true,
+    root: "/srv/games",
+    source: "artifacts/packages/downloads"
+  });
+  assert.throws(() => parsePublishArgs([]), /--source is required/);
 
   assert.deepEqual(parseArgs([], {
     DRYDOCK_DOWNLOADS_URL: "https://example.com/drydock-downloads/"
@@ -216,16 +238,35 @@ test("downloads package and publish scripts handle a valid artifact root", async
   const checksum = await readFile(join(out, `${result.zipName}.sha256`), "utf8");
   assert.match(checksum, /^[a-f0-9]{64}  fixture-game-0\.1\.0-windows-x64\.zip\n$/);
 
-  await publishDownloads({
-    _: [out],
-    root
-  });
+  const linkedRoot = join(fixture.fixture.projectRoot, "linked-download-root");
+  await symlink(root, linkedRoot, "dir");
+  await assert.rejects(
+    publishDownloads({
+      context: fixture.context,
+      options: {
+        dryRun: true,
+        root: linkedRoot,
+        source: "artifacts/packages/downloads"
+      }
+    }),
+    /must not be a symbolic link/
+  );
 
-  await stat(join(root, result.zipName));
-  await stat(join(root, `${result.zipName}.sha256`));
-  await stat(join(root, "index.html"));
-  await stat(join(root, ".drydock-channel"));
-  await assert.rejects(stat(join(root, "stale.zip")), { code: "ENOENT" });
+  const resultPublish = await publishDownloads({
+    context: fixture.context,
+    options: {
+      root,
+      source: "artifacts/packages/downloads"
+    }
+  });
+  const deployedRoot = join(root, "fixture-game-downloads");
+
+  assert.equal(resultPublish.root, deployedRoot);
+  await stat(join(deployedRoot, result.zipName));
+  await stat(join(deployedRoot, `${result.zipName}.sha256`));
+  await stat(join(deployedRoot, "index.html"));
+  await stat(join(deployedRoot, ".drydock-channel"));
+  await stat(join(root, "stale.zip"));
 });
 
 test("public CLI packages from outside the project working directory", async (context) => {
@@ -253,6 +294,41 @@ test("public CLI packages from outside the project working directory", async (co
     output.value,
     /packaged download artifact: artifacts\/packages\/downloads\/fixture-game/
   );
+});
+
+test("public CLI publishes downloads from outside the project working directory", async (context) => {
+  const fixture = await createDownloadProject(context, manifest, {
+    executable: "fake exe\n"
+  });
+  await packageDownloads({
+    context: fixture.context,
+    options: {
+      artifact: fixture.artifactPath
+    }
+  });
+  const root = await mkdtemp(join(tmpdir(), "drydock-downloads-root-"));
+  const output = captureStream();
+  const errors = captureStream();
+
+  const exitCode = await runCli([
+    "publish",
+    "downloads",
+    "--project",
+    fixture.projectPath,
+    "--source",
+    "artifacts/packages/downloads",
+    "--root",
+    root,
+    "--dry-run"
+  ], {
+    invocationCwd: harnessRoot,
+    stderr: errors,
+    stdout: output
+  });
+
+  assert.equal(exitCode, 0, errors.value);
+  assert.equal(errors.value, "");
+  assert.match(output.value, /would publish .*fixture-game-downloads/);
 });
 
 test("downloads route verifier checks public package files and denied internal files", async () => {
@@ -303,7 +379,17 @@ async function createDownloadProject(
     payloadFile
   } = {}
 ) {
-  const fixture = await createMinimalProject(context);
+  const fixture = await createMinimalProject(
+    context,
+    undefined,
+    async ({ shippingRoot }) => {
+      await mkdir(join(shippingRoot, "channels"));
+      await writeFile(
+        join(shippingRoot, "channels", "downloads.yaml"),
+        "deploymentId: fixture-game-downloads\nroute: fixture-downloads\n"
+      );
+    }
+  );
   const artifactRoot = join(
     fixture.projectRoot,
     "artifacts",
@@ -337,6 +423,7 @@ async function createDownloadProject(
   return {
     artifactPath: "artifacts/build/windows-x64/drydock-artifact.json",
     context: projectContext,
+    fixture,
     projectPath: fixture.projectPath
   };
 }
