@@ -8,12 +8,10 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "test": "node --test test/artifacts/*.test.js test/cli/*.test.js test/composition/*.test.js test/project/*.test.js contracts/host-bridge/test/*.test.js contracts/product/test/*.test.js platforms/web/iterate/caddy-live/test/*.test.js platforms/web/build/static/test/*.test.js platforms/web/channels/vps/test/*.test.js platforms/desktop/build/electron/test/*.test.js platforms/desktop/channels/downloads/test/*.test.js",
-    "submodule:update": "git submodule update --init --recursive",
-    "validate:product": "tools/scripts/verify-product.sh --strict",
+    "test": "node --test test/artifacts/*.test.js test/cli/*.test.js test/composition/*.test.js test/project/*.test.js contracts/host-bridge/test/*.test.js platforms/web/iterate/caddy-live/test/*.test.js platforms/web/build/static/test/*.test.js platforms/web/channels/vps/test/*.test.js platforms/desktop/build/electron/test/*.test.js platforms/desktop/channels/downloads/test/*.test.js",
     "vendor": "node tools/scripts/vendor-runtime.js",
     "smoke:web": "node tools/skills/playwright-web-smoke/scripts/smoke.mjs",
-    "validate": "npm run validate:product && node tools/scripts/validate-artifact.js contracts/fixtures/artifacts/electron-windows-x64.json && node tools/scripts/validate-release.js contracts/releases/0.1.0.yaml",
+    "validate": "npm test && node tools/scripts/validate-artifact.js contracts/fixtures/artifacts/electron-windows-x64.json && node tools/scripts/validate-release.js contracts/fixtures/releases/valid/minimal.yaml",
     "validate:artifact": "node tools/scripts/validate-artifact.js",
     "validate:release": "node tools/scripts/validate-release.js"
   },

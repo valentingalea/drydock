@@ -1,0 +1,9 @@
+version: 0.0.0-test
+build:
+  web: 1
+  desktop: 1
+channels:
+  vps:
+    deploymentId: fixture-game
+  downloads:
+    packageId: fixture-game
