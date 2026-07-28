@@ -209,7 +209,8 @@ test("rejects unsafe shipping sources, reserved targets, and ambiguous mappings"
   const issues = validateProjectSemantics(descriptor);
   assert.equal(
     issues.includes(
-      "runtime entry 3 may select only explicit shipping integrations: releases/0.1.0.yaml"
+      "runtime entry 3 may select only explicit shipping integrations: "
+      + "shipping/releases/0.1.0.yaml"
     ),
     true
   );
@@ -232,6 +233,44 @@ test("rejects unsafe shipping sources, reserved targets, and ambiguous mappings"
       "runtime entry 7 overlaps reserved Drydock runtime: drydock-artifact.json"
     ),
     true
+  );
+});
+
+test("applies source restrictions to component roots and nested shipping roots", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.components.private = {
+    path: "private/Secrets",
+    revision: "project"
+  };
+  descriptor.components.channel = {
+    path: "shipping/channels",
+    revision: "project"
+  };
+  descriptor.runtime.entries.push(
+    {
+      component: "private",
+      source: "runtime.js",
+      target: "private/runtime.js"
+    },
+    {
+      component: "channel",
+      source: "vps.yaml",
+      target: "channel/vps.yaml"
+    }
+  );
+
+  const issues = validateProjectSemantics(descriptor);
+  assert.ok(
+    issues.includes(
+      "runtime entry 3 selects restricted project source: "
+      + "private/Secrets/runtime.js"
+    )
+  );
+  assert.ok(
+    issues.includes(
+      "runtime entry 4 may select only explicit shipping integrations: "
+      + "shipping/channels/vps.yaml"
+    )
   );
 });
 

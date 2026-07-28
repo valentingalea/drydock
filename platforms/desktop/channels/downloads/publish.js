@@ -240,9 +240,8 @@ async function verifiedPublicFiles(source, harnessRoot) {
       throw new Error(`downloads source is missing ${checksumName}`);
     }
     await verifyChecksum(source, zipName, checksumName);
-    const manifest = await readPackagedArtifactManifest(
-      resolve(source, zipName)
-    );
+    const zipPath = resolve(source, zipName);
+    const { manifest, prefix } = await readPackagedArtifactManifest(zipPath);
     await validateArtifactManifest(manifest, harnessRoot);
     if (manifest.buildAdapter !== "electron") {
       throw new Error(
@@ -254,6 +253,7 @@ async function verifiedPublicFiles(source, harnessRoot) {
         `downloads publishing rejects a non-releasable artifact: ${zipName}`
       );
     }
+    await verifyPackagedArtifactPayload(zipPath, manifest, prefix);
   }
   return files;
 }
@@ -263,6 +263,7 @@ async function readPackagedArtifactManifest(zipPath) {
 
   return new Promise((resolveManifest, rejectManifest) => {
     let manifestContents = null;
+    let manifestPrefix = null;
     let settled = false;
 
     const fail = (error) => {
@@ -288,6 +289,10 @@ async function readPackagedArtifactManifest(zipPath) {
         fail(new Error("downloads package artifact manifest is too large"));
         return;
       }
+      manifestPrefix = entry.fileName.slice(
+        0,
+        -"/drydock-artifact.json".length
+      );
 
       zip.openReadStream(entry, (error, stream) => {
         if (error) {
@@ -326,12 +331,112 @@ async function readPackagedArtifactManifest(zipPath) {
       try {
         const manifest = JSON.parse(manifestContents.toString("utf8"));
         settled = true;
-        resolveManifest(manifest);
+        resolveManifest({
+          manifest,
+          prefix: manifestPrefix
+        });
       } catch (error) {
         fail(new Error(
           `downloads package artifact manifest is invalid JSON: ${error.message}`
         ));
       }
+    });
+
+    zip.readEntry();
+  });
+}
+
+async function verifyPackagedArtifactPayload(zipPath, manifest, prefix) {
+  const expected = new Map();
+  for (const checksum of manifest.checksums) {
+    const entryName = `${prefix}/${checksum.path}`;
+    if (expected.has(entryName)) {
+      throw new Error(
+        `downloads package contains a duplicate artifact checksum path: ${checksum.path}`
+      );
+    }
+    expected.set(entryName, checksum);
+  }
+
+  const manifestEntry = `${prefix}/drydock-artifact.json`;
+  const zip = await openZip(zipPath);
+
+  return new Promise((resolveVerification, rejectVerification) => {
+    const seen = new Set();
+    let settled = false;
+
+    const fail = (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      zip.close();
+      rejectVerification(error);
+    };
+
+    zip.on("error", fail);
+    zip.on("entry", (entry) => {
+      if (entry.fileName.endsWith("/")) {
+        zip.readEntry();
+        return;
+      }
+      if (entry.fileName === manifestEntry) {
+        zip.readEntry();
+        return;
+      }
+
+      const checksum = expected.get(entry.fileName);
+      if (!checksum) {
+        fail(new Error(
+          `downloads package contains an unchecksummed artifact file: ${entry.fileName}`
+        ));
+        return;
+      }
+      if (seen.has(entry.fileName)) {
+        fail(new Error(
+          `downloads package contains a duplicate artifact file: ${entry.fileName}`
+        ));
+        return;
+      }
+      seen.add(entry.fileName);
+
+      zip.openReadStream(entry, (error, stream) => {
+        if (error) {
+          fail(error);
+          return;
+        }
+
+        const hash = createHash(checksum.algorithm);
+        stream.on("data", (chunk) => hash.update(chunk));
+        stream.on("error", fail);
+        stream.on("end", () => {
+          const actual = hash.digest("hex");
+          if (actual !== checksum.value) {
+            fail(new Error(
+              `downloads packaged artifact checksum mismatch: ${checksum.path}`
+            ));
+            return;
+          }
+          zip.readEntry();
+        });
+      });
+    });
+    zip.on("end", () => {
+      if (settled) {
+        return;
+      }
+
+      for (const [entryName, checksum] of expected) {
+        if (!seen.has(entryName)) {
+          fail(new Error(
+            `downloads package is missing checksummed artifact file: ${checksum.path}`
+          ));
+          return;
+        }
+      }
+
+      settled = true;
+      resolveVerification();
     });
 
     zip.readEntry();

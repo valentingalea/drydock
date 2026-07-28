@@ -23,6 +23,7 @@ import {
 } from "../../../../../test/support/minimal-project.js";
 import { parseArgs, publishVps } from "../publish.js";
 import {
+  liveRuntimePathsFromManifest,
   parseArgs as parseVerifyArgs,
   resolveRouteUrl,
   runtimePathsFromManifest,
@@ -233,6 +234,62 @@ test("VPS verifier preserves path-mounted route prefixes", () => {
       "/game/help#topic?.html"
     ),
     "https://example.com/releases/game/help%23topic%3F.html"
+  );
+});
+
+test("VPS verifier excludes the release-only redirect from custom-entrypoint live checks", async () => {
+  const manifest = {
+    checksums: [
+      {
+        path: "index.html"
+      },
+      {
+        path: "game/start.html"
+      }
+    ],
+    extensions: {
+      drydock: {
+        entrypoint: "game/start.html"
+      }
+    }
+  };
+  const liveRuntimePaths = liveRuntimePathsFromManifest(manifest);
+  const releaseRuntimePaths = runtimePathsFromManifest(manifest);
+  const requests = [];
+
+  await verifyVps({
+    fetchImpl: async (url) => {
+      const parsed = new URL(url);
+      const route = parsed.pathname.startsWith("/live/")
+        ? "live"
+        : "release";
+      const path = parsed.pathname.replace(/^\/(?:live|releases)/u, "") || "/";
+      requests.push({ path, route });
+      const denied = [
+        "/package.json",
+        "/.git/config",
+        "/shipping/drydock-project.json",
+        "/drydock-artifact.json",
+        "/.drydock-channel"
+      ].includes(path);
+      return new Response(null, {
+        status: denied ? 404 : 200
+      });
+    },
+    liveUrl: "https://example.com/live/",
+    manifest,
+    releaseUrl: "https://example.com/releases/"
+  });
+
+  assert.equal(liveRuntimePaths.includes("/index.html"), false);
+  assert.equal(releaseRuntimePaths.includes("/index.html"), true);
+  assert.equal(
+    requests.some(({ path, route }) => route === "live" && path === "/index.html"),
+    false
+  );
+  assert.equal(
+    requests.some(({ path, route }) => route === "release" && path === "/index.html"),
+    true
   );
 });
 

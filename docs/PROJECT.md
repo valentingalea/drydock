@@ -47,7 +47,10 @@ The main fields are:
 - `artifacts.root`: always `artifacts`.
 
 Component paths and mapping paths are repository-relative and may not escape their
-owners. A shipping overlay must name an explicit file and set `overlay: true`.
+owners. Source restrictions apply to the complete component-root-plus-source path, so
+nested component roots cannot reintroduce project tests, docs, secrets, Git metadata,
+or artifacts. Any component below root `shipping/` may select only an explicit file
+below `shipping/integrations/`; a shipping overlay must also set `overlay: true`.
 Validation requires the final overlaid entrypoint to exist as a file. Drydock reserves
 its host-runtime paths, generated metadata, and channel-private root paths:
 `.drydock-channel`, `.git/`, `drydock-artifact.json`, `package.json`, and `shipping/`.

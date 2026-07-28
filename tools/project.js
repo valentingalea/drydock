@@ -136,21 +136,19 @@ export function validateProjectSemantics(descriptor) {
     }
 
     if (!sourceIssue) {
-      const sourceSegments = entry.source.split("/");
-      if (
-        sourceSegments.some(
-          (segment) => RESTRICTED_SOURCE_SEGMENTS.has(segment.toLowerCase())
-        )
-      ) {
-        issues.push(`${label} selects restricted source: ${entry.source}`);
+      const sourcePolicy = projectRuntimeSourcePolicy(
+        descriptor.components[entry.component].path,
+        entry.source
+      );
+      if (sourcePolicy.restricted) {
+        issues.push(
+          `${label} selects restricted project source: ${sourcePolicy.path}`
+        );
       }
 
-      if (
-        descriptor.components[entry.component].path === "shipping"
-        && !entry.source.startsWith("integrations/")
-      ) {
+      if (sourcePolicy.shipping && !sourcePolicy.shippingIntegration) {
         issues.push(
-          `${label} may select only explicit shipping integrations: ${entry.source}`
+          `${label} may select only explicit shipping integrations: ${sourcePolicy.path}`
         );
       }
     }
@@ -213,6 +211,26 @@ export function validateProjectSemantics(descriptor) {
   }
 
   return issues;
+}
+
+export function projectRuntimeSourcePolicy(componentPath, source) {
+  const path = `${componentPath}/${source}`;
+  const segments = path.split("/");
+  const portableSegments = segments.map((segment) => segment.toLowerCase());
+  const shipping = portableSegments[0] === "shipping";
+
+  return Object.freeze({
+    path,
+    restricted: portableSegments.some(
+      (segment) => RESTRICTED_SOURCE_SEGMENTS.has(segment)
+    ),
+    shipping,
+    shippingIntegration: (
+      shipping
+      && portableSegments[1] === "integrations"
+      && portableSegments.length > 2
+    )
+  });
 }
 
 export async function validateProjectCommand({ args, context, stderr, stdout }) {

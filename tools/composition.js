@@ -15,6 +15,7 @@ import {
   resolve,
   sep
 } from "node:path";
+import { projectRuntimeSourcePolicy } from "./project.js";
 
 const RESERVED_RUNTIME_ENTRIES = [
   {
@@ -58,6 +59,10 @@ export async function createRuntimeComposition(verifiedProject) {
 
   for (const declaration of verifiedProject.project.descriptor.runtime.entries) {
     const component = verifiedProject.components[declaration.component];
+    const sourcePolicy = projectRuntimeSourcePolicy(
+      component.path,
+      declaration.source
+    );
     const mapping = await createMapping({
       declaration,
       owner: declaration.component,
@@ -67,11 +72,11 @@ export async function createRuntimeComposition(verifiedProject) {
     });
 
     if (
-      component.path === "shipping"
+      sourcePolicy.shipping
       && mapping.kind !== "file"
     ) {
       throw new CompositionError(
-        `shipping integration must be an explicit file: ${declaration.source}`
+        `shipping integration must be an explicit file: ${sourcePolicy.path}`
       );
     }
 

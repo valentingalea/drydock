@@ -381,6 +381,30 @@ test("downloads publishing rejects a packaged development artifact", async (cont
   );
 });
 
+test("downloads publishing verifies archived payload checksums", async (context) => {
+  const fixture = await createDownloadProject(context, manifest, {
+    executable: "fake exe\n"
+  });
+  const source = join(
+    fixture.fixture.projectRoot,
+    "artifacts/packages/tampered"
+  );
+  await writeHandcraftedDownloadsPackage(source, manifest);
+  const root = await mkdtemp(join(tmpdir(), "drydock-downloads-root-"));
+
+  await assert.rejects(
+    publishDownloads({
+      context: fixture.context,
+      options: {
+        dryRun: true,
+        root,
+        source: "artifacts/packages/tampered"
+      }
+    }),
+    /downloads packaged artifact checksum mismatch: win-unpacked\/fixture-game\.exe/
+  );
+});
+
 test("public CLI packages from outside the project working directory", async (context) => {
   const fixture = await createDownloadProject(context, manifest, {
     executable: "fake exe\n"

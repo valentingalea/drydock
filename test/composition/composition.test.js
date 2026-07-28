@@ -236,6 +236,20 @@ test("requires file-only shipping integrations and type-compatible overlays", as
     /shipping integration must be an explicit file/
   );
 
+  const nestedShippingDirectory = await createMinimalProject(
+    context,
+    (descriptor) => {
+      descriptor.components.shipping.path = "shipping/integrations";
+      const overlay = descriptor.runtime.entries.find((entry) => entry.overlay);
+      overlay.source = "drydock";
+      overlay.target = "game/src";
+    }
+  );
+  await assert.rejects(
+    loadMinimalComposition(nestedShippingDirectory),
+    /shipping integration must be an explicit file/
+  );
+
   const typeChange = await createMinimalProject(
     context,
     (descriptor) => {

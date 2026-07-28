@@ -24,7 +24,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export async function verifyVps(options = {}) {
-  const runtimePaths = (
+  const releaseRuntimePaths = (
     options.runtimePaths
     ?? (
       options.manifest
@@ -32,18 +32,39 @@ export async function verifyVps(options = {}) {
         : null
     )
   );
-  if (!Array.isArray(runtimePaths) || runtimePaths.length === 0) {
+  const liveRuntimePaths = (
+    options.runtimePaths
+    ?? (
+      options.manifest
+        ? liveRuntimePathsFromManifest(options.manifest)
+        : null
+    )
+  );
+  if (
+    !Array.isArray(releaseRuntimePaths)
+    || releaseRuntimePaths.length === 0
+    || !Array.isArray(liveRuntimePaths)
+    || liveRuntimePaths.length === 0
+  ) {
     throw new Error("VPS verification requires artifact-derived runtime paths");
   }
 
   const routes = [];
 
   if (options.liveUrl) {
-    routes.push({ name: "live", baseUrl: options.liveUrl });
+    routes.push({
+      name: "live",
+      baseUrl: options.liveUrl,
+      runtimePaths: liveRuntimePaths
+    });
   }
 
   if (options.releaseUrl) {
-    routes.push({ name: "release", baseUrl: options.releaseUrl });
+    routes.push({
+      name: "release",
+      baseUrl: options.releaseUrl,
+      runtimePaths: releaseRuntimePaths
+    });
   }
 
   if (routes.length === 0) {
@@ -60,7 +81,6 @@ export async function verifyVps(options = {}) {
     results.push(...await verifyRoute({
       ...route,
       fetchImpl,
-      runtimePaths,
       timeoutMs
     }));
   }
@@ -120,6 +140,16 @@ export function runtimePathsFromManifest(manifest) {
   }
 
   return [...paths].sort();
+}
+
+export function liveRuntimePathsFromManifest(manifest) {
+  const paths = runtimePathsFromManifest(manifest);
+  const entrypoint = manifest.extensions?.drydock?.entrypoint;
+
+  if (entrypoint && entrypoint !== "index.html") {
+    return paths.filter((path) => path !== "/index.html");
+  }
+  return paths;
 }
 
 export function parseArgs(argv, env = {}) {
