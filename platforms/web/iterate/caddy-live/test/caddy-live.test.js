@@ -58,8 +58,9 @@ test("caddy example proxies only to the localhost origin", async () => {
     "utf8"
   );
 
-  assert.match(caddy, /reverse_proxy 127\.0\.0\.1:8090/);
-  assert.doesNotMatch(caddy, /product/);
+  assert.match(caddy, /DRYDOCK_ITERATE_HOSTNAME/);
+  assert.match(caddy, /DRYDOCK_ITERATE_ORIGIN:127\.0\.0\.1:8090/);
+  assert.match(caddy, /DRYDOCK_ITERATE_LOG/);
   assert.doesNotMatch(caddy, /file_server/);
 });
 
@@ -69,10 +70,12 @@ test("path-mounted caddy example uses handle_path for existing domains", async (
     "utf8"
   );
 
-  assert.match(caddy, /redir \/drydock \/drydock\/ 308/);
-  assert.match(caddy, /handle_path \/drydock\/\*/);
-  assert.match(caddy, /reverse_proxy 127\.0\.0\.1:8090/);
-  assert.doesNotMatch(caddy, /product/);
+  assert.match(caddy, /DRYDOCK_HOSTNAME/);
+  assert.match(caddy, /DRYDOCK_ITERATE_ROUTE/);
+  assert.match(
+    caddy,
+    /DRYDOCK_ITERATE_ORIGIN:127\.0\.0\.1:8090/
+  );
   assert.doesNotMatch(caddy, /file_server/);
 });
 
@@ -87,9 +90,9 @@ test("systemd example invokes the project-aware localhost origin", async () => {
 
   assert.match(
     unit,
-    /start\.sh --project shipping\/drydock-project\.json --port 8090/
+    /start\.sh --project shipping\/drydock-project\.json --port \$\{DRYDOCK_ITERATE_PORT\}/
   );
-  assert.doesNotMatch(unit, /DRYDOCK_PRODUCT_ROOT/);
+  assert.match(unit, /Environment=DRYDOCK_ITERATE_PORT=8090/);
   assert.doesNotMatch(unit, /\/usr\/games\//);
   assert.match(unit, /IPAddressAllow=localhost/);
   assert.match(unit, /NoNewPrivileges=true/);

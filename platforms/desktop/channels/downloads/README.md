@@ -49,8 +49,8 @@ DRYDOCK_DOWNLOADS_ROOT=/srv/games \
     --project shipping/drydock-project.json \
     --source artifacts/packages/downloads
 
-pnpm --filter @drydock/channel-downloads run verify -- \
-  --base-url https://games.example.com/drydock-downloads/ \
+pnpm --dir drydock --filter @drydock/channel-downloads run verify -- \
+  --base-url https://game.example/downloads/ \
   --name example-game-0.1.0-windows-x64.zip
 ```
 
@@ -58,6 +58,8 @@ The package script consumes `drydock-artifact.json`, preserves the artifact root
 the zip, writes a SHA-256 checksum, and renders `index.html`. The publish script verifies
 those checksums and replaces only `<operational-root>/<deploymentId>`, where
 `deploymentId` comes from `shipping/channels/downloads.yaml`.
+Set the Caddy template's `DRYDOCK_DOWNLOAD_ROOT` to the complete published
+`<operational-root>/<deploymentId>` directory.
 
 The schema-v3 input manifest preserves checksummed project/release declarations and
 exact project, Drydock, and component revisions. Packaging rejects development

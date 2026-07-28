@@ -1,8 +1,8 @@
-existing.example.com {
+{$DRYDOCK_HOSTNAME} {
 	encode gzip zstd
 
-	redir /drydock /drydock/ 308
-	handle_path /drydock/* {
-		reverse_proxy 127.0.0.1:8090
+	redir /{$DRYDOCK_ITERATE_ROUTE} /{$DRYDOCK_ITERATE_ROUTE}/ 308
+	handle_path /{$DRYDOCK_ITERATE_ROUTE}/* {
+		reverse_proxy {$DRYDOCK_ITERATE_ORIGIN:127.0.0.1:8090}
 	}
 }

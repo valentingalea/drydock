@@ -1,9 +1,9 @@
-drydock.example.com {
+{$DRYDOCK_ITERATE_HOSTNAME} {
 	encode gzip zstd
 
-	reverse_proxy 127.0.0.1:8090
+	reverse_proxy {$DRYDOCK_ITERATE_ORIGIN:127.0.0.1:8090}
 
 	log {
-		output file /var/log/caddy/drydock-access.log
+		output file {$DRYDOCK_ITERATE_LOG}
 	}
 }

@@ -48,7 +48,7 @@ export async function verifyVps(options = {}) {
 
   if (routes.length === 0) {
     throw new Error(
-      "usage: node verify.js --live-url https://example.com/drydock/ --release-url https://example.com/drydock-release/"
+      "usage: node verify.js --artifact PATH --live-url https://game.example/live/ --release-url https://game.example/releases/"
     );
   }
 

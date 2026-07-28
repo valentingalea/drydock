@@ -150,7 +150,7 @@ export async function verifyDownloads(options = {}) {
   const baseUrl = options.baseUrl ?? process.env.DRYDOCK_DOWNLOADS_URL;
 
   if (!baseUrl) {
-    throw new Error("usage: node verify.js --base-url https://example.com/drydock-downloads/");
+    throw new Error("usage: node verify.js --base-url https://game.example/downloads/");
   }
 
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -205,34 +205,28 @@ export async function verifyDownloads(options = {}) {
   return results;
 }
 
-export function parseArgs(argv, env = {}) {
-  const options = { _: [] };
+export function parseVerifyArgs(argv, env = {}) {
+  const options = {};
+  const seen = new Set();
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
 
     if (arg === "--") {
       continue;
-    } else if (arg === "--manifest") {
-      options.manifest = requireValue(argv, ++i, arg);
-    } else if (arg === "--source") {
-      options.source = requireValue(argv, ++i, arg);
-    } else if (arg === "--out") {
-      options.out = requireValue(argv, ++i, arg);
-    } else if (arg === "--root") {
-      options.root = requireValue(argv, ++i, arg);
     } else if (arg === "--name") {
+      rejectDuplicate(seen, arg);
       options.name = requireValue(argv, ++i, arg);
     } else if (arg === "--base-url") {
+      rejectDuplicate(seen, arg);
       options.baseUrl = requireValue(argv, ++i, arg);
     } else if (arg === "--timeout-ms") {
+      rejectDuplicate(seen, arg);
       options.timeoutMs = parseTimeout(requireValue(argv, ++i, arg));
-    } else if (arg === "--dry-run") {
-      options.dryRun = true;
     } else if (arg.startsWith("--")) {
       throw new Error(`unknown argument: ${arg}`);
     } else {
-      options._.push(arg);
+      throw new Error(`unexpected positional argument: ${arg}`);
     }
   }
 

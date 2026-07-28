@@ -170,6 +170,7 @@ test("VPS Caddy templates keep allowlisted file serving explicit", async () => {
   const pathMounted = await readFile(join(import.meta.dirname, "../caddy.path.example"), "utf8");
 
   assert.match(wholeDomain, /DRYDOCK_WEB_ROOT/);
+  assert.match(wholeDomain, /DRYDOCK_HOSTNAME/);
   assert.doesNotMatch(wholeDomain, /\/srv\//);
   assert.match(wholeDomain, /\/package\.json/);
   assert.match(wholeDomain, /\/\.git\/\*/);
@@ -179,6 +180,7 @@ test("VPS Caddy templates keep allowlisted file serving explicit", async () => {
   assert.doesNotMatch(wholeDomain, /try_files \{path\} \/index\.html/);
   assert.match(pathMounted, /handle_path \/\{\$DRYDOCK_ROUTE\}\/\*/);
   assert.match(pathMounted, /DRYDOCK_WEB_ROOT/);
+  assert.match(pathMounted, /DRYDOCK_HOSTNAME/);
   assert.doesNotMatch(pathMounted, /\/srv\//);
   assert.match(pathMounted, /\/package\.json/);
   assert.match(pathMounted, /\/\.git\/\*/);
@@ -189,11 +191,11 @@ test("VPS Caddy templates keep allowlisted file serving explicit", async () => {
 
 test("parses VPS verify arguments and env defaults", () => {
   assert.deepEqual(parseVerifyArgs([], {
-    DRYDOCK_LIVE_URL: "https://example.com/drydock/",
-    DRYDOCK_RELEASE_URL: "https://example.com/drydock-release/"
+    DRYDOCK_LIVE_URL: "https://example.com/live/",
+    DRYDOCK_RELEASE_URL: "https://example.com/releases/"
   }), {
-    liveUrl: "https://example.com/drydock/",
-    releaseUrl: "https://example.com/drydock-release/"
+    liveUrl: "https://example.com/live/",
+    releaseUrl: "https://example.com/releases/"
   });
 
   assert.deepEqual(parseVerifyArgs([
@@ -218,12 +220,12 @@ test("parses VPS verify arguments and env defaults", () => {
 
 test("VPS verifier preserves path-mounted route prefixes", () => {
   assert.equal(
-    resolveRouteUrl("https://example.com/drydock", "/game/src/main.js"),
-    "https://example.com/drydock/game/src/main.js"
+    resolveRouteUrl("https://example.com/live", "/game/src/main.js"),
+    "https://example.com/live/game/src/main.js"
   );
   assert.equal(
-    resolveRouteUrl("https://example.com/drydock-release/", "/"),
-    "https://example.com/drydock-release/"
+    resolveRouteUrl("https://example.com/releases/", "/"),
+    "https://example.com/releases/"
   );
 });
 
@@ -252,7 +254,7 @@ test("VPS verifier checks public allow and deny paths for both route mounts", as
   const server = createHttpServer((request, response) => {
     const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
     const routePath = pathname.replace(
-      /^\/(?:drydock-release|drydock)/,
+      /^\/(?:releases|live)/,
       ""
     ) || "/";
     const denied = deniedPaths.has(routePath);
@@ -272,8 +274,8 @@ test("VPS verifier checks public allow and deny paths for both route mounts", as
     const { port } = server.address();
     const root = `http://127.0.0.1:${port}`;
     const results = await verifyVps({
-      liveUrl: `${root}/drydock/`,
-      releaseUrl: `${root}/drydock-release/`,
+      liveUrl: `${root}/live/`,
+      releaseUrl: `${root}/releases/`,
       manifest,
       timeoutMs: 1000
     });

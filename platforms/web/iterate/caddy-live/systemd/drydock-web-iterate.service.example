@@ -7,13 +7,14 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/path/to/game
-ExecStart=/path/to/game/drydock/platforms/web/iterate/caddy-live/start.sh --project shipping/drydock-project.json --port 8090
+Environment=DRYDOCK_ITERATE_PORT=8090
+ExecStart=/path/to/game/drydock/platforms/web/iterate/caddy-live/start.sh --project shipping/drydock-project.json --port ${DRYDOCK_ITERATE_PORT}
 Restart=on-failure
 RestartSec=2
 
 # Replace paths and account names to match the target host.
-User=drydock
-Group=drydock
+User=game-service
+Group=game-service
 
 NoNewPrivileges=true
 PrivateTmp=true

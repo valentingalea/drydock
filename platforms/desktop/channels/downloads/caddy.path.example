@@ -1,4 +1,4 @@
-existing.example.com {
+{$DRYDOCK_HOSTNAME} {
 	encode gzip zstd
 
 	redir /{$DRYDOCK_DOWNLOAD_ROUTE} /{$DRYDOCK_DOWNLOAD_ROUTE}/ 308

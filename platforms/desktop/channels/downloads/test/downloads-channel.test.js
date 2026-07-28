@@ -14,8 +14,8 @@ import test from "node:test";
 import {
   defaultZipName,
   packageDownloads,
-  parseArgs,
   parsePackageArgs,
+  parseVerifyArgs,
   resolveRouteUrl,
   verifyDownloads
 } from "../package.js";
@@ -99,6 +99,7 @@ test("downloads Caddy template exposes only the current package and checksum", a
 
   assert.match(caddy, /handle_path \/\{\$DRYDOCK_DOWNLOAD_ROUTE\}\/\*/);
   assert.match(caddy, /DRYDOCK_DOWNLOAD_ROOT/);
+  assert.match(caddy, /DRYDOCK_HOSTNAME/);
   assert.doesNotMatch(caddy, /\/srv\//);
   assert.match(caddy, /\/\*\.zip/);
   assert.match(caddy, /\/\*\.zip\.sha256/);
@@ -134,14 +135,13 @@ test("parses downloads channel arguments", () => {
   });
   assert.throws(() => parsePublishArgs([]), /--source is required/);
 
-  assert.deepEqual(parseArgs([], {
-    DRYDOCK_DOWNLOADS_URL: "https://example.com/drydock-downloads/"
+  assert.deepEqual(parseVerifyArgs([], {
+    DRYDOCK_DOWNLOADS_URL: "https://example.com/downloads/"
   }), {
-    _: [],
-    baseUrl: "https://example.com/drydock-downloads/"
+    baseUrl: "https://example.com/downloads/"
   });
 
-  assert.throws(() => parseArgs(["--name"]), /--name requires/);
+  assert.throws(() => parseVerifyArgs(["--name"]), /--name requires/);
 });
 
 test("default download zip name comes from artifact identity", () => {
@@ -344,10 +344,10 @@ test("downloads route verifier checks public package files and denied internal f
   ]);
 
   const results = await verifyDownloads({
-    baseUrl: "https://example.com/drydock-downloads/",
+    baseUrl: "https://example.com/downloads/",
     name: "fixture-game-0.1.0-windows-x64.zip",
     fetchImpl: async (url, options = {}) => {
-      const pathname = new URL(url).pathname.replace("/drydock-downloads", "") || "/";
+      const pathname = new URL(url).pathname.replace("/downloads", "") || "/";
 
       if (options.headers?.Range) {
         return new Response(Buffer.from("504b0304", "hex"), {
@@ -366,8 +366,8 @@ test("downloads route verifier checks public package files and denied internal f
 
 test("downloads route URL resolver preserves path-mounted prefixes", () => {
   assert.equal(
-    resolveRouteUrl("https://example.com/drydock-downloads", "/index.html"),
-    "https://example.com/drydock-downloads/index.html"
+    resolveRouteUrl("https://example.com/downloads", "/index.html"),
+    "https://example.com/downloads/index.html"
   );
 });
 

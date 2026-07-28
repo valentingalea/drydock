@@ -22,5 +22,9 @@ Mount this under a dedicated hostname or an existing domain path such as `/game/
 Caddy `handle_path`. Caddy proxies to the localhost-only origin; the origin itself
 enforces the descriptor-derived allowlist and returns `404` for undeclared files.
 
+The Caddy examples require deployment-specific hostname/route, origin, and log
+variables. When installing the systemd example, give each game a unique unit filename,
+service account, project root, and port.
+
 After starting the origin, verify the declared entrypoint and runtime imports load, and
 confirm that project metadata such as `/shipping/drydock-project.json` returns `404`.

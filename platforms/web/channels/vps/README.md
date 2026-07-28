@@ -48,21 +48,21 @@ sudo systemctl reload caddy
 Verify both public routes after a change:
 
 ```sh
-pnpm --filter @drydock/channel-vps run verify -- \
+pnpm --dir drydock --filter @drydock/channel-vps run verify -- \
   --artifact artifacts/build/web-static/drydock-artifact.json \
-  --live-url https://games.example.com/drydock/ \
-  --release-url https://games.example.com/drydock-release/
+  --live-url https://game.example/live/ \
+  --release-url https://game.example/releases/
 ```
 
 For render-level checks, use the Playwright smoke skill command:
 
 ```sh
-pnpm smoke:web -- https://games.example.com/drydock/
-pnpm smoke:web -- https://games.example.com/drydock-release/
+pnpm --dir drydock smoke:web -- https://game.example/live/
+pnpm --dir drydock smoke:web -- https://game.example/releases/
 ```
 
-The verifier expects the contract-selected product and Drydock host runtime paths to
-return `200`. Product metadata, tests, package files, and repository internals must return
+The verifier expects artifact-selected runtime and Drydock host paths to return `200`.
+Project metadata, tests, package files, and repository internals must return
 `404`.
 
 ## Caddy Templates
@@ -70,6 +70,6 @@ return `200`. Product metadata, tests, package files, and repository internals m
 - `caddy.example` is for a dedicated hostname.
 - `caddy.path.example` is for mounting under an existing hostname.
 
-The path-mounted example uses `/drydock/` for the live iterate origin and
-`/drydock-release/` for the configured packaged web root. Deployments may choose
-different prefixes.
+The path-mounted templates use explicit route variables for the live origin and
+packaged web root. Set `DRYDOCK_WEB_ROOT` to the complete published
+`<operational-root>/<deploymentId>` directory.
