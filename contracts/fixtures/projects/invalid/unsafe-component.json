@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "drydockContract": "1",
+  "product": {
+    "id": "fixture-game",
+    "name": "Fixture Game",
+    "executableName": "fixture-game",
+    "appId": "dev.example.fixture-game"
+  },
+  "host": {
+    "protocol": 1,
+    "requiredCapabilities": []
+  },
+  "components": {
+    "game": {
+      "path": "../game",
+      "revision": "project"
+    }
+  },
+  "runtime": {
+    "entrypoint": "index.html",
+    "entries": [
+      {
+        "component": "game",
+        "source": "index.html",
+        "target": "index.html"
+      }
+    ]
+  },
+  "artifacts": {
+    "root": "artifacts"
+  }
+}

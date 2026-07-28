@@ -1,0 +1,296 @@
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import test from "node:test";
+import { resolveProjectContext } from "../../tools/drydock.js";
+import {
+  DRYDOCK_CONTRACT_VERSION,
+  PROJECT_SCHEMA_VERSION,
+  ProjectValidationError,
+  loadProject,
+  validateProjectSemantics
+} from "../../tools/project.js";
+
+const repositoryRoot = resolve(import.meta.dirname, "../..");
+const entrypoint = resolve(repositoryRoot, "tools/drydock.js");
+const fixturesRoot = resolve(repositoryRoot, "contracts/fixtures/projects");
+
+test("loads the generic valid project fixture", async (context) => {
+  const fixture = await createProjectFromFixture(context, "valid/minimal.json");
+  const selected = await resolveProjectContext(fixture.projectPath, {
+    invocationCwd: fixture.root
+  });
+  const project = await loadProject(selected);
+
+  assert.equal(project.descriptor.schemaVersion, PROJECT_SCHEMA_VERSION);
+  assert.equal(project.descriptor.drydockContract, DRYDOCK_CONTRACT_VERSION);
+  assert.equal(project.descriptor.product.id, "fixture-game");
+  assert.equal(project.descriptor.host.protocol, 1);
+  assert.deepEqual(project.descriptor.host.requiredCapabilities, ["storage"]);
+});
+
+test("rejects an unsupported Drydock contract independently of schema shape", async (context) => {
+  const fixture = await createProjectFromFixture(
+    context,
+    "invalid/unsupported-contract.json"
+  );
+  const selected = await resolveProjectContext(fixture.projectPath, {
+    invocationCwd: fixture.root
+  });
+
+  await assert.rejects(
+    loadProject(selected),
+    (error) => (
+      error instanceof ProjectValidationError
+      && error.issues.includes("unsupported Drydock contract 2; supported: 1")
+    )
+  );
+});
+
+test("rejects unsupported schema and host protocol versions separately", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.schemaVersion = 2;
+  descriptor.host.protocol = 2;
+
+  assert.deepEqual(
+    validateProjectSemantics(descriptor).filter((issue) => issue.startsWith("unsupported")),
+    [
+      "unsupported project schema version 2; supported: 1",
+      "unsupported host protocol 2; supported: 1"
+    ]
+  );
+});
+
+test("rejects unknown components and unsafe component paths", async (context) => {
+  const unknown = await createProjectFromFixture(
+    context,
+    "invalid/unknown-component.json"
+  );
+  const unsafe = await createProjectFromFixture(
+    context,
+    "invalid/unsafe-component.json"
+  );
+
+  await assert.rejects(
+    loadProject(await resolveProjectContext(unknown.projectPath, {
+      invocationCwd: unknown.root
+    })),
+    (error) => (
+      error instanceof ProjectValidationError
+      && error.issues.includes("runtime entry 0 references unknown component: missing")
+    )
+  );
+
+  await assert.rejects(
+    loadProject(await resolveProjectContext(unsafe.projectPath, {
+      invocationCwd: unsafe.root
+    })),
+    (error) => (
+      error instanceof ProjectValidationError
+      && error.issues.includes(
+        "component game path must be a normalized project-relative path: ../game"
+      )
+    )
+  );
+});
+
+test("schema rejects unknown host capabilities and revision modes", async (context) => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.host.requiredCapabilities.push("timeTravel");
+  descriptor.components.engine.revision = "floating";
+  const fixture = await createProject(context, descriptor);
+  const selected = await resolveProjectContext(fixture.projectPath, {
+    invocationCwd: fixture.root
+  });
+
+  await assert.rejects(
+    loadProject(selected),
+    (error) => (
+      error instanceof ProjectValidationError
+      && error.issues.some((issue) => issue.includes("must be equal to one of the allowed values"))
+    )
+  );
+});
+
+test("rejects overlapping component roots and reserved component roots", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.components.assets = {
+    path: "game/assets",
+    revision: "project"
+  };
+  descriptor.components.harness = {
+    path: "drydock",
+    revision: "gitlink"
+  };
+
+  const issues = validateProjectSemantics(descriptor);
+  assert.equal(
+    issues.includes("component harness uses reserved root: drydock"),
+    true
+  );
+  assert.equal(
+    issues.includes("component roots overlap: game (game) and assets (game/assets)"),
+    true
+  );
+});
+
+test("rejects unsafe shipping sources, reserved targets, and ambiguous mappings", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.runtime.entries.push(
+    {
+      component: "shipping",
+      source: "releases/0.1.0.yaml",
+      target: "release.yaml"
+    },
+    {
+      component: "game",
+      source: "host.js",
+      target: "host-bridge.js"
+    },
+    {
+      component: "game",
+      source: "other",
+      target: "game"
+    },
+    {
+      component: "game",
+      source: "replacement.js",
+      target: "missing/replacement.js",
+      overlay: true
+    }
+  );
+
+  const issues = validateProjectSemantics(descriptor);
+  assert.equal(
+    issues.includes(
+      "runtime entry 4 may select only explicit shipping integrations: releases/0.1.0.yaml"
+    ),
+    true
+  );
+  assert.equal(
+    issues.includes("runtime entry 5 overlaps reserved Drydock runtime: host-bridge.js"),
+    true
+  );
+  assert.equal(
+    issues.includes("base runtime targets overlap: game/src and game"),
+    true
+  );
+  assert.equal(
+    issues.includes(
+      "runtime entry 7 overlay target is not supplied by a base mapping: missing/replacement.js"
+    ),
+    true
+  );
+});
+
+test("rejects an entrypoint that no base mapping supplies", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.runtime.entrypoint = "missing.html";
+
+  assert.equal(
+    validateProjectSemantics(descriptor).includes(
+      "runtime entrypoint is not supplied by a base mapping: missing.html"
+    ),
+    true
+  );
+});
+
+test("the public validate command accepts a valid descriptor", async (context) => {
+  const fixture = await createProjectFromFixture(context, "valid/minimal.json");
+  const result = spawnSync(
+    process.execPath,
+    [
+      entrypoint,
+      "validate",
+      "--project",
+      "shipping/drydock-project.json"
+    ],
+    {
+      cwd: fixture.projectRoot,
+      encoding: "utf8"
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    result.stdout,
+    "valid Drydock project: fixture-game (schema 1, contract 1, host 1)\n"
+  );
+  assert.equal(result.stderr, "");
+});
+
+test("the public validate command reports semantic errors without a stack trace", async (context) => {
+  const fixture = await createProjectFromFixture(
+    context,
+    "invalid/unknown-component.json"
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      entrypoint,
+      "validate",
+      "--project",
+      "shipping/drydock-project.json"
+    ],
+    {
+      cwd: fixture.projectRoot,
+      encoding: "utf8"
+    }
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(
+    result.stderr,
+    /runtime entry 0 references unknown component: missing/
+  );
+  assert.doesNotMatch(result.stderr, /\n\s+at /);
+  assert.equal(result.stdout, "");
+});
+
+test("the public validate command rejects command-specific arguments", async (context) => {
+  const fixture = await createProjectFromFixture(context, "valid/minimal.json");
+  const result = spawnSync(
+    process.execPath,
+    [
+      entrypoint,
+      "validate",
+      "--project",
+      "shipping/drydock-project.json",
+      "--extra"
+    ],
+    {
+      cwd: fixture.projectRoot,
+      encoding: "utf8"
+    }
+  );
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /validate does not accept arguments: --extra/);
+});
+
+async function createProjectFromFixture(context, fixturePath) {
+  return createProject(context, await readFixture(fixturePath));
+}
+
+async function createProject(context, descriptor) {
+  const root = await mkdtemp(join(tmpdir(), "drydock-project-contract-"));
+  context.after(() => rm(root, { force: true, recursive: true }));
+  const projectRoot = join(root, "game");
+  const shippingRoot = join(projectRoot, "shipping");
+  const projectPath = join(shippingRoot, "drydock-project.json");
+  await mkdir(shippingRoot, { recursive: true });
+  await writeFile(projectPath, `${JSON.stringify(descriptor, null, 2)}\n`);
+  return {
+    projectPath,
+    projectRoot,
+    root
+  };
+}
+
+async function readFixture(fixturePath) {
+  return JSON.parse(
+    await readFile(resolve(fixturesRoot, fixturePath), "utf8")
+  );
+}

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "drydockContract": "1",
+  "product": {
+    "id": "fixture-game",
+    "name": "Fixture Game",
+    "executableName": "fixture-game",
+    "appId": "dev.example.fixture-game"
+  },
+  "host": {
+    "protocol": 1,
+    "requiredCapabilities": [
+      "storage"
+    ]
+  },
+  "components": {
+    "game": {
+      "path": "game",
+      "revision": "project"
+    },
+    "engine": {
+      "path": "engine",
+      "revision": "gitlink"
+    },
+    "shipping": {
+      "path": "shipping",
+      "revision": "project"
+    }
+  },
+  "runtime": {
+    "entrypoint": "index.html",
+    "entries": [
+      {
+        "component": "game",
+        "source": "index.html",
+        "target": "index.html"
+      },
+      {
+        "component": "game",
+        "source": "src",
+        "target": "game/src"
+      },
+      {
+        "component": "engine",
+        "source": "src",
+        "target": "engine/src"
+      },
+      {
+        "component": "shipping",
+        "source": "integrations/drydock/platform-host.js",
+        "target": "game/src/platform-host.js",
+        "overlay": true
+      }
+    ]
+  },
+  "artifacts": {
+    "root": "artifacts"
+  }
+}
