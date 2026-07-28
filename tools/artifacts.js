@@ -98,10 +98,10 @@ export function sanitizeRemoteUrl(value) {
     return value;
   }
 
-  if (url.username || url.password) {
-    url.username = "";
-    url.password = "";
-  }
+  url.username = "";
+  url.password = "";
+  url.search = "";
+  url.hash = "";
   return url.href;
 }
 

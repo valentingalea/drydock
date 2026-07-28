@@ -211,6 +211,66 @@ test("release profile rejects dirty and local-only project commits", async (cont
   );
 });
 
+test("release profile rejects ignored content selected by runtime mappings", async (context) => {
+  const fixture = await createGitProject(context, undefined, {
+    ignoredPaths: [
+      "/game/src/generated.js",
+      "/local-cache/"
+    ],
+    projectRemote: true
+  });
+  await writeFile(
+    join(fixture.projectRoot, "game", "src", "generated.js"),
+    "export const generated = true;\n"
+  );
+  await mkdir(join(fixture.projectRoot, "local-cache"));
+  await writeFile(
+    join(fixture.projectRoot, "local-cache", "ignored.txt"),
+    "not a runtime input\n"
+  );
+
+  await assert.rejects(
+    loadAndVerify(fixture, "release"),
+    hasIssue(
+      "release runtime source has untracked content: game/src "
+      + "(game/src/generated.js)"
+    )
+  );
+
+  await rm(join(fixture.projectRoot, "game", "src", "generated.js"));
+  const verified = await loadAndVerify(fixture, "release");
+  assert.equal(verified.profile, "release");
+});
+
+test("release profile rejects ignored content reached through a tracked link", async (context) => {
+  const fixture = await createGitProject(context, undefined, {
+    ignoredPaths: [
+      "/game/generated/"
+    ],
+    projectRemote: true
+  });
+  await mkdir(join(fixture.projectRoot, "game", "generated"));
+  await writeFile(
+    join(fixture.projectRoot, "game", "generated", "runtime.js"),
+    "export const generated = true;\n"
+  );
+  await symlink(
+    "../generated/runtime.js",
+    join(fixture.projectRoot, "game", "src", "generated.js")
+  );
+  git(fixture.projectRoot, "add", "game/src/generated.js");
+  git(fixture.projectRoot, "commit", "-m", "add generated runtime link");
+  git(fixture.projectRoot, "push", "origin", "main");
+
+  await assert.rejects(
+    loadAndVerify(fixture, "release"),
+    hasIssue(
+      "release runtime source has untracked content: game/src "
+      + "(game/generated/runtime.js)"
+    )
+  );
+});
+
 async function createGitProject(context, mutateDescriptor, options = {}) {
   const root = await mkdtemp(join(tmpdir(), "drydock-components-"));
   context.after(() => rm(root, {

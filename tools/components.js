@@ -1,5 +1,10 @@
 import { execFile } from "node:child_process";
-import { lstat, realpath } from "node:fs/promises";
+import {
+  lstat,
+  readdir,
+  realpath,
+  stat
+} from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
@@ -54,6 +59,12 @@ export async function verifyProjectComponents(project, options = {}) {
     }
 
     if (profile === "release") {
+      await verifyTrackedRuntimeInputs(
+        descriptor.runtime.entries,
+        components,
+        projectRepository,
+        issues
+      );
       await verifyCleanRepository(
         projectRepository.root,
         "project repository",
@@ -280,6 +291,106 @@ async function verifyCleanRepository(root, label, issues) {
   }
 }
 
+async function verifyTrackedRuntimeInputs(
+  entries,
+  components,
+  projectRepository,
+  issues
+) {
+  const trackedFilesByRoot = new Map();
+
+  for (const entry of entries) {
+    const component = components[entry.component];
+    if (!component) {
+      continue;
+    }
+
+    const repositoryRoot = component.revision === "project"
+      ? projectRepository.root
+      : component.root;
+    let trackedFiles = trackedFilesByRoot.get(repositoryRoot);
+    if (!trackedFiles) {
+      trackedFiles = new Set(
+        (await gitRaw(repositoryRoot, "ls-files", "-z", "--cached"))
+          .split("\0")
+          .filter(Boolean)
+      );
+      trackedFilesByRoot.set(repositoryRoot, trackedFiles);
+    }
+
+    const requestedSource = resolve(component.root, entry.source);
+    const sourceFiles = await collectRuntimeInputFiles(
+      requestedSource,
+      component.root
+    );
+    const untracked = [];
+
+    for (const sourceFile of sourceFiles) {
+      const repositoryPath = relative(repositoryRoot, sourceFile)
+        .split(sep)
+        .join("/");
+      if (!trackedFiles.has(repositoryPath)) {
+        untracked.push(repositoryPath);
+      }
+    }
+
+    if (untracked.length > 0) {
+      untracked.sort();
+      const declaredPath = `${component.path}/${entry.source}`;
+      issues.push(
+        `release runtime source has untracked content: ${declaredPath} `
+        + `(${untracked.join(", ")})`
+      );
+    }
+  }
+}
+
+async function collectRuntimeInputFiles(requestedPath, ownerRoot, ancestors = new Set()) {
+  let requestedInfo;
+  let canonicalPath;
+  try {
+    requestedInfo = await lstat(requestedPath);
+    canonicalPath = await realpath(requestedPath);
+  } catch {
+    // Composition reports missing, broken, and cyclic inputs with its richer context.
+    return new Set();
+  }
+
+  if (!pathWithin(ownerRoot, canonicalPath)) {
+    return new Set();
+  }
+
+  const files = new Set();
+  if (requestedInfo.isSymbolicLink()) {
+    files.add(requestedPath);
+  }
+
+  const canonicalInfo = requestedInfo.isSymbolicLink()
+    ? await stat(canonicalPath)
+    : requestedInfo;
+  if (canonicalInfo.isFile()) {
+    files.add(canonicalPath);
+    return files;
+  }
+  if (!canonicalInfo.isDirectory() || ancestors.has(canonicalPath)) {
+    return files;
+  }
+
+  const nextAncestors = new Set(ancestors);
+  nextAncestors.add(canonicalPath);
+  for (const entry of await readdir(canonicalPath)) {
+    const childFiles = await collectRuntimeInputFiles(
+      resolve(canonicalPath, entry),
+      ownerRoot,
+      nextAncestors
+    );
+    for (const childFile of childFiles) {
+      files.add(childFile);
+    }
+  }
+  return files;
+}
+
 async function verifyReachableCommit(root, commit, label, issues) {
   let remote;
   try {
@@ -350,12 +461,16 @@ function parseStagedEntry(line) {
 }
 
 async function git(cwd, ...args) {
+  return (await gitRaw(cwd, ...args)).trim();
+}
+
+async function gitRaw(cwd, ...args) {
   const { stdout } = await execFileAsync("git", args, {
     cwd,
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024
   });
-  return stdout.trim();
+  return stdout;
 }
 
 function gitMessage(error) {

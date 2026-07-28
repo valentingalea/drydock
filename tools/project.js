@@ -363,6 +363,7 @@ function safeRelativePathIssue(value) {
   if (
     value.startsWith("/")
     || value.includes("\\")
+    || value.includes("\0")
     || value.endsWith("/")
     || value.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
   ) {

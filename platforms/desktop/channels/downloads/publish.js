@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import {
   cp,
   lstat,
@@ -465,9 +466,11 @@ async function verifyChecksum(source, zipName, checksumName) {
     throw new Error(`invalid download checksum file: ${checksumName}`);
   }
 
-  const actual = createHash("sha256")
-    .update(await readFile(resolve(source, zipName)))
-    .digest("hex");
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(resolve(source, zipName))) {
+    hash.update(chunk);
+  }
+  const actual = hash.digest("hex");
   if (actual !== match[1]) {
     throw new Error(`download checksum mismatch: ${zipName}`);
   }

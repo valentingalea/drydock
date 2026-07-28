@@ -164,6 +164,40 @@ test("rejects a product display name that can escape platform output paths", asy
   );
 });
 
+test("rejects NUL bytes in descriptor paths", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.components.game.path = "ga\0me";
+  descriptor.runtime.entries[0].source = "index\0.html";
+  descriptor.runtime.entries[0].target = "index\0.html";
+  descriptor.runtime.entrypoint = "index\0.html";
+
+  const issues = validateProjectSemantics(descriptor);
+  assert.equal(
+    issues.includes(
+      "component game path must be a normalized project-relative path: ga\0me"
+    ),
+    true
+  );
+  assert.equal(
+    issues.includes(
+      "runtime entry 0 source must be a normalized project-relative path: index\0.html"
+    ),
+    true
+  );
+  assert.equal(
+    issues.includes(
+      "runtime entry 0 target must be a normalized project-relative path: index\0.html"
+    ),
+    true
+  );
+  assert.equal(
+    issues.includes(
+      "runtime entrypoint must be a normalized project-relative path: index\0.html"
+    ),
+    true
+  );
+});
+
 test("rejects overlapping component roots and reserved component roots", async () => {
   const descriptor = await readFixture("valid/minimal.json");
   descriptor.components.assets = {

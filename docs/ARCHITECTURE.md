@@ -42,7 +42,10 @@ Components use one of two revision modes:
 
 Development verification permits dirty tracked content for iteration. Release
 verification requires clean project/component trees and commits reachable from their
-configured origins. A releasable build additionally requires the running Drydock
+configured origins. Every file selected by a release runtime mapping, including files
+reached through an in-component symbolic link, must be tracked by the recorded
+component revision; ignored files outside the runtime composition remain irrelevant.
+A releasable build additionally requires the running Drydock
 checkout to be the exact clean `drydock/` gitlink, reachable from its origin.
 
 ## Runtime composition
@@ -70,8 +73,9 @@ BUILD -> INTEGRATE -> PACKAGE / SIGN -> PUBLISH
 Development builds set `releasable: false`. Downstream release consumers reject them.
 A releasable artifact records checksummed project/release declarations, exact revisions,
 adapter/profile identity, optional channel policy, and checksums for staged files.
-Recorded remote URLs never retain embedded usernames or passwords. Release provenance
-preflight completes before a build adapter creates staging or output directories.
+Recorded remote URLs retain neither user information nor query/fragment data, where
+credentials are commonly embedded. Release provenance preflight completes before a
+build adapter creates staging or output directories.
 
 ## Current adapters
 

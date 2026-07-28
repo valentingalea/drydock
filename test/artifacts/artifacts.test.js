@@ -27,9 +27,11 @@ import {
 
 test("removes credentials from provenance remote URLs", () => {
   assert.equal(
-    sanitizeRemoteUrl(
-      "https://release-user:secret-token@example.com/games/fixture.git"
-    ),
+    sanitizeRemoteUrl([
+      "https://release-user:secret-token@example.com/games/fixture.git",
+      "?access_token=secret-token",
+      "#private-fragment"
+    ].join("")),
     "https://example.com/games/fixture.git"
   );
   assert.equal(

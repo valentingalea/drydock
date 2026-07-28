@@ -65,6 +65,8 @@ commands default to release verification:
 
 - the game commit is clean and reachable from `origin`;
 - each `gitlink` is initialized, clean, and at its recorded pin;
+- every file selected by a runtime mapping is tracked by its recorded component
+  revision, even when a repository ignore rule would otherwise hide it;
 - each required commit is reachable from its component origin;
 - `drydock/` is the exact clean gitlink used to run the command.
 
