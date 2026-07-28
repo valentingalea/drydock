@@ -224,6 +224,48 @@ test("rejects unsafe shipping sources, reserved targets, and ambiguous mappings"
   );
 });
 
+test("rejects portable case-folded path collisions", async () => {
+  const descriptor = await readFixture("valid/minimal.json");
+  descriptor.components.cache = {
+    path: "Artifacts/cache",
+    revision: "project"
+  };
+  descriptor.runtime.entries.push(
+    {
+      component: "game",
+      source: "host.js",
+      target: "Host-Bridge.js"
+    },
+    {
+      component: "game",
+      source: "assets",
+      target: "Game/SRC"
+    },
+    {
+      component: "shipping",
+      source: "integrations/drydock/alternate.js",
+      target: "Game/SRC/Platform-Host.js",
+      overlay: true
+    }
+  );
+
+  const issues = validateProjectSemantics(descriptor);
+  assert.ok(
+    issues.includes("component cache uses reserved root: Artifacts/cache")
+  );
+  assert.ok(
+    issues.includes("runtime entry 3 overlaps reserved Drydock runtime: Host-Bridge.js")
+  );
+  assert.ok(
+    issues.includes("base runtime targets overlap: game/src and Game/SRC")
+  );
+  assert.ok(
+    issues.includes(
+      "multiple overlays target the same path: Game/SRC/Platform-Host.js"
+    )
+  );
+});
+
 test("rejects an entrypoint that no base mapping supplies", async () => {
   const descriptor = await readFixture("valid/minimal.json");
   descriptor.runtime.entrypoint = "missing.html";

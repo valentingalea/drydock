@@ -2,10 +2,14 @@ const assert = require("node:assert/strict");
 const { createHash } = require("node:crypto");
 const {
   mkdir,
+  mkdtemp,
   readFile,
+  rm,
   stat,
+  symlink,
   writeFile
 } = require("node:fs/promises");
+const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const test = require("node:test");
 const {
@@ -213,6 +217,38 @@ test("Electron build emits a generic schema-valid artifact", async (context) => 
   assert.equal(
     output.value,
     "built Electron artifact: artifacts/build/linux-x64\n"
+  );
+});
+
+test("Electron build rejects a symlinked output ancestor", async (context) => {
+  const state = await createElectronState(context);
+  const external = await mkdtemp(join(tmpdir(), "drydock-electron-external-"));
+  context.after(() => rm(external, {
+    force: true,
+    recursive: true
+  }));
+  await mkdir(join(external, "linux-x64"));
+  await mkdir(join(state.fixture.projectRoot, "artifacts"));
+  await symlink(
+    external,
+    join(state.fixture.projectRoot, "artifacts", "linked-output"),
+    "dir"
+  );
+
+  await assert.rejects(
+    buildElectron({
+      context: state.context,
+      options: {
+        arch: "x64",
+        out: "artifacts/linked-output/linux-x64",
+        platform: "linux",
+        profile: "development",
+        release: "shipping/releases/0.1.0.yaml",
+        skipPackage: true
+      },
+      verified: state.verified
+    }),
+    /build output path must not contain symbolic links/
   );
 });
 

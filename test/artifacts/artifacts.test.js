@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   mkdir,
+  mkdtemp,
   readFile,
+  rm,
+  symlink,
   writeFile
 } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import {
   createArtifactProvenance,
   loadChannelPolicy,
-  validateArtifactManifest
+  validateArtifactManifest,
+  verifyArtifactChecksums
 } from "../../tools/artifacts.js";
 import {
   createMinimalProject,
@@ -111,6 +117,44 @@ test("artifact schema requires explicit, profile-consistent releasability", asyn
   await assert.rejects(
     validateArtifactManifest(inconsistent, harnessRoot),
     /invalid artifact manifest/
+  );
+});
+
+test("artifact verification requires an exact regular-file checksum set", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "drydock-artifact-tree-"));
+  context.after(() => rm(root, {
+    force: true,
+    recursive: true
+  }));
+  const manifestPath = join(root, "drydock-artifact.json");
+  const payloadPath = join(root, "payload.bin");
+  const manifest = {
+    checksums: [
+      {
+        algorithm: "sha256",
+        path: "payload.bin",
+        value: createHash("sha256").update("payload\n").digest("hex")
+      }
+    ]
+  };
+
+  await writeFile(manifestPath, "{}\n");
+  await writeFile(payloadPath, "payload\n");
+  await assert.doesNotReject(
+    verifyArtifactChecksums(manifest, manifestPath)
+  );
+
+  await writeFile(join(root, "stale.bin"), "stale\n");
+  await assert.rejects(
+    verifyArtifactChecksums(manifest, manifestPath),
+    /artifact file is not checksummed: stale\.bin/
+  );
+  await rm(join(root, "stale.bin"));
+
+  await symlink(payloadPath, join(root, "linked.bin"));
+  await assert.rejects(
+    verifyArtifactChecksums(manifest, manifestPath),
+    /artifact tree must not contain symbolic links: linked\.bin/
   );
 });
 

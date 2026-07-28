@@ -586,9 +586,10 @@ async function prepareEmptyOutputDirectory(context, outDir) {
     throw new Error("build output must be below the project artifact root");
   }
 
-  let current = outDir;
-  const missing = [];
-  while (current !== artifactRoot) {
+  let current = artifactRoot;
+  const segments = relative(artifactRoot, outDir).split(sep);
+  for (const segment of segments) {
+    current = resolve(current, segment);
     try {
       const info = await lstat(current);
       if (info.isSymbolicLink()) {
@@ -597,19 +598,27 @@ async function prepareEmptyOutputDirectory(context, outDir) {
       if (!info.isDirectory()) {
         throw new Error("build output parent is not a directory");
       }
-      break;
     } catch (error) {
       if (error.code !== "ENOENT") {
         throw error;
       }
-      missing.push(current);
-      current = dirname(current);
+      await mkdir(current);
+    }
+
+    const canonicalCurrent = await realpath(current);
+    if (!pathAtOrWithin(artifactRoot, canonicalCurrent)) {
+      throw new Error("build output resolves outside the project artifact root");
     }
   }
 
-  for (const path of missing.reverse()) {
-    await mkdir(path);
+  const canonicalOutDir = await realpath(outDir);
+  if (
+    canonicalOutDir !== outDir
+    || !pathWithin(artifactRoot, canonicalOutDir)
+  ) {
+    throw new Error("build output resolves outside the project artifact root");
   }
+
   if ((await readdir(outDir)).length > 0) {
     throw new Error("build output directory must be empty");
   }
@@ -712,6 +721,10 @@ function pathWithin(root, candidate) {
     && !pathFromRoot.startsWith(`..${sep}`)
     && !isAbsolute(pathFromRoot)
   );
+}
+
+function pathAtOrWithin(root, candidate) {
+  return candidate === root || pathWithin(root, candidate);
 }
 
 function portableRelative(root, target) {

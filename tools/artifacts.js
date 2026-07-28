@@ -141,8 +141,15 @@ export async function validateArtifactManifest(manifest, harnessRoot) {
 
 export async function verifyArtifactChecksums(manifest, manifestPath) {
   const manifestRoot = dirname(manifestPath);
+  const actualPaths = await listArtifactPaths(manifestRoot, manifestPath);
+  const expectedPaths = new Set();
 
   for (const checksum of manifest.checksums) {
+    if (expectedPaths.has(checksum.path)) {
+      throw new Error(`duplicate artifact checksum path: ${checksum.path}`);
+    }
+    expectedPaths.add(checksum.path);
+
     const filePath = resolve(
       manifestRoot,
       ...checksum.path.split("/")
@@ -153,6 +160,7 @@ export async function verifyArtifactChecksums(manifest, manifestPath) {
 
     let contents;
     try {
+      await assertRegularArtifactFile(manifestRoot, filePath, checksum.path);
       contents = await readFile(filePath);
     } catch (error) {
       throw new Error(
@@ -165,6 +173,17 @@ export async function verifyArtifactChecksums(manifest, manifestPath) {
       .digest("hex");
     if (actual !== checksum.value) {
       throw new Error(`artifact checksum mismatch: ${checksum.path}`);
+    }
+  }
+
+  for (const path of actualPaths) {
+    if (!expectedPaths.has(path)) {
+      throw new Error(`artifact file is not checksummed: ${path}`);
+    }
+  }
+  for (const path of expectedPaths) {
+    if (!actualPaths.has(path)) {
+      throw new Error(`artifact checksum path is not a regular file: ${path}`);
     }
   }
 }
@@ -198,9 +217,10 @@ export async function prepareArtifactOutputDirectory(context, value, label) {
     throw new Error(`${label} must be below project artifacts`);
   }
 
-  let current = requestedPath;
-  const missing = [];
-  while (current !== artifactRoot) {
+  let current = artifactRoot;
+  const segments = relative(artifactRoot, requestedPath).split(sep);
+  for (const segment of segments) {
+    current = resolve(current, segment);
     try {
       const info = await lstat(current);
       if (info.isSymbolicLink()) {
@@ -209,19 +229,27 @@ export async function prepareArtifactOutputDirectory(context, value, label) {
       if (!info.isDirectory()) {
         throw new Error(`${label} parent is not a directory`);
       }
-      break;
     } catch (error) {
       if (error.code !== "ENOENT") {
         throw error;
       }
-      missing.push(current);
-      current = dirname(current);
+      await mkdir(current);
+    }
+
+    const canonicalCurrent = await realpath(current);
+    if (!pathAtOrWithin(artifactRoot, canonicalCurrent)) {
+      throw new Error(`${label} resolves outside project artifacts`);
     }
   }
 
-  for (const path of missing.reverse()) {
-    await mkdir(path);
+  const canonicalRequestedPath = await realpath(requestedPath);
+  if (
+    canonicalRequestedPath !== requestedPath
+    || !pathWithin(artifactRoot, canonicalRequestedPath)
+  ) {
+    throw new Error(`${label} resolves outside project artifacts`);
   }
+
   if ((await readdir(requestedPath)).length > 0) {
     throw new Error(`${label} directory must be empty`);
   }
@@ -243,6 +271,47 @@ async function canonicalProjectArtifactRoot(context) {
     throw new Error("project artifact root resolves outside the project");
   }
   return canonicalRoot;
+}
+
+async function listArtifactPaths(root, manifestPath, current = root) {
+  const entries = await readdir(current, {
+    withFileTypes: true
+  });
+  const paths = new Set();
+
+  for (const entry of entries) {
+    const path = resolve(current, entry.name);
+    const portablePath = portableRelative(root, path);
+
+    if (entry.isSymbolicLink()) {
+      throw new Error(`artifact tree must not contain symbolic links: ${portablePath}`);
+    }
+    if (entry.isDirectory()) {
+      for (const nested of await listArtifactPaths(root, manifestPath, path)) {
+        paths.add(nested);
+      }
+    } else if (entry.isFile()) {
+      if (path !== manifestPath) {
+        paths.add(portablePath);
+      }
+    } else {
+      throw new Error(`artifact tree contains a non-regular entry: ${portablePath}`);
+    }
+  }
+
+  return paths;
+}
+
+async function assertRegularArtifactFile(root, path, portablePath) {
+  const info = await lstat(path);
+  if (info.isSymbolicLink() || !info.isFile()) {
+    throw new Error(`artifact checksum path is not a regular file: ${portablePath}`);
+  }
+
+  const canonicalPath = await realpath(path);
+  if (!pathWithin(root, canonicalPath) || canonicalPath !== path) {
+    throw new Error(`artifact checksum path escapes manifest root: ${portablePath}`);
+  }
 }
 
 async function verifyReleaseHarness(verified) {
@@ -401,6 +470,10 @@ function pathWithin(root, candidate) {
     && !pathFromRoot.startsWith(`..${sep}`)
     && !isAbsolute(pathFromRoot)
   );
+}
+
+function pathAtOrWithin(root, candidate) {
+  return candidate === root || pathWithin(root, candidate);
 }
 
 function portableRelative(root, target) {

@@ -132,7 +132,11 @@ export function validateProjectSemantics(descriptor) {
 
     if (!sourceIssue) {
       const sourceSegments = entry.source.split("/");
-      if (sourceSegments.some((segment) => RESTRICTED_SOURCE_SEGMENTS.has(segment))) {
+      if (
+        sourceSegments.some(
+          (segment) => RESTRICTED_SOURCE_SEGMENTS.has(segment.toLowerCase())
+        )
+      ) {
         issues.push(`${label} selects restricted source: ${entry.source}`);
       }
 
@@ -172,10 +176,11 @@ export function validateProjectSemantics(descriptor) {
 
   const overlayTargets = new Set();
   for (const { entry, index } of overlays) {
-    if (overlayTargets.has(entry.target)) {
+    const portableTarget = portablePathKey(entry.target);
+    if (overlayTargets.has(portableTarget)) {
       issues.push(`multiple overlays target the same path: ${entry.target}`);
     }
-    overlayTargets.add(entry.target);
+    overlayTargets.add(portableTarget);
 
     if (!baseEntries.some((base) => targetCovered(base.entry.target, entry.target))) {
       issues.push(`runtime entry ${index} overlay target is not supplied by a base mapping: ${entry.target}`);
@@ -316,13 +321,19 @@ function safeRelativePathIssue(value) {
 }
 
 function pathsOverlap(left, right) {
+  const portableLeft = portablePathKey(left);
+  const portableRight = portablePathKey(right);
   return (
-    left === right
-    || left.startsWith(`${right}/`)
-    || right.startsWith(`${left}/`)
+    portableLeft === portableRight
+    || portableLeft.startsWith(`${portableRight}/`)
+    || portableRight.startsWith(`${portableLeft}/`)
   );
 }
 
 function targetCovered(baseTarget, target) {
   return target === baseTarget || target.startsWith(`${baseTarget}/`);
+}
+
+function portablePathKey(path) {
+  return path.toLowerCase();
 }

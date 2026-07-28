@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  rm,
   stat,
   symlink,
   writeFile
@@ -207,6 +208,35 @@ test("downloads packaging rejects artifact checksum mismatches", async (context)
       }
     }),
     /artifact checksum mismatch/
+  );
+});
+
+test("downloads packaging rejects a symlinked output ancestor", async (context) => {
+  const fixture = await createDownloadProject(context, manifest, {
+    executable: "fake exe\n"
+  });
+  const external = await mkdtemp(join(tmpdir(), "drydock-downloads-external-"));
+  context.after(() => rm(external, {
+    force: true,
+    recursive: true
+  }));
+  const externalOutput = join(external, "downloads");
+  await mkdir(externalOutput);
+  await symlink(
+    external,
+    join(fixture.fixture.projectRoot, "artifacts", "packages"),
+    "dir"
+  );
+
+  await assert.rejects(
+    packageDownloads({
+      context: fixture.context,
+      options: {
+        artifact: fixture.artifactPath,
+        out: "artifacts/packages/downloads"
+      }
+    }),
+    /downloads output path must not contain symbolic links/
   );
 });
 
