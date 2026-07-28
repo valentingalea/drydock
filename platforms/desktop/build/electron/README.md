@@ -33,8 +33,10 @@ creates a fake unpacked executable and is not a publishable build.
   adds CSP/security headers.
 - The staged policy records and launches the selected entrypoint and hashes inline
   scripts in every served HTML document, including import maps, without enabling
-  arbitrary inline JavaScript.
+  arbitrary inline JavaScript. Hashing applies the HTML parser's newline normalization
+  so LF, CRLF, and bare-CR documents behave consistently.
 - Temporary runtime staging is removed on both successful and failed build attempts.
+  Build output may not overlap that transient staging tree.
 - `preload.js` exposes `window.drydockHost` only.
 - `host-provider.js` validates all IPC and implements local file-backed storage.
 

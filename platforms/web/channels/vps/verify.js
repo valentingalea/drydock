@@ -159,7 +159,12 @@ export function resolveRouteUrl(baseUrl, path) {
     return baseHref;
   }
 
-  return new URL(path.replace(/^\/+/, ""), baseHref).href;
+  const encodedPath = path
+    .replace(/^\/+/, "")
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return new URL(encodedPath, baseHref).href;
 }
 
 function parseTimeout(value) {

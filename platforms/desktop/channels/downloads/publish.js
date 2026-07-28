@@ -16,8 +16,14 @@ import {
   resolve,
   sep
 } from "node:path";
-import { loadChannelPolicy } from "../../../../tools/artifacts.js";
+import yauzl from "yauzl";
+import {
+  loadChannelPolicy,
+  validateArtifactManifest
+} from "../../../../tools/artifacts.js";
 import { resolveProjectPath } from "../../../../tools/drydock.js";
+
+const maxArtifactManifestBytes = 1024 * 1024;
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const { runCli } = await import("../../../../tools/drydock.js");
@@ -73,7 +79,10 @@ export async function publishDownloads({
     options.root ?? env.DRYDOCK_DOWNLOADS_ROOT
   );
   const root = resolve(rootBase, deploymentId);
-  const files = await verifiedPublicFiles(source);
+  const files = await verifiedPublicFiles(
+    source,
+    context.harnessRoot
+  );
 
   if (options.dryRun) {
     stdout.write(
@@ -202,7 +211,7 @@ async function resolveOperationalRoot(value) {
   return realpath(root);
 }
 
-async function verifiedPublicFiles(source) {
+async function verifiedPublicFiles(source, harnessRoot) {
   const entries = await readdir(source, {
     withFileTypes: true
   });
@@ -231,8 +240,117 @@ async function verifiedPublicFiles(source) {
       throw new Error(`downloads source is missing ${checksumName}`);
     }
     await verifyChecksum(source, zipName, checksumName);
+    const manifest = await readPackagedArtifactManifest(
+      resolve(source, zipName)
+    );
+    await validateArtifactManifest(manifest, harnessRoot);
+    if (manifest.buildAdapter !== "electron") {
+      throw new Error(
+        `downloads package contains an unsupported artifact: ${zipName}`
+      );
+    }
+    if (manifest.releasable !== true) {
+      throw new Error(
+        `downloads publishing rejects a non-releasable artifact: ${zipName}`
+      );
+    }
   }
   return files;
+}
+
+async function readPackagedArtifactManifest(zipPath) {
+  const zip = await openZip(zipPath);
+
+  return new Promise((resolveManifest, rejectManifest) => {
+    let manifestContents = null;
+    let settled = false;
+
+    const fail = (error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      zip.close();
+      rejectManifest(error);
+    };
+
+    zip.on("error", fail);
+    zip.on("entry", (entry) => {
+      if (!/^[^/]+\/drydock-artifact\.json$/u.test(entry.fileName)) {
+        zip.readEntry();
+        return;
+      }
+      if (manifestContents !== null) {
+        fail(new Error("downloads package contains duplicate artifact manifests"));
+        return;
+      }
+      if (entry.uncompressedSize > maxArtifactManifestBytes) {
+        fail(new Error("downloads package artifact manifest is too large"));
+        return;
+      }
+
+      zip.openReadStream(entry, (error, stream) => {
+        if (error) {
+          fail(error);
+          return;
+        }
+
+        const chunks = [];
+        let size = 0;
+        stream.on("data", (chunk) => {
+          size += chunk.length;
+          if (size > maxArtifactManifestBytes) {
+            stream.destroy(
+              new Error("downloads package artifact manifest is too large")
+            );
+            return;
+          }
+          chunks.push(chunk);
+        });
+        stream.on("error", fail);
+        stream.on("end", () => {
+          manifestContents = Buffer.concat(chunks);
+          zip.readEntry();
+        });
+      });
+    });
+    zip.on("end", () => {
+      if (settled) {
+        return;
+      }
+      if (manifestContents === null) {
+        fail(new Error("downloads package is missing its artifact manifest"));
+        return;
+      }
+
+      try {
+        const manifest = JSON.parse(manifestContents.toString("utf8"));
+        settled = true;
+        resolveManifest(manifest);
+      } catch (error) {
+        fail(new Error(
+          `downloads package artifact manifest is invalid JSON: ${error.message}`
+        ));
+      }
+    });
+
+    zip.readEntry();
+  });
+}
+
+function openZip(path) {
+  return new Promise((resolveZip, rejectZip) => {
+    yauzl.open(path, {
+      lazyEntries: true,
+      validateEntrySizes: true
+    }, (error, zip) => {
+      if (error) {
+        rejectZip(error);
+        return;
+      }
+      resolveZip(zip);
+    });
+  });
 }
 
 async function verifyChecksum(source, zipName, checksumName) {

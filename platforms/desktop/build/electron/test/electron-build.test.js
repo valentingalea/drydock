@@ -17,6 +17,7 @@ const {
   buildElectron,
   createStagedPackage,
   executableForTarget,
+  inlineScriptHashes,
   parseArgs,
   prepareStagedApp,
   resolveBuildTarget,
@@ -148,6 +149,21 @@ test("invokes the package-local Electron builder without a PATH lookup", async (
       "--config"
     ]
   );
+});
+
+test("normalizes HTML newlines before hashing inline scripts", () => {
+  const windowsHtml = [
+    "<!doctype html>",
+    "<script>",
+    "window.platform = \"windows\";",
+    "</script>",
+    ""
+  ].join("\r\n");
+  const normalizedScript = "\nwindow.platform = \"windows\";\n";
+
+  assert.deepEqual(inlineScriptHashes(windowsHtml), [
+    `sha256-${createHash("sha256").update(normalizedScript).digest("base64")}`
+  ]);
 });
 
 test("stages Electron shell, project runtime, and exact runtime policy", async (context) => {
@@ -369,6 +385,35 @@ test("Electron build rejects a symlinked output ancestor", async (context) => {
       verified: state.verified
     }),
     /build output path must not contain symbolic links/
+  );
+  await assert.rejects(
+    stat(join(
+      state.fixture.projectRoot,
+      "artifacts/tmp/electron-stage/linux-x64"
+    )),
+    {
+      code: "ENOENT"
+    }
+  );
+});
+
+test("Electron build rejects output inside its transient stage", async (context) => {
+  const state = await createElectronState(context);
+
+  await assert.rejects(
+    buildElectron({
+      context: state.context,
+      options: {
+        arch: "x64",
+        out: "artifacts/tmp/electron-stage/linux-x64/output",
+        platform: "linux",
+        profile: "development",
+        release: "shipping/releases/0.1.0.yaml",
+        skipPackage: true
+      },
+      verified: state.verified
+    }),
+    /build output must not overlap the transient Electron stage/
   );
   await assert.rejects(
     stat(join(

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { createWriteStream } from "node:fs";
 import {
   mkdir,
   mkdtemp,
@@ -12,6 +13,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import yauzl from "yauzl";
+import yazl from "yazl";
 import {
   defaultZipName,
   packageDownloads,
@@ -240,6 +243,58 @@ test("downloads packaging rejects a symlinked output ancestor", async (context) 
   );
 });
 
+test("downloads packaging rejects output nested inside its input artifact", async (context) => {
+  const fixture = await createDownloadProject(context, manifest, {
+    executable: "fake exe\n"
+  });
+  const nestedOutput = join(
+    fixture.fixture.projectRoot,
+    "artifacts/build/windows-x64/packages/downloads"
+  );
+
+  await assert.rejects(
+    packageDownloads({
+      context: fixture.context,
+      options: {
+        artifact: fixture.artifactPath,
+        out: "artifacts/build/windows-x64/packages/downloads"
+      }
+    }),
+    /downloads output must not overlap the input artifact/
+  );
+  await assert.rejects(stat(nestedOutput), {
+    code: "ENOENT"
+  });
+});
+
+test("downloads packaging includes a dot-root artifact manifest once", async (context) => {
+  const dotRootManifest = structuredClone(manifest);
+  dotRootManifest.artifactRoot = ".";
+  dotRootManifest.executable = "payload.bin";
+  dotRootManifest.checksums = [
+    {
+      path: "payload.bin",
+      algorithm: "sha256",
+      value: createHash("sha256").update("payload\n").digest("hex")
+    }
+  ];
+  const fixture = await createDownloadProject(context, dotRootManifest, {
+    payloadFile: "payload\n"
+  });
+  const result = await packageDownloads({
+    context: fixture.context,
+    options: {
+      artifact: fixture.artifactPath
+    }
+  });
+  const entries = await zipEntryNames(result.zipPath);
+
+  assert.equal(
+    entries.filter((name) => name.endsWith("/drydock-artifact.json")).length,
+    1
+  );
+});
+
 test("downloads package and publish scripts handle a valid artifact root", async (context) => {
   const fixture = await createDownloadProject(context, manifest, {
     executable: "fake exe\n"
@@ -297,6 +352,33 @@ test("downloads package and publish scripts handle a valid artifact root", async
   await stat(join(deployedRoot, "index.html"));
   await stat(join(deployedRoot, ".drydock-channel"));
   await stat(join(root, "stale.zip"));
+});
+
+test("downloads publishing rejects a packaged development artifact", async (context) => {
+  const development = structuredClone(manifest);
+  development.releasable = false;
+  development.provenance.adapter.profile = "development";
+  const fixture = await createDownloadProject(context, development, {
+    executable: "fake exe\n"
+  });
+  const source = join(
+    fixture.fixture.projectRoot,
+    "artifacts/packages/handcrafted"
+  );
+  await writeHandcraftedDownloadsPackage(source, development);
+  const root = await mkdtemp(join(tmpdir(), "drydock-downloads-root-"));
+
+  await assert.rejects(
+    publishDownloads({
+      context: fixture.context,
+      options: {
+        dryRun: true,
+        root,
+        source: "artifacts/packages/handcrafted"
+      }
+    }),
+    /downloads publishing rejects a non-releasable artifact/
+  );
 });
 
 test("public CLI packages from outside the project working directory", async (context) => {
@@ -465,4 +547,59 @@ function captureStream() {
       this.value += chunk;
     }
   };
+}
+
+async function writeHandcraftedDownloadsPackage(source, selectedManifest) {
+  const zipName = defaultZipName(selectedManifest);
+  const prefix = zipName.replace(/\.zip$/u, "");
+  const zipPath = join(source, zipName);
+  await mkdir(source, {
+    recursive: true
+  });
+
+  const zip = new yazl.ZipFile();
+  zip.addBuffer(
+    Buffer.from("fake executable\n"),
+    `${prefix}/win-unpacked/fixture-game.exe`
+  );
+  zip.addBuffer(
+    Buffer.from(`${JSON.stringify(selectedManifest, null, 2)}\n`),
+    `${prefix}/drydock-artifact.json`
+  );
+  const written = new Promise((resolveWrite, rejectWrite) => {
+    zip.outputStream
+      .pipe(createWriteStream(zipPath))
+      .on("close", resolveWrite)
+      .on("error", rejectWrite);
+  });
+  zip.end();
+  await written;
+
+  const digest = createHash("sha256")
+    .update(await readFile(zipPath))
+    .digest("hex");
+  await writeFile(join(source, `${zipName}.sha256`), `${digest}  ${zipName}\n`);
+  await writeFile(join(source, "index.html"), "<!doctype html>\n");
+}
+
+function zipEntryNames(path) {
+  return new Promise((resolveEntries, rejectEntries) => {
+    yauzl.open(path, {
+      lazyEntries: true
+    }, (error, zip) => {
+      if (error) {
+        rejectEntries(error);
+        return;
+      }
+
+      const entries = [];
+      zip.on("error", rejectEntries);
+      zip.on("entry", (entry) => {
+        entries.push(entry.fileName);
+        zip.readEntry();
+      });
+      zip.on("end", () => resolveEntries(entries));
+      zip.readEntry();
+    });
+  });
 }

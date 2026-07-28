@@ -63,7 +63,8 @@ pnpm --dir drydock smoke:web -- https://game.example/releases/
 
 The verifier expects artifact-selected runtime and Drydock host paths to return `200`.
 Project metadata, tests, package files, and repository internals must return
-`404`.
+`404`. Artifact path segments are URL-encoded before verification, so filenames
+containing URL delimiter characters are checked literally.
 
 ## Caddy Templates
 

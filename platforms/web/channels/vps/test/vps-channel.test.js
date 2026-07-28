@@ -227,6 +227,13 @@ test("VPS verifier preserves path-mounted route prefixes", () => {
     resolveRouteUrl("https://example.com/releases/", "/"),
     "https://example.com/releases/"
   );
+  assert.equal(
+    resolveRouteUrl(
+      "https://example.com/releases/",
+      "/game/help#topic?.html"
+    ),
+    "https://example.com/releases/game/help%23topic%3F.html"
+  );
 });
 
 test("VPS verifier checks public allow and deny paths for both route mounts", async () => {

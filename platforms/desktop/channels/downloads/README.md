@@ -55,9 +55,11 @@ pnpm --dir drydock --filter @drydock/channel-downloads run verify -- \
 ```
 
 The package script consumes `drydock-artifact.json`, preserves the artifact root inside
-the zip, writes a SHA-256 checksum, and renders `index.html`. The publish script verifies
-those checksums and replaces only `<operational-root>/<deploymentId>`, where
-`deploymentId` comes from `shipping/channels/downloads.yaml`.
+the zip, writes a SHA-256 checksum, and renders `index.html`. Package output must remain
+separate from the input artifact tree. The publish script verifies those checksums,
+opens every zip to validate its embedded artifact manifest and releasability, and
+replaces only `<operational-root>/<deploymentId>`, where `deploymentId` comes from
+`shipping/channels/downloads.yaml`.
 Set the Caddy template's `DRYDOCK_DOWNLOAD_ROOT` to the complete published
 `<operational-root>/<deploymentId>` directory.
 

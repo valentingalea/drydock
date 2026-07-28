@@ -127,6 +127,9 @@ async function buildElectron({
     "electron-stage",
     `${target.platform}-${target.arch}`
   );
+  if (pathsOverlap(outDir, stageDir)) {
+    throw new Error("build output must not overlap the transient Electron stage");
+  }
   const release = YAML.parse(await readFile(releasePath, "utf8"));
   const buildKey = options.buildKey ?? defaultBuildKey;
   const buildNumber = release?.build?.[buildKey];
@@ -297,9 +300,10 @@ async function runtimeScriptHashes(runtimeFiles) {
 function inlineScriptHashes(html) {
   const hashes = new Set();
   const scriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  const normalizedHtml = html.replace(/\r\n?/g, "\n");
   let match;
 
-  while ((match = scriptPattern.exec(html)) !== null) {
+  while ((match = scriptPattern.exec(normalizedHtml)) !== null) {
     if (/\ssrc\s*=/i.test(match[1])) {
       continue;
     }
@@ -767,6 +771,10 @@ function pathWithin(root, candidate) {
 
 function pathAtOrWithin(root, candidate) {
   return candidate === root || pathWithin(root, candidate);
+}
+
+function pathsOverlap(left, right) {
+  return pathAtOrWithin(left, right) || pathAtOrWithin(right, left);
 }
 
 function portableRelative(root, target) {

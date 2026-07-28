@@ -2,7 +2,14 @@
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import {
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep
+} from "node:path";
 import { fileURLToPath } from "node:url";
 import yazl from "yazl";
 import {
@@ -11,6 +18,7 @@ import {
   validateArtifactManifest,
   verifyArtifactChecksums
 } from "../../../../tools/artifacts.js";
+import { resolveProjectPath } from "../../../../tools/drydock.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const defaultOut = "artifacts/packages/downloads";
@@ -68,6 +76,14 @@ export async function packageDownloads({
   const sourceRoot = resolve(dirname(manifestPath), manifest.artifactRoot);
   await assertDirectory(sourceRoot);
 
+  const requestedOutDir = resolveProjectPath(
+    context,
+    options.out ?? defaultOut,
+    "downloads output"
+  );
+  if (pathsOverlap(dirname(manifestPath), requestedOutDir)) {
+    throw new Error("downloads output must not overlap the input artifact");
+  }
   const outDir = await prepareArtifactOutputDirectory(
     context,
     options.out ?? defaultOut,
@@ -263,6 +279,9 @@ async function createZip({ artifactRoot, manifestPath, prefix, sourceRoot, zipPa
   const archiveRoot = join(prefix, artifactRoot).split("\\").join("/");
 
   for (const filePath of files) {
+    if (filePath === manifestPath) {
+      continue;
+    }
     const archivePath = join(archiveRoot, relative(sourceRoot, filePath)).split("\\").join("/");
     zip.addFile(filePath, archivePath);
   }
@@ -359,6 +378,23 @@ function assertZipName(name) {
   if (!/^[a-z0-9][a-z0-9._-]+\.zip$/u.test(name)) {
     throw new Error("--name must be a safe .zip filename");
   }
+}
+
+function pathsOverlap(left, right) {
+  const pathFromLeft = relative(left, right);
+  const pathFromRight = relative(right, left);
+  return pathAtOrWithin(pathFromLeft) || pathAtOrWithin(pathFromRight);
+}
+
+function pathAtOrWithin(path) {
+  return (
+    path === ""
+    || (
+      path !== ".."
+      && !path.startsWith(`..${sep}`)
+      && !isAbsolute(path)
+    )
+  );
 }
 
 function parseTimeout(value) {
