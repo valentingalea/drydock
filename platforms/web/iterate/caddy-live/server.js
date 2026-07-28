@@ -1,24 +1,17 @@
 #!/usr/bin/env node
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { extname, resolve } from "node:path";
-import { execFile } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
+import { pathToFileURL } from "node:url";
 import {
-  loadProduct,
-  resolveProductRequest
-} from "../../../../tools/scripts/product.js";
+  CompositionError,
+  createRuntimeComposition,
+  readRuntimeFile
+} from "../../../../tools/composition.js";
+import { verifyProjectComponents } from "../../../../tools/components.js";
+import { loadProject } from "../../../../tools/project.js";
 
-const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../../..");
-const productRootOverride = process.env.DRYDOCK_PRODUCT_ROOT;
-const product = await loadProduct(repoRoot, {
-  productRoot: productRootOverride
-});
 const defaultPort = 8090;
-const host = "127.0.0.1";
-const execFileAsync = promisify(execFile);
+const defaultHost = "127.0.0.1";
 
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -35,15 +28,26 @@ const contentTypes = new Map([
   [".mp3", "audio/mpeg"]
 ]);
 
-export function getProductEntrypoint() {
-  return product.entrypoint;
+export function getProjectEntrypoint(composition) {
+  return composition.entrypoint;
 }
 
-export function runtimePathAllowed(pathname) {
-  return resolveProductRequest(product, pathname) !== null;
+export async function runtimePathAllowed(composition, pathname) {
+  try {
+    return await readRuntimeFile(composition, pathname) !== null;
+  } catch (error) {
+    if (error instanceof CompositionError) {
+      return false;
+    }
+    throw error;
+  }
 }
 
-export function createServer() {
+export function createServer(composition) {
+  if (!composition) {
+    throw new TypeError("composition is required");
+  }
+
   return createHttpServer(async (request, response) => {
     try {
       if (request.method !== "GET" && request.method !== "HEAD") {
@@ -52,31 +56,20 @@ export function createServer() {
       }
 
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
-      const pathname = decodeURIComponent(url.pathname);
+      const file = await readRuntimeFile(composition, url.pathname);
 
-      if (!runtimePathAllowed(pathname)) {
-        respond(response, 404, "not found");
-        return;
-      }
-
-      const filePath = resolveProductRequest(product, pathname);
-
-      if (!filePath) {
-        respond(response, 404, "not found");
-        return;
-      }
-
-      const fileStat = await stat(filePath);
-
-      if (!fileStat.isFile()) {
+      if (!file) {
         respond(response, 404, "not found");
         return;
       }
 
       response.writeHead(200, {
         "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-        "Content-Length": fileStat.size,
-        "Content-Type": contentTypes.get(extname(filePath)) ?? "application/octet-stream"
+        "Content-Length": file.contents.byteLength,
+        "Content-Type": (
+          contentTypes.get(extname(file.target))
+          ?? "application/octet-stream"
+        )
       });
 
       if (request.method === "HEAD") {
@@ -84,9 +77,9 @@ export function createServer() {
         return;
       }
 
-      createReadStream(filePath).pipe(response);
+      response.end(file.contents);
     } catch (error) {
-      if (error.code === "ENOENT") {
+      if (error instanceof CompositionError) {
         respond(response, 404, "not found");
         return;
       }
@@ -97,20 +90,63 @@ export function createServer() {
   });
 }
 
+export async function startLiveWeb({
+  args,
+  context,
+  host = defaultHost,
+  stdout = process.stdout
+}) {
+  const port = parsePort(args);
+  const project = await loadProject(context);
+  const verified = await verifyProjectComponents(project, {
+    profile: "development"
+  });
+  const composition = await createRuntimeComposition(verified);
+  const server = createServer(composition);
+
+  await new Promise((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(port, host, () => {
+      server.off("error", rejectListen);
+      resolveListen();
+    });
+  });
+
+  const address = server.address();
+  stdout.write(`Drydock live origin: http://${host}:${address.port}/\n`);
+  stdout.write(`Project entrypoint: ${composition.entrypoint}\n`);
+  stdout.write("Public access should go through a configured reverse proxy.\n");
+
+  return {
+    composition,
+    server
+  };
+}
+
 export function parsePort(argv) {
-  const portIndex = argv.indexOf("--port");
+  let port = defaultPort;
+  let seen = false;
 
-  if (portIndex === -1) {
-    return defaultPort;
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (argument !== "--port") {
+      throw new Error(`unknown web iteration argument: ${argument}`);
+    }
+    if (seen) {
+      throw new Error("--port may be provided only once");
+    }
+
+    const value = Number(argv[index + 1]);
+    if (!Number.isInteger(value) || value < 1 || value > 65535) {
+      throw new Error("--port must be an integer from 1 to 65535");
+    }
+
+    port = value;
+    seen = true;
+    index += 1;
   }
 
-  const value = Number.parseInt(argv[portIndex + 1], 10);
-
-  if (!Number.isInteger(value) || value < 1 || value > 65535) {
-    throw new Error("--port must be an integer from 1 to 65535");
-  }
-
-  return value;
+  return port;
 }
 
 function respond(response, status, body) {
@@ -121,28 +157,19 @@ function respond(response, status, body) {
   response.end(body);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  await verifyProductForStart();
-  const port = parsePort(process.argv.slice(2));
-  const server = createServer();
-
-  server.listen(port, host, () => {
-    console.log(`Drydock live origin: http://${host}:${port}/`);
-    console.log(`Product entrypoint: ${product.entrypoint}`);
-    console.log(`Product root: ${product.productRoot}`);
-    console.log("Public access should go through Caddy; do not bind this origin publicly.");
-  });
-}
-
-async function verifyProductForStart() {
-  if (productRootOverride) {
-    console.log("Using iteration-only DRYDOCK_PRODUCT_ROOT override.");
-    return;
-  }
-
-  const verifier = resolve(repoRoot, "tools/scripts/verify-product.sh");
-  const { stdout, stderr } = await execFileAsync(verifier, ["--start"]);
-
-  if (stdout.trim()) console.log(stdout.trim());
-  if (stderr.trim()) console.error(stderr.trim());
+if (
+  process.argv[1]
+  && import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  const { runCli } = await import("../../../../tools/drydock.js");
+  process.exitCode = await runCli(
+    [
+      "iterate",
+      "web",
+      ...process.argv.slice(2)
+    ],
+    {
+      invocationCwd: process.cwd()
+    }
+  );
 }

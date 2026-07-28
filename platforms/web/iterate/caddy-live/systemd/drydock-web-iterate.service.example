@@ -1,13 +1,13 @@
 [Unit]
 Description=Drydock live web iteration origin
-Documentation=file:/path/to/drydock/docs/ITERATE.md
+Documentation=file:/path/to/game/drydock/docs/ITERATE.md
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/path/to/drydock
-ExecStart=/path/to/drydock/platforms/web/iterate/caddy-live/start.sh --port 8090
+WorkingDirectory=/path/to/game
+ExecStart=/path/to/game/drydock/platforms/web/iterate/caddy-live/start.sh --project shipping/drydock-project.json --port 8090
 Restart=on-failure
 RestartSec=2
 

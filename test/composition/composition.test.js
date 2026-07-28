@@ -1,35 +1,27 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import {
   mkdir,
-  mkdtemp,
   readFile,
   rm,
   symlink,
   writeFile
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import test from "node:test";
 import {
   CompositionError,
-  createRuntimeComposition,
   readRuntimeFile,
   stageRuntime
 } from "../../tools/composition.js";
-import { verifyProjectComponents } from "../../tools/components.js";
-import { resolveProjectContext } from "../../tools/drydock.js";
-import { loadProject } from "../../tools/project.js";
-
-const harnessRoot = resolve(import.meta.dirname, "../..");
-const validFixturePath = resolve(
+import {
+  createMinimalProject,
   harnessRoot,
-  "contracts/fixtures/projects/valid/minimal.json"
-);
+  loadMinimalComposition
+} from "../support/minimal-project.js";
 
 test("uses the same mappings and overlay order for live reads and staging", async (context) => {
-  const fixture = await createGitProject(context);
-  const composition = await loadComposition(fixture);
+  const fixture = await createMinimalProject(context);
+  const composition = await loadMinimalComposition(fixture);
   const output = join(fixture.projectRoot, "artifacts", "runtime");
   const expected = new Map([
     ["index.html", "<!doctype html>\n"],
@@ -69,7 +61,9 @@ test("uses the same mappings and overlay order for live reads and staging", asyn
 });
 
 test("rejects unsafe live requests and returns null for absent files", async (context) => {
-  const composition = await loadComposition(await createGitProject(context));
+  const composition = await loadMinimalComposition(
+    await createMinimalProject(context)
+  );
 
   assert.equal(await readRuntimeFile(composition, "/missing.js"), null);
   for (const request of [
@@ -87,8 +81,8 @@ test("rejects unsafe live requests and returns null for absent files", async (co
 });
 
 test("rechecks containment after a source is replaced by an escaping link", async (context) => {
-  const fixture = await createGitProject(context);
-  const composition = await loadComposition(fixture);
+  const fixture = await createMinimalProject(context);
+  const composition = await loadMinimalComposition(fixture);
   const source = join(fixture.projectRoot, "game", "src", "value.js");
   const external = join(fixture.root, "outside.js");
   await writeFile(external, "export const outside = true;\n");
@@ -109,8 +103,8 @@ test("rechecks containment after a source is replaced by an escaping link", asyn
 });
 
 test("rejects a broken source link after composition", async (context) => {
-  const fixture = await createGitProject(context);
-  const composition = await loadComposition(fixture);
+  const fixture = await createMinimalProject(context);
+  const composition = await loadMinimalComposition(fixture);
   const source = join(fixture.projectRoot, "game", "src", "value.js");
   await rm(source);
   await symlink("missing.js", source);
@@ -129,11 +123,11 @@ test("rejects a broken source link after composition", async (context) => {
 });
 
 test("permits links that remain within their owning component", async (context) => {
-  const fixture = await createGitProject(context, undefined, async ({ gameRoot }) => {
+  const fixture = await createMinimalProject(context, undefined, async ({ gameRoot }) => {
     await writeFile(join(gameRoot, "shared.js"), "export const shared = true;\n");
     await symlink("../shared.js", join(gameRoot, "src", "shared-link.js"));
   });
-  const composition = await loadComposition(fixture);
+  const composition = await loadMinimalComposition(fixture);
   const output = join(fixture.projectRoot, "artifacts", "internal-link");
 
   assert.equal(
@@ -148,7 +142,7 @@ test("permits links that remain within their owning component", async (context) 
 });
 
 test("rejects restricted descendants and symbolic-link cycles", async (context) => {
-  const restricted = await createGitProject(
+  const restricted = await createMinimalProject(
     context,
     undefined,
     async ({ gameRoot }) => {
@@ -157,11 +151,11 @@ test("rejects restricted descendants and symbolic-link cycles", async (context) 
     }
   );
   await assert.rejects(
-    loadComposition(restricted),
+    loadMinimalComposition(restricted),
     /runtime source selects a restricted path in game/
   );
 
-  const cyclic = await createGitProject(
+  const cyclic = await createMinimalProject(
     context,
     undefined,
     async ({ gameRoot }) => {
@@ -169,23 +163,23 @@ test("rejects restricted descendants and symbolic-link cycles", async (context) 
     }
   );
   await assert.rejects(
-    loadComposition(cyclic),
+    loadMinimalComposition(cyclic),
     /runtime directory contains a symbolic-link cycle in game/
   );
 });
 
 test("requires file-only shipping integrations and type-compatible overlays", async (context) => {
-  const shippingDirectory = await createGitProject(context, (descriptor) => {
+  const shippingDirectory = await createMinimalProject(context, (descriptor) => {
     const overlay = descriptor.runtime.entries.find((entry) => entry.overlay);
     overlay.source = "integrations/drydock";
     overlay.target = "game/src";
   });
   await assert.rejects(
-    loadComposition(shippingDirectory),
+    loadMinimalComposition(shippingDirectory),
     /shipping integration must be an explicit file/
   );
 
-  const typeChange = await createGitProject(
+  const typeChange = await createMinimalProject(
     context,
     (descriptor) => {
       const overlay = descriptor.runtime.entries.find((entry) => entry.overlay);
@@ -198,14 +192,14 @@ test("requires file-only shipping integrations and type-compatible overlays", as
     }
   );
   await assert.rejects(
-    loadComposition(typeChange),
+    loadMinimalComposition(typeChange),
     /runtime overlay changes target type .*file to directory/
   );
 });
 
 test("contains staging below a new, empty artifact subdirectory", async (context) => {
-  const fixture = await createGitProject(context);
-  const composition = await loadComposition(fixture);
+  const fixture = await createMinimalProject(context);
+  const composition = await loadMinimalComposition(fixture);
   const artifactRoot = join(fixture.projectRoot, "artifacts");
   const outside = join(fixture.root, "outside");
   await mkdir(outside);
@@ -236,8 +230,8 @@ test("contains staging below a new, empty artifact subdirectory", async (context
     /stage output directory must be empty/
   );
 
-  const linkedFixture = await createGitProject(context);
-  const linkedComposition = await loadComposition(linkedFixture);
+  const linkedFixture = await createMinimalProject(context);
+  const linkedComposition = await loadMinimalComposition(linkedFixture);
   const linkedArtifactRoot = join(linkedFixture.projectRoot, "artifacts");
   await symlink(outside, linkedArtifactRoot);
   await assert.rejects(
@@ -245,87 +239,3 @@ test("contains staging below a new, empty artifact subdirectory", async (context
     /artifact root must not be a symbolic link/
   );
 });
-
-async function createGitProject(
-  context,
-  mutateDescriptor,
-  populateProject
-) {
-  const root = await mkdtemp(join(tmpdir(), "drydock-composition-"));
-  context.after(() => rm(root, {
-    force: true,
-    recursive: true
-  }));
-  const projectRoot = join(root, "project");
-  const gameRoot = join(projectRoot, "game");
-  const shippingRoot = join(projectRoot, "shipping");
-  const integrationRoot = join(shippingRoot, "integrations", "drydock");
-  const descriptor = JSON.parse(await readFile(validFixturePath, "utf8"));
-
-  await mutateDescriptor?.(descriptor);
-  await mkdir(join(gameRoot, "src"), {
-    recursive: true
-  });
-  await mkdir(integrationRoot, {
-    recursive: true
-  });
-  await writeFile(join(gameRoot, "index.html"), "<!doctype html>\n");
-  await writeFile(
-    join(gameRoot, "src", "platform-host.js"),
-    "export const platform = \"fallback\";\n"
-  );
-  await writeFile(
-    join(gameRoot, "src", "value.js"),
-    "export const value = 42;\n"
-  );
-  await writeFile(
-    join(integrationRoot, "platform-host.js"),
-    "export const platform = \"overlay\";\n"
-  );
-  await writeFile(
-    join(shippingRoot, "drydock-project.json"),
-    `${JSON.stringify(descriptor, null, 2)}\n`
-  );
-  await writeFile(join(projectRoot, ".gitignore"), "/artifacts/\n");
-  await populateProject?.({
-    gameRoot,
-    projectRoot,
-    shippingRoot
-  });
-
-  git(projectRoot, "init", "-b", "main");
-  git(projectRoot, "config", "user.name", "Drydock Tests");
-  git(projectRoot, "config", "user.email", "drydock-tests@example.invalid");
-  git(projectRoot, "add", ".");
-  git(projectRoot, "commit", "-m", "seed project");
-
-  return {
-    projectRoot,
-    root
-  };
-}
-
-async function loadComposition(fixture) {
-  const projectContext = await resolveProjectContext(
-    "shipping/drydock-project.json",
-    {
-      invocationCwd: fixture.projectRoot,
-      selectedHarnessRoot: harnessRoot
-    }
-  );
-  const project = await loadProject(projectContext);
-  const verified = await verifyProjectComponents(project);
-  return createRuntimeComposition(verified);
-}
-
-function git(cwd, ...args) {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    stdio: [
-      "ignore",
-      "pipe",
-      "pipe"
-    ]
-  }).trim();
-}

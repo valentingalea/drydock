@@ -15,6 +15,7 @@ const SUPPORTED_COMMANDS = new Set([
   "publish"
 ]);
 const DEFAULT_COMMANDS = Object.freeze({
+  iterate: iterateCommand,
   validate: validateProjectCommand
 });
 
@@ -253,6 +254,24 @@ export function helpText() {
     "  publish",
     ""
   ].join("\n");
+}
+
+async function iterateCommand({ args, ...input }) {
+  if (args[0] !== "web") {
+    input.stderr.write(
+      "ERROR: usage: iterate web [--port PORT]\n"
+    );
+    return 2;
+  }
+
+  const { startLiveWeb } = await import(
+    "../platforms/web/iterate/caddy-live/server.js"
+  );
+  await startLiveWeb({
+    ...input,
+    args: args.slice(1)
+  });
+  return 0;
 }
 
 function isDirectInvocation(moduleUrl, argvEntry) {

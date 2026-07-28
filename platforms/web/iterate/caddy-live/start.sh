@@ -2,4 +2,5 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec node "$SCRIPT_DIR/server.js" "$@"
+HARNESS_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+exec node "$HARNESS_ROOT/tools/drydock.js" iterate web "$@"

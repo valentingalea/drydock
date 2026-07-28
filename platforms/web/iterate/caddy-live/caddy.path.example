@@ -3,13 +3,6 @@ existing.example.com {
 
 	redir /drydock /drydock/ 308
 	handle_path /drydock/* {
-		@drydock_allowed path / /index.html /host-bridge.js /vendor/drydock-host-bridge/* /product/*
-		handle @drydock_allowed {
-			reverse_proxy 127.0.0.1:8090
-		}
-
-		handle {
-			respond 404
-		}
+		reverse_proxy 127.0.0.1:8090
 	}
 }
