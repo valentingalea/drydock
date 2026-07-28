@@ -13,6 +13,7 @@
     "ajv": "8.20.0",
     "electron": "43.2.0",
     "electron-builder": "26.15.3",
+    "parse5": "8.0.1",
     "yaml": "2.9.0"
   }
 }

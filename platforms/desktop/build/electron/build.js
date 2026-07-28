@@ -289,7 +289,9 @@ async function runtimeScriptHashes(runtimeFiles) {
       continue;
     }
 
-    for (const hash of inlineScriptHashes(await readFile(filePath, "utf8"))) {
+    for (const hash of await inlineScriptHashes(
+      await readFile(filePath, "utf8")
+    )) {
       hashes.add(hash);
     }
   }
@@ -297,23 +299,36 @@ async function runtimeScriptHashes(runtimeFiles) {
   return [...hashes].sort();
 }
 
-function inlineScriptHashes(html) {
+async function inlineScriptHashes(html) {
+  const { parse } = await import("parse5");
+  const document = parse(html);
   const hashes = new Set();
-  const scriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
-  const normalizedHtml = html.replace(/\r\n?/g, "\n");
-  let match;
 
-  while ((match = scriptPattern.exec(normalizedHtml)) !== null) {
-    if (/\ssrc\s*=/i.test(match[1])) {
-      continue;
+  visitHtmlNodes(document, (node) => {
+    if (
+      node.tagName !== "script"
+      || (node.attrs ?? []).some((attribute) => attribute.name === "src")
+    ) {
+      return;
     }
 
+    const text = (node.childNodes ?? [])
+      .map((child) => child.value ?? "")
+      .join("");
     hashes.add(
-      `sha256-${createHash("sha256").update(match[2]).digest("base64")}`
+      `sha256-${createHash("sha256").update(text).digest("base64")}`
     );
-  }
+  });
 
   return [...hashes].sort();
+}
+
+function visitHtmlNodes(node, visitor) {
+  visitor(node);
+
+  for (const child of node.childNodes ?? []) {
+    visitHtmlNodes(child, visitor);
+  }
 }
 
 async function runElectronBuilder({

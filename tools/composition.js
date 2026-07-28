@@ -1,6 +1,7 @@
 import {
   lstat,
   mkdir,
+  open,
   readFile,
   readdir,
   realpath,
@@ -156,6 +157,24 @@ export async function createRuntimeComposition(verifiedProject) {
 }
 
 export async function readRuntimeFile(composition, pathname) {
+  const file = await openRuntimeFile(composition, pathname);
+  if (!file) {
+    return null;
+  }
+
+  try {
+    return Object.freeze({
+      contents: await file.handle.readFile(),
+      owner: file.owner,
+      sourcePath: file.sourcePath,
+      target: file.target
+    });
+  } finally {
+    await file.handle.close();
+  }
+}
+
+export async function openRuntimeFile(composition, pathname) {
   const request = normalizeRuntimeRequest(pathname, composition.entrypoint);
   if (!request) {
     throw new CompositionError(`unsafe runtime request: ${pathname}`);
@@ -167,14 +186,15 @@ export async function readRuntimeFile(composition, pathname) {
       continue;
     }
 
-    const file = await readSafeSourceFile(mapping, sourcePath);
+    const file = await openSafeSourceFile(mapping, sourcePath);
     if (!file) {
       continue;
     }
 
     return Object.freeze({
-      contents: file.contents,
+      handle: file.handle,
       owner: mapping.owner,
+      size: file.size,
       sourcePath: file.sourcePath,
       target: request
     });
@@ -491,7 +511,7 @@ function sourcePathForRequest(mapping, request) {
     : null;
 }
 
-async function readSafeSourceFile(mapping, requestedPath) {
+async function openSafeSourceFile(mapping, requestedPath) {
   let canonicalPath;
   try {
     canonicalPath = await realpath(requestedPath);
@@ -539,10 +559,23 @@ async function readSafeSourceFile(mapping, requestedPath) {
     return null;
   }
 
-  return {
-    contents: await readFile(canonicalPath),
-    sourcePath: canonicalPath
-  };
+  const handle = await open(canonicalPath, "r");
+  try {
+    const handleStat = await handle.stat();
+    if (!handleStat.isFile()) {
+      await handle.close();
+      return null;
+    }
+
+    return {
+      handle,
+      size: handleStat.size,
+      sourcePath: canonicalPath
+    };
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
 }
 
 async function prepareArtifactRoot(artifactRoot, composition) {
@@ -624,17 +657,21 @@ async function assertSafeOutputPath(outDir, artifactRoot) {
 
 async function stageMapping(mapping, outDir) {
   if (mapping.kind === "file") {
-    const file = await readSafeSourceFile(mapping, mapping.requestedSourcePath);
+    const file = await openSafeSourceFile(mapping, mapping.requestedSourcePath);
     if (!file) {
       throw new CompositionError(
         `runtime source is no longer a file in ${mapping.owner}: ${mapping.source}`
       );
     }
     const targetPath = resolveStageTarget(outDir, mapping.target);
-    await mkdir(dirname(targetPath), {
-      recursive: true
-    });
-    await writeFile(targetPath, file.contents);
+    try {
+      await mkdir(dirname(targetPath), {
+        recursive: true
+      });
+      await writeFile(targetPath, await file.handle.readFile());
+    } finally {
+      await file.handle.close();
+    }
     return;
   }
 

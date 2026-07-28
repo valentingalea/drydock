@@ -230,6 +230,56 @@ test("server serves declared runtime files and denies repository files", async (
   }
 });
 
+test("HEAD reads file metadata without opening a body stream", async () => {
+  let closed = false;
+  let streamed = false;
+  const size = 5 * 1024 * 1024 * 1024;
+  const server = createServer(
+    {
+      entrypoint: "index.html"
+    },
+    {
+      async openRuntimeFile() {
+        return {
+          handle: {
+            async close() {
+              closed = true;
+            },
+            createReadStream() {
+              streamed = true;
+              throw new Error("HEAD must not open a body stream");
+            }
+          },
+          size,
+          target: "large.wasm"
+        };
+      }
+    }
+  );
+
+  await new Promise((resolveListen) => {
+    server.listen(0, "127.0.0.1", resolveListen);
+  });
+
+  try {
+    const { port } = server.address();
+    const response = await fetch(
+      `http://127.0.0.1:${port}/large.wasm`,
+      {
+        method: "HEAD"
+      }
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-length"), String(size));
+    assert.equal(await response.text(), "");
+    assert.equal(closed, true);
+    assert.equal(streamed, false);
+  } finally {
+    await new Promise((resolveClose) => server.close(resolveClose));
+  }
+});
+
 test("server redirects its root to a custom entrypoint", async (context) => {
   const composition = await createComposition(context, {
     entrypoint: "ui/start.html"

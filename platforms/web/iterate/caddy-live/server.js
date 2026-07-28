@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import {
   CompositionError,
   createRuntimeComposition,
-  readRuntimeFile
+  openRuntimeFile as openComposedRuntimeFile
 } from "../../../../tools/composition.js";
 import {
   DEV_HOST_CAPABILITIES
@@ -37,7 +37,12 @@ export function getProjectEntrypoint(composition) {
 
 export async function runtimePathAllowed(composition, pathname) {
   try {
-    return await readRuntimeFile(composition, pathname) !== null;
+    const file = await openComposedRuntimeFile(composition, pathname);
+    if (!file) {
+      return false;
+    }
+    await file.handle.close();
+    return true;
   } catch (error) {
     if (error instanceof CompositionError) {
       return false;
@@ -46,12 +51,16 @@ export async function runtimePathAllowed(composition, pathname) {
   }
 }
 
-export function createServer(composition) {
+export function createServer(composition, {
+  openRuntimeFile = openComposedRuntimeFile
+} = {}) {
   if (!composition) {
     throw new TypeError("composition is required");
   }
 
   return createHttpServer(async (request, response) => {
+    let file = null;
+
     try {
       if (request.method !== "GET" && request.method !== "HEAD") {
         respond(response, 405, "method not allowed");
@@ -67,29 +76,51 @@ export function createServer(composition) {
         response.end();
         return;
       }
-      const file = await readRuntimeFile(composition, url.pathname);
+      file = await openRuntimeFile(composition, url.pathname);
 
       if (!file) {
         respond(response, 404, "not found");
         return;
       }
 
-      response.writeHead(200, {
+      const headers = {
         "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-        "Content-Length": file.contents.byteLength,
+        "Content-Length": file.size,
         "Content-Type": (
           contentTypes.get(extname(file.target))
           ?? "application/octet-stream"
         )
-      });
+      };
 
       if (request.method === "HEAD") {
+        await file.handle.close();
+        file = null;
+        response.writeHead(200, headers);
         response.end();
         return;
       }
 
-      response.end(file.contents);
+      const stream = file.handle.createReadStream({
+        autoClose: true
+      });
+      file = null;
+      stream.once("error", (error) => {
+        console.error(error);
+        response.destroy(error);
+      });
+      response.once("close", () => {
+        stream.destroy();
+      });
+      response.writeHead(200, headers);
+      stream.pipe(response);
     } catch (error) {
+      if (file) {
+        await file.handle.close().catch(() => {});
+      }
+      if (response.headersSent) {
+        response.destroy(error);
+        return;
+      }
       if (error instanceof CompositionError) {
         respond(response, 404, "not found");
         return;

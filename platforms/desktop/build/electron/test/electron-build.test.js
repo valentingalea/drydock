@@ -161,17 +161,18 @@ test("invokes the package-local Electron builder without a PATH lookup", async (
   );
 });
 
-test("normalizes HTML newlines before hashing inline scripts", () => {
+test("uses HTML tokenization when hashing inline scripts", async () => {
   const windowsHtml = [
     "<!doctype html>",
-    "<script>",
+    "<script data-value=\">\">",
     "window.platform = \"windows\";",
-    "</script>",
+    "</script >",
+    "<script src=\"external.js\">ignored()</script>",
     ""
   ].join("\r\n");
   const normalizedScript = "\nwindow.platform = \"windows\";\n";
 
-  assert.deepEqual(inlineScriptHashes(windowsHtml), [
+  assert.deepEqual(await inlineScriptHashes(windowsHtml), [
     `sha256-${createHash("sha256").update(normalizedScript).digest("base64")}`
   ]);
 });
