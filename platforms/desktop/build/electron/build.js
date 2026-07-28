@@ -2,12 +2,16 @@
 const { createHash } = require("node:crypto");
 const { spawn } = require("node:child_process");
 const {
+  chmod,
+  copyFile,
   cp,
   lstat,
   mkdir,
+  mkdtemp,
   readFile,
   readdir,
   realpath,
+  rename,
   rm,
   stat,
   writeFile
@@ -179,7 +183,9 @@ async function buildElectron({
     }
 
     const artifactRoot = artifactRootForTarget(target, identity);
-    await assertDirectory(resolve(outDir, artifactRoot));
+    const artifactRootPath = resolve(outDir, artifactRoot);
+    await assertDirectory(artifactRootPath);
+    await materializeArtifactLinks(artifactRootPath);
 
     const manifest = await createArtifactManifest({
       artifactRoot,
@@ -726,6 +732,113 @@ async function assertDirectory(path) {
   }
 }
 
+async function materializeArtifactLinks(root) {
+  const requestedRoot = resolve(root);
+  const rootInfo = await lstat(requestedRoot);
+  const canonicalRoot = await realpath(requestedRoot);
+  if (
+    rootInfo.isSymbolicLink()
+    || !rootInfo.isDirectory()
+    || canonicalRoot !== requestedRoot
+  ) {
+    throw new Error("Electron artifact root must be a real directory");
+  }
+  if (!await artifactTreeContainsLinks(canonicalRoot)) {
+    return requestedRoot;
+  }
+
+  const temporaryRoot = await mkdtemp(
+    join(dirname(canonicalRoot), ".drydock-materialize-")
+  );
+  const materializedRoot = join(temporaryRoot, "materialized");
+  const originalRoot = join(temporaryRoot, "original");
+
+  try {
+    await copyMaterializedEntry(
+      canonicalRoot,
+      materializedRoot,
+      canonicalRoot,
+      new Set()
+    );
+    await rename(canonicalRoot, originalRoot);
+    try {
+      await rename(materializedRoot, canonicalRoot);
+    } catch (error) {
+      await rename(originalRoot, canonicalRoot);
+      throw error;
+    }
+    await rm(originalRoot, {
+      force: true,
+      recursive: true
+    });
+  } finally {
+    await rm(temporaryRoot, {
+      force: true,
+      recursive: true
+    });
+  }
+
+  return canonicalRoot;
+}
+
+async function artifactTreeContainsLinks(root) {
+  let containsLinks = false;
+  for (const entry of await readdir(root, {
+    withFileTypes: true
+  })) {
+    const path = join(root, entry.name);
+    if (entry.isSymbolicLink()) {
+      containsLinks = true;
+    } else if (entry.isDirectory()) {
+      containsLinks = await artifactTreeContainsLinks(path) || containsLinks;
+    } else if (!entry.isFile()) {
+      throw new Error(`Electron artifact contains a non-regular entry: ${path}`);
+    }
+  }
+  return containsLinks;
+}
+
+async function copyMaterializedEntry(source, target, artifactRoot, ancestors) {
+  const requestedInfo = await lstat(source);
+  let canonicalSource;
+  try {
+    canonicalSource = await realpath(source);
+  } catch (error) {
+    throw new Error(`cannot resolve Electron artifact link: ${error.message}`);
+  }
+  if (!pathAtOrWithin(artifactRoot, canonicalSource)) {
+    throw new Error("Electron artifact link resolves outside its artifact root");
+  }
+
+  const sourceInfo = requestedInfo.isSymbolicLink()
+    ? await stat(canonicalSource)
+    : requestedInfo;
+  if (sourceInfo.isFile()) {
+    await copyFile(canonicalSource, target);
+    await chmod(target, sourceInfo.mode & 0o777);
+    return;
+  }
+  if (!sourceInfo.isDirectory()) {
+    throw new Error("Electron artifact contains a non-regular entry");
+  }
+  if (ancestors.has(canonicalSource)) {
+    throw new Error("Electron artifact contains a symbolic-link cycle");
+  }
+
+  const nextAncestors = new Set(ancestors);
+  nextAncestors.add(canonicalSource);
+  await mkdir(target);
+  for (const entry of await readdir(canonicalSource)) {
+    await copyMaterializedEntry(
+      join(canonicalSource, entry),
+      join(target, entry),
+      artifactRoot,
+      nextAncestors
+    );
+  }
+  await chmod(target, sourceInfo.mode & 0o777);
+}
+
 async function listFiles(root) {
   const entries = await readdir(root, {
     withFileTypes: true
@@ -829,6 +942,7 @@ module.exports = {
   electronVersion,
   executableForTarget,
   inlineScriptHashes,
+  materializeArtifactLinks,
   normalizeArch,
   normalizePlatform,
   parseArgs,

@@ -16,10 +16,11 @@ import {
   validateArtifactManifest,
   verifyArtifactChecksums
 } from "../../../../tools/artifacts.js";
+import { isDirectInvocation } from "../../../../tools/drydock.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isDirectInvocation(import.meta.url, process.argv[1])) {
   const { runCli } = await import("../../../../tools/drydock.js");
   process.exitCode = await runCli([
     "publish",

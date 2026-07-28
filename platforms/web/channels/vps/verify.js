@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { isDirectInvocation } from "../../../../tools/drydock.js";
 
 const defaultTimeoutMs = 5000;
 
@@ -12,7 +13,7 @@ const deniedPaths = [
   "/.drydock-channel"
 ];
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isDirectInvocation(import.meta.url, process.argv[1])) {
   const options = parseArgs(process.argv.slice(2), process.env);
   if (!options.artifact) {
     throw new Error("VPS verification requires --artifact");

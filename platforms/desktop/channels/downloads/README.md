@@ -67,7 +67,9 @@ Set the Caddy template's `DRYDOCK_DOWNLOAD_ROOT` to the complete published
 
 The schema-v3 input manifest preserves checksummed project/release declarations and
 exact project, Drydock, and component revisions. Packaging rejects development
-artifacts unless `releasable` is explicitly `true`.
+artifacts unless `releasable` is explicitly `true`. Electron builds materialize
+contained macOS framework links before creating the manifest, so this channel still
+receives a regular-file-only artifact tree.
 
 ## Windows Signing
 

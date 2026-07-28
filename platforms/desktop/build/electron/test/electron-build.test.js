@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { createHash } = require("node:crypto");
 const {
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -18,6 +19,7 @@ const {
   createStagedPackage,
   executableForTarget,
   inlineScriptHashes,
+  materializeArtifactLinks,
   parseArgs,
   prepareStagedApp,
   resolveBuildTarget,
@@ -120,6 +122,74 @@ test("normalizes Electron build targets and project identity paths", () => {
     }),
     /unsupported/
   );
+});
+
+test("materializes contained Electron bundle links before checksumming", async (context) => {
+  const artifactRoot = await mkdtemp(join(tmpdir(), "drydock-electron-app-"));
+  const outsideRoot = await mkdtemp(join(tmpdir(), "drydock-electron-outside-"));
+  context.after(() => rm(artifactRoot, {
+    force: true,
+    recursive: true
+  }));
+  context.after(() => rm(outsideRoot, {
+    force: true,
+    recursive: true
+  }));
+
+  const versionRoot = join(artifactRoot, "Versions", "A");
+  await mkdir(join(versionRoot, "Resources"), {
+    recursive: true
+  });
+  await writeFile(
+    join(versionRoot, "fixture-game"),
+    "fake executable\n",
+    {
+      mode: 0o755
+    }
+  );
+  await writeFile(
+    join(versionRoot, "Resources", "info.txt"),
+    "framework resources\n"
+  );
+  await symlink("A", join(artifactRoot, "Versions", "Current"), "dir");
+  await symlink(
+    "Versions/Current/fixture-game",
+    join(artifactRoot, "fixture-game")
+  );
+  await symlink(
+    "Versions/Current/Resources",
+    join(artifactRoot, "Resources"),
+    "dir"
+  );
+
+  await materializeArtifactLinks(artifactRoot);
+
+  assert.equal(
+    (await lstat(join(artifactRoot, "Versions", "Current"))).isDirectory(),
+    true
+  );
+  assert.equal(
+    (await lstat(join(artifactRoot, "fixture-game"))).isFile(),
+    true
+  );
+  assert.equal(
+    await readFile(join(artifactRoot, "Resources", "info.txt"), "utf8"),
+    "framework resources\n"
+  );
+  assert.notEqual(
+    (await stat(join(artifactRoot, "fixture-game"))).mode & 0o111,
+    0
+  );
+
+  const outsideFile = join(outsideRoot, "outside.txt");
+  const escapingLink = join(artifactRoot, "escaping-link");
+  await writeFile(outsideFile, "outside\n");
+  await symlink(outsideFile, escapingLink);
+  await assert.rejects(
+    materializeArtifactLinks(artifactRoot),
+    /link resolves outside its artifact root/
+  );
+  assert.equal((await lstat(escapingLink)).isSymbolicLink(), true);
 });
 
 test("invokes the package-local Electron builder without a PATH lookup", async () => {

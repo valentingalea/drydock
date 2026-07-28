@@ -22,11 +22,14 @@ import {
   loadChannelPolicy,
   validateArtifactManifest
 } from "../../../../tools/artifacts.js";
-import { resolveProjectPath } from "../../../../tools/drydock.js";
+import {
+  isDirectInvocation,
+  resolveProjectPath
+} from "../../../../tools/drydock.js";
 
 const maxArtifactManifestBytes = 1024 * 1024;
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isDirectInvocation(import.meta.url, process.argv[1])) {
   const { runCli } = await import("../../../../tools/drydock.js");
   process.exitCode = await runCli([
     "publish",

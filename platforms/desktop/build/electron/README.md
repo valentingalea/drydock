@@ -21,6 +21,10 @@ Electron app through the shared runtime composition, runs `electron-builder --di
 writes `drydock-artifact.json` next to the unpacked output.
 It invokes the adapter package's pinned `electron-builder` CLI directly through Node;
 no global binary or caller-modified `PATH` is required.
+Before checksumming, it materializes symlinks that resolve within the packaged artifact
+root. This makes standard macOS framework bundles compatible with the
+regular-file-only artifact contract; escaping, broken, cyclic, and non-regular entries
+fail the build.
 
 Release builds complete provenance, declaration, revision, and Drydock-gitlink
 preflight before creating staging or output. The product display name may contain

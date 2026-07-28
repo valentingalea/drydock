@@ -348,7 +348,7 @@ async function publishCommand({ args, ...input }) {
   });
 }
 
-function isDirectInvocation(moduleUrl, argvEntry) {
+export function isDirectInvocation(moduleUrl, argvEntry) {
   if (!argvEntry) {
     return false;
   }

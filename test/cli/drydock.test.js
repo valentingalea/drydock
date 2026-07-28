@@ -9,6 +9,7 @@ import {
   CliUsageError,
   harnessRoot,
   helpText,
+  isDirectInvocation,
   parseCliArgs,
   resolveProjectContext,
   resolveProjectPath,
@@ -20,6 +21,16 @@ const repositoryRoot = resolve(import.meta.dirname, "../..");
 
 test("harness root derives from the CLI location", () => {
   assert.equal(harnessRoot, repositoryRoot);
+});
+
+test("detects direct invocation through URL-encoded portable paths", () => {
+  const path = resolve(tmpdir(), "checkout with spaces", "entrypoint.js");
+
+  assert.equal(
+    isDirectInvocation(pathToFileURL(path).href, path),
+    true
+  );
+  assert.equal(isDirectInvocation(pathToFileURL(path).href, undefined), false);
 });
 
 test("parses the public command and preserves command-specific arguments", () => {
