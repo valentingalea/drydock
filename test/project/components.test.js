@@ -127,6 +127,27 @@ test("accepts an initialized checkout at its exact gitlink pin", async (context)
   );
 });
 
+test("accepts a Unicode gitlink path without Git output quoting", async (context) => {
+  const fixture = await createGitProject(context, (descriptor) => {
+    descriptor.components.engine = {
+      path: "éngine",
+      revision: "gitlink"
+    };
+    descriptor.runtime.entries.push({
+      component: "engine",
+      source: "src",
+      target: "engine/src"
+    });
+  });
+  const verified = await loadAndVerify(fixture);
+
+  assert.equal(verified.components.engine.path, "éngine");
+  assert.equal(
+    verified.components.engine.commit,
+    git(join(fixture.projectRoot, "éngine"), "rev-parse", "HEAD")
+  );
+});
+
 test("rejects a gitlink declaration backed by an ordinary tracked directory", async (context) => {
   const fixture = await createGitProject(context, addEngineGitlink, {
     skipGitlinkCheckout: true
@@ -336,14 +357,23 @@ async function createGitProject(context, mutateDescriptor, options = {}) {
       "submodule",
       "add",
       engineRemote,
-      "engine"
+      descriptor.components.engine.path
     );
   } else if (descriptor.components.engine?.revision === "gitlink") {
-    await mkdir(join(projectRoot, "engine", "src"), {
+    await mkdir(join(
+      projectRoot,
+      descriptor.components.engine.path,
+      "src"
+    ), {
       recursive: true
     });
     await writeFile(
-      join(projectRoot, "engine", "src", "engine.js"),
+      join(
+        projectRoot,
+        descriptor.components.engine.path,
+        "src",
+        "engine.js"
+      ),
       "export const engine = true;\n"
     );
   }

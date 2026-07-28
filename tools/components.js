@@ -233,15 +233,16 @@ async function verifyProjectOwnedComponent(component, projectRepository, issues)
 }
 
 async function verifyGitlinkComponent(component, projectRepository, issues) {
-  const staged = await git(
+  const staged = await gitRaw(
     projectRepository.root,
     "ls-files",
+    "-z",
     "--stage",
     "--",
     literalPathspec(component.path)
   );
   const gitlink = staged
-    .split("\n")
+    .split("\0")
     .filter(Boolean)
     .map(parseStagedEntry)
     .find((entry) => entry.path === component.path && entry.mode === "160000");
