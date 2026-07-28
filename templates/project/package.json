@@ -1,0 +1,11 @@
+{
+  "name": "example-game",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "drydock:validate": "node drydock/tools/drydock.js validate --project shipping/drydock-project.json",
+    "iterate:web": "node drydock/tools/drydock.js iterate web --project shipping/drydock-project.json --port 8090",
+    "build:web": "node drydock/tools/drydock.js build web-static --project shipping/drydock-project.json --release shipping/releases/0.1.0.yaml",
+    "build:electron": "node drydock/tools/drydock.js build electron --project shipping/drydock-project.json --release shipping/releases/0.1.0.yaml"
+  }
+}

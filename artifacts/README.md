@@ -8,7 +8,7 @@ Expected layout:
 ```text
 artifacts/
 ├─ build/       # build adapter output and drydock-artifact.json manifests
-├─ channels/    # channel package output such as direct-download zips
+├─ packages/    # channel package output such as direct-download zips
 ├─ smoke/       # browser smoke reports and screenshots
 └─ tmp/         # short-lived staging directories
 ```

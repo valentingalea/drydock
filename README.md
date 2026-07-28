@@ -1,34 +1,50 @@
 # Drydock
 
-Proof-of-concept scaffold for a product-agnostic, channel-isolated game release harness.
+Drydock is a productless toolchain for validating, building, packaging, and publishing
+game repositories. A game pins Drydock at `drydock/`, owns its source under `game/`,
+declares composition in `shipping/drydock-project.json`, and keeps generated output
+under ignored `artifacts/`.
 
-The goal is to ship one portable product to many release channels - Steam, Epic, GOG,
-itch, the App Store, and Google Play - without letting store logic leak into game code.
-It also keeps fast web iteration separate from reproducible releases.
+Drydock supplies generic web and Electron adapters, a host bridge, artifact contracts,
+and channel tools. It contains no game checkout, real release manifest, deployment
+destination, or hosted CI workflow.
 
-The current proof product is Line Engine's canonical calibration client. Drydock pins the
-complete product repository at `product/`, reads its `drydock-product.json` contract, and
-uses the same composition for live web iteration, packaged web releases, and Electron
-builds. A future game can replace the product while owning Line Engine internally.
-
-```sh
-git clone --recurse-submodules https://github.com/valentingalea/Drydock.git
-cd Drydock
-npm install --global pnpm@11.17.0
-pnpm install
-pnpm run vendor
-pnpm run validate
-```
-
-If the Node distribution includes Corepack, `corepack enable pnpm` may replace the global
-install; the root `packageManager` field pins the same pnpm version.
-
-Initialize the product in an existing checkout with:
+## Start in a game repository
 
 ```sh
-git submodule update --init --recursive
+corepack enable
+pnpm --dir drydock install --frozen-lockfile
+
+node drydock/tools/drydock.js validate \
+  --project shipping/drydock-project.json
+
+node drydock/tools/drydock.js iterate web \
+  --project shipping/drydock-project.json \
+  --port 8090
 ```
 
-Start with [`AGENTS.md`](./AGENTS.md) for the project rules and documentation map. Read
-[`docs/PRODUCT.md`](./docs/PRODUCT.md) before changing the product pin, runtime mapping,
-optional iteration checkout, or host integration.
+Copy and adapt [`templates/project/`](templates/project/) when creating a consumer.
+All project paths are resolved from the selected descriptor, so commands may be invoked
+from any working directory.
+
+## Work on Drydock
+
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+npm test
+npm run validate
+```
+
+The release pipeline is:
+
+```text
+BUILD -> INTEGRATE -> PACKAGE / SIGN -> PUBLISH
+```
+
+Fast iteration is deliberately outside that pipeline and never produces a releasable
+artifact.
+
+Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+[`docs/PROJECT.md`](docs/PROJECT.md), and [`docs/RELEASE.md`](docs/RELEASE.md) for the
+contracts and manual workflow.

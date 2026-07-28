@@ -16,6 +16,7 @@ import {
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 const entrypoint = resolve(repositoryRoot, "tools/drydock.js");
 const fixturesRoot = resolve(repositoryRoot, "contracts/fixtures/projects");
+const templateRoot = resolve(repositoryRoot, "templates/project");
 
 test("loads the generic valid project fixture", async (context) => {
   const fixture = await createProjectFromFixture(context, "valid/minimal.json");
@@ -29,6 +30,44 @@ test("loads the generic valid project fixture", async (context) => {
   assert.equal(project.descriptor.product.id, "fixture-game");
   assert.equal(project.descriptor.host.protocol, 1);
   assert.deepEqual(project.descriptor.host.requiredCapabilities, ["storage"]);
+});
+
+test("the portable project template satisfies project and release contracts", async (context) => {
+  const descriptor = JSON.parse(
+    await readFile(
+      resolve(templateRoot, "shipping/drydock-project.json"),
+      "utf8"
+    )
+  );
+  const fixture = await createProject(context, descriptor);
+  await initializeProjectRepository(fixture);
+  const projectResult = spawnSync(
+    process.execPath,
+    [
+      entrypoint,
+      "validate",
+      "--project",
+      "shipping/drydock-project.json"
+    ],
+    {
+      cwd: fixture.projectRoot,
+      encoding: "utf8"
+    }
+  );
+  const releaseResult = spawnSync(
+    process.execPath,
+    [
+      resolve(repositoryRoot, "tools/scripts/validate-release.js"),
+      resolve(templateRoot, "shipping/releases/0.1.0.yaml")
+    ],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8"
+    }
+  );
+
+  assert.equal(projectResult.status, 0, projectResult.stderr);
+  assert.equal(releaseResult.status, 0, releaseResult.stderr);
 });
 
 test("rejects an unsupported Drydock contract independently of schema shape", async (context) => {

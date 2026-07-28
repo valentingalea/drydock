@@ -1,0 +1,9 @@
+/artifacts/
+node_modules/
+.env
+*.local
+*.p12
+*.p8
+*.keystore
+*.mobileprovision
+*service-account*.json

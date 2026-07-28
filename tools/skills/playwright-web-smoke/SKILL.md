@@ -23,9 +23,9 @@ Use this skill to turn "blank page" reports into concrete browser evidence.
 5. If localhost fails, fix the app/runtime before touching Caddy.
 6. If localhost passes but the public URL fails, compare request URLs and response
    statuses. For path-mounted Caddy routes, verify the app uses relative imports.
-7. For the current Line Engine proof product, navigation is only the first check:
-   verify the menu reports `host v1`, activate `[data-line-action="play"]`, wait for
-   `[data-line-state="play"]`, and require exactly one calibration canvas.
+7. Treat navigation as only the first check. Use the selected game's documented
+   readiness signal and primary interaction to verify that runtime initialization
+   completed.
 8. Test both composed forms after an embedding or host-overlay change:
    the deployment's live iteration URL for contract resolution and its packaged release
    URL for the static artifact.
@@ -55,10 +55,11 @@ Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium` if Playwright cannot find
 - A public URL failing while localhost passes points at Caddy path handling, allowlists,
   base URLs, HTTPS-only behavior, or domain routing.
 - A localhost blank page with page errors is an app bug. Fix that first.
-- The menu loading while the Play transition fails points at Line Engine initialization,
-  Three.js imports, or the platform-host overlay rather than Caddy routing alone.
-- `host v1` proves that the product-owned Drydock adapter connected to the injected host
-  runtime at the intended URL.
+- A static shell loading while the primary interaction fails points at application
+  initialization, runtime imports, or a project-owned host overlay rather than Caddy
+  routing alone.
+- A game-owned host readiness signal can prove that its adapter connected to the
+  injected runtime at the intended URL.
 
 Do not use this skill to mutate `/etc/caddy/Caddyfile`; gather evidence first, then make
 the smallest config change separately.

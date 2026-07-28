@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "drydockContract": "1",
+  "product": {
+    "id": "example-game",
+    "name": "Example Game",
+    "executableName": "example-game",
+    "appId": "dev.example.game"
+  },
+  "host": {
+    "protocol": 1,
+    "requiredCapabilities": [
+      "storage"
+    ]
+  },
+  "components": {
+    "game": {
+      "path": "game",
+      "revision": "project"
+    },
+    "shipping": {
+      "path": "shipping",
+      "revision": "project"
+    }
+  },
+  "runtime": {
+    "entrypoint": "index.html",
+    "entries": [
+      {
+        "component": "game",
+        "source": "index.html",
+        "target": "index.html"
+      },
+      {
+        "component": "game",
+        "source": "src",
+        "target": "game/src"
+      }
+    ]
+  },
+  "artifacts": {
+    "root": "artifacts"
+  }
+}

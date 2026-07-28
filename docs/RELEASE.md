@@ -1,325 +1,107 @@
-# Release
+# Manual Release Workflow
 
-Mental model: one-time setup per release channel, then a repeatable four-stage flow:
+Run releases from a recursively initialized game repository. Drydock does not provide
+or require a hosted CI workflow.
 
-```text
-BUILD -> INTEGRATE -> PACKAGE / SIGN -> PUBLISH
-```
+## Preconditions
 
-The commands below assume channel accounts, SDK access, signing setup, and SOPS files are
-already configured.
+1. Install the game, engine, and Drydock dependencies using their own manifests.
+2. Commit the project descriptor, release manifest, channel policy, and integrations.
+3. Commit all game changes and exact component gitlinks.
+4. Push the game, Drydock, and external component commits to their configured origins.
+5. Confirm `git status --short` is empty in the game and every submodule.
+6. Supply operational roots, URLs, and any secret environment variables explicitly.
 
-All current web and Electron builds compose the pinned product through
-[`product/drydock-product.json`](../product/drydock-product.json). Read
-[`PRODUCT.md`](./PRODUCT.md) before advancing or replacing the product gitlink: the
-product commit/tag must be pushed first, then the Drydock pin is committed separately.
-
-## Iteration Is Separate
-
-The fast web path is not a release. `platforms/web/iterate/caddy-live/` resolves the
-pinned `product/` contract through a localhost-bound origin and Caddy allowlist so
-browser refreshes reflect product edits immediately. `DRYDOCK_PRODUCT_ROOT` remains an
-optional iteration-only override.
-
-Use it for feel, rendering, controls, and device smoke checks:
+Validate the project:
 
 ```sh
-pnpm --filter @drydock/web-iterate-caddy-live serve -- --port 8090
+node drydock/tools/drydock.js validate \
+  --project shipping/drydock-project.json
 ```
 
-Do not promote, archive, or compare that live origin as a release. The release path for
-the VPS is `platforms/web/build/static/` plus `platforms/web/channels/vps/`.
+Release-profile builds fail if the enclosing project, declared components, or exact
+`drydock/` gitlink are dirty, unpinned, or unreachable from their origins.
 
-## Build/Host OS Matrix
-
-| Target | Can build on |
-|---|---|
-| VPS web static artifact | Any OS |
-| VPS publish through Caddy/systemd | Target VPS or a runner with SSH/deploy access |
-| Steam / Epic / GOG / itch Windows + Linux binaries | Any OS if the engine/toolchain supports cross-build |
-| Steam / Epic / GOG / itch macOS binary, signed/notarized | macOS only |
-| App Store | macOS only |
-| Google Play | Linux, macOS, or Windows; Linux preferred in CI |
-
-## Versioning: Release Manifest
-
-Do not rely on one scalar version to cover every store. Use one release manifest per
-candidate:
-
-```yaml
-version: 0.1.0
-build:
-  desktop: 100
-  vps: 100
-  steam: 100
-  epic: 100
-  appstore: 1
-  play: 100
-channels:
-  vps:
-    host: drydock.example.com
-    root: /srv/drydock/web
-  steam:
-    branch: beta
-  epic:
-    sandbox: stage
-  appstore:
-    submitForReview: false
-  play:
-    track: internal
-```
-
-The shared `version` is the marketing version. Per-channel build numbers stay monotonic
-according to each platform's rules. A future `pnpm run bump` should update this manifest
-and generate platform-specific manifest changes from it.
-
-## Shared Prep
+## Static web to VPS
 
 ```sh
-git submodule update --init --recursive
-npm install --global pnpm@11.17.0
-pnpm install
-pnpm run vendor
-pnpm run validate
-pnpm run validate:release -- contracts/releases/0.1.0.yaml
+node drydock/tools/drydock.js build web-static \
+  --project shipping/drydock-project.json \
+  --release shipping/releases/0.1.0.yaml \
+  --channel vps \
+  --channel-policy shipping/channels/vps.yaml
+
+DRYDOCK_VPS_ROOT=/srv/games \
+  node drydock/tools/drydock.js publish vps \
+    --project shipping/drydock-project.json \
+    --artifact artifacts/build/web-static/drydock-artifact.json
 ```
 
-Corepack can enable the root-pinned pnpm version on Node distributions that provide it.
-Otherwise the one-time setup uses the exact global pnpm version above.
+The artifact contains the committed VPS policy snapshot. The publisher verifies the
+manifest and every staged checksum, requires `releasable: true`, then replaces only
+`<DRYDOCK_VPS_ROOT>/<deploymentId>`.
 
-`pnpm run validate` strictly verifies that the clean `product/` checkout matches the
-Drydock gitlink and that the commit is reachable from the product origin. It also
-validates the current artifact and release fixtures. Release preflight should eventually
-grow to validate:
-
-- release manifest shape;
-- artifact schema availability;
-- no CDN/runtime dependency leakage;
-- required SOPS files and `secrets.example` contracts;
-- channel workflow names and tag patterns.
-
-## Web Example: VPS / Caddy
-
-One-time setup:
-
-- Public domain or subdomain points at the VPS.
-- Caddy is installed, enabled, and serving TLS.
-- The live iteration origin, if enabled, serves only product-contract-selected files
-  from `127.0.0.1`.
-- The release channel has a stable, configured deploy root such as
-  `/srv/drydock/web`.
-- Caddy config is generated or templated from `platforms/web/channels/vps/caddy.example`.
-
-Per release:
+Verify the configured public routes using the same artifact:
 
 ```sh
-# BUILD: compose the pinned product + Drydock host runtime and emit a manifest.
-pnpm --filter @drydock/web-static build -- \
-  --release contracts/releases/0.1.0.yaml
-
-# PACKAGE / PUBLISH: install clean static output and reload Caddy.
-pnpm --filter @drydock/channel-vps run publish -- \
-  artifacts/build/web-static/drydock-artifact.json
-
-# VERIFY: confirm public runtime paths load and repo/internal paths are denied.
-pnpm --filter @drydock/channel-vps run verify -- \
-  --live-url https://games.example.com/drydock/ \
-  --release-url https://games.example.com/drydock-release/
+pnpm --dir drydock --filter @drydock/channel-vps run verify -- \
+  --artifact artifacts/build/web-static/drydock-artifact.json \
+  --live-url https://game.example/live/ \
+  --release-url https://game.example/releases/
 ```
 
-The VPS channel must deploy the packaged `artifacts/build/web-static/` output, not the repo root and
-not the live iteration origin. It should validate the Caddy config before reload and run
-public checks for allowed runtime paths and denied repo paths.
-
-The schema-v2 build manifest records the exact product remote, tag, commit, and contract
-under `extensions.drydock.productRevision`. Preserve that manifest with the candidate so
-the packaged runtime can be traced back to both repository commits.
-
-When Caddy config changes, validate before reload:
+## Electron to direct downloads
 
 ```sh
-sudo caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-```
-
-Use Playwright for render-level smoke after route checks:
-
-```sh
-pnpm smoke:web -- https://games.example.com/drydock/
-pnpm smoke:web -- https://games.example.com/drydock-release/
-```
-
-The domain, route prefixes, deploy root, and service account are deployment inputs.
-Keep them in deployment configuration, not canonical project documentation.
-
-## Desktop Example: Direct Downloads
-
-Direct downloads are a testing channel for Electron artifacts. They are useful before a
-real store channel exists, but they do not replace Steam/Epic/GOG/itch package/sign/publish
-stages.
-
-Build the Windows x64 artifact:
-
-```sh
-pnpm --filter @drydock/desktop-electron build -- \
-  --release contracts/releases/0.1.0.yaml \
+node drydock/tools/drydock.js build electron \
+  --project shipping/drydock-project.json \
+  --release shipping/releases/0.1.0.yaml \
   --platform windows \
   --arch x64
 
-pnpm --filter @drydock/channel-downloads run package -- \
-  artifacts/build/windows-x64/drydock-artifact.json
+node drydock/tools/drydock.js package downloads \
+  --project shipping/drydock-project.json \
+  --artifact artifacts/build/windows-x64/drydock-artifact.json
 
-pnpm --filter @drydock/channel-downloads run publish -- \
-  artifacts/channels/downloads
-
-pnpm --filter @drydock/channel-downloads run verify -- \
-  --base-url https://games.example.com/drydock-downloads/
+DRYDOCK_DOWNLOADS_ROOT=/srv/games \
+  node drydock/tools/drydock.js publish downloads \
+    --project shipping/drydock-project.json \
+    --source artifacts/packages/downloads
 ```
 
-Electron stages the same product contract and Drydock host runtime as the web build. The
-downloads channel consumes only its `drydock-artifact.json`; it does not read product
-source or the product contract.
+Packaging rejects non-releasable or checksum-invalid artifacts. Publishing resolves the
+package directory below project `artifacts/`, verifies each zip checksum, reads
+`shipping/channels/downloads.yaml`, and replaces only
+`<DRYDOCK_DOWNLOADS_ROOT>/<deploymentId>`.
 
-The download route should serve only the package archive, checksum, and index page from
-its configured deploy root.
-
-Windows signing can be added before the download package step. The signing input is either
-an Authenticode code-signing certificate usable by electron-builder, Azure Trusted
-Signing credentials, or a Linux-compatible signing tool such as `osslsigncode` with a PFX
-and timestamp server. Signing secrets must be injected from
-`platforms/desktop/channels/downloads/secrets.enc.yaml` through SOPS+age.
-
-Windows signing is independent of Steam. Steam does not give this project a general
-Windows Authenticode signature for direct downloads. Steam can provide Steam-specific
-release mechanics such as depots, install scripts, and optional DRM wrapping, but those
-do not replace OS-level code signing. For private Steam branch testing, unsigned Windows
-builds are acceptable until the project chooses a stricter policy. For production direct
-downloads, require signing before packaging so missing credentials fail the release
-instead of producing an unsigned public archive.
-
-## Desktop Example: Steam
-
-One-time setup:
-
-- Electron base dependencies are installed through `platforms/desktop/build/electron/`.
-- Steamworks partner account and least-privilege builder account.
-- AppID and depot IDs committed in `platforms/desktop/channels/steam/metadata/`.
-- Steamworks SDK fetch script pinned to an exact version.
-- `steamcmd` available in CI.
-- `platforms/desktop/channels/steam/secrets.enc.yaml` populated with builder credentials
-  and Steam Guard solution.
-
-Per release:
+Verify the public package:
 
 ```sh
-# BUILD: raw Electron artifact + drydock-artifact.json.
-pnpm --filter @drydock/desktop-electron build -- \
-  --platform windows \
-  --arch x64 \
-  --release contracts/releases/0.1.0.yaml
-
-# INTEGRATE: Steam SDK/runtime provider/depot inputs.
-pnpm --filter @drydock/channel-steam integrate -- \
-  artifacts/build/windows-x64/drydock-artifact.json
-
-# PACKAGE / SIGN: produce the Steam-ready depot layout.
-pnpm --filter @drydock/channel-steam package -- \
-  artifacts/build/windows-x64/drydock-artifact.json
-
-# PUBLISH: decrypt only Steam secrets and upload.
-sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/drydock-artifact.json'
+pnpm --dir drydock --filter @drydock/channel-downloads run verify -- \
+  --base-url https://game.example/downloads/ \
+  --name example-game-0.1.0-windows-x64.zip
 ```
 
-Final step is manual: set the uploaded build live on its Steam branch in the Steamworks
-dashboard. First release also needs store page completion and Valve content review.
+## Development diagnostics
 
-Steam packaging and Windows code signing are separate decisions. The Steam channel can
-upload an unsigned Windows depot for early/private branch testing, but Steam does not sign
-the executable for use outside Steam. If the same binary will also ship through direct
-downloads, itch, GOG, or another non-Steam Windows channel, sign it before the channel
-package/depot step with SOPS-injected signing inputs. If Steam DRM wrapping is used, treat
-it as Steam integration, not as a signing substitute.
-
-## Mobile Example: App Store
-
-One-time setup:
-
-- Apple Developer Program membership.
-- App record in App Store Connect.
-- Native iOS project generated under `platforms/mobile/native/ios`.
-- fastlane `match` configured for signing.
-- App Store channel SOPS file populated with App Store Connect API key fields,
-  `MATCH_PASSWORD`, and related lane secrets.
-
-Per release:
+Web and Electron builders accept `--profile development`. Electron additionally allows
+`--skip-package` in that profile. These modes are for local adapter diagnostics:
 
 ```sh
-# BUILD: sync the product into the native iOS project and emit an artifact manifest.
-pnpm --filter @drydock/mobile-capacitor build:ios -- \
-  --release contracts/releases/0.1.0.yaml
-
-# PACKAGE / SIGN + PUBLISH through the App Store channel.
-sops exec-env platforms/mobile/channels/appstore/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-appstore run publish -- artifacts/build/ios/drydock-artifact.json'
+node drydock/tools/drydock.js build electron \
+  --project shipping/drydock-project.json \
+  --release shipping/releases/0.1.0.yaml \
+  --profile development \
+  --skip-package
 ```
 
-The App Store channel lane should archive/sign the `.ipa`, upload to App Store Connect,
-and optionally submit for review based on the release manifest. Internal TestFlight builds
-should be the fast smoke-test path.
+Development artifacts are marked `releasable: false`; release packaging and publishing
+must reject them.
 
-## Mobile Example: Google Play
+## Operational rollback
 
-One-time setup:
-
-- Play Console account and app record.
-- Upload keystore enrolled in Play App Signing.
-- Google Cloud service-account JSON encrypted in
-  `platforms/mobile/channels/play/secrets.enc.yaml`.
-- Native Android project generated under `platforms/mobile/native/android`.
-
-Per release:
-
-```sh
-# BUILD: sync the product into the native Android project and emit an artifact manifest.
-pnpm --filter @drydock/mobile-capacitor build:android -- \
-  --release contracts/releases/0.1.0.yaml
-
-# PACKAGE / SIGN + PUBLISH through the Play channel.
-sops exec-env platforms/mobile/channels/play/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-play run publish -- artifacts/build/android/drydock-artifact.json'
-```
-
-The Play channel lane should build a signed `.aab` and upload to the track selected by the
-release manifest. Promotion from internal/closed tracks to production may remain manual.
-
-## CI-Driven Release
-
-Releases should be tag-triggered or workflow-dispatched per channel. Each workflow:
-
-1. Checks out the repo.
-2. Enables Corepack and installs dependencies.
-3. Validates the release manifest.
-4. Builds the target artifact and validates `drydock-artifact.json`.
-5. Runs channel integration/package scripts.
-6. Decrypts only that channel's SOPS file.
-7. Publishes to a private branch, beta track, internal track, draft release, or equivalent.
-
-Example tags:
-
-```sh
-git tag steam-v0.1.0
-git tag appstore-v0.1.0
-git tag play-v0.1.0
-git push origin steam-v0.1.0 appstore-v0.1.0 play-v0.1.0
-```
-
-The remaining manual step is the store dashboard action that legally publishes or submits
-the release, unless the release manifest explicitly opts into automatic submission.
-
-## Unreal Note
-
-For an Unreal product, the build stage changes to a `build/unreal` adapter around
-`RunUAT BuildCookRun`. Channel work may configure Unreal store plugins, but channel
-scripts still consume the artifact manifest and publish through the same channel-owned
-flow.
+Current local publishers replace a single namespaced deployment atomically only at the
+directory-selection level; they do not retain history. Before production use, the host
+operator should snapshot or rename the previous `<root>/<deploymentId>` and validate
+Caddy configuration before reload. Rollback policy belongs to the deployment, not the
+game repository.

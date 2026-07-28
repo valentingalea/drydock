@@ -1,196 +1,51 @@
-# Secrets
+# Secrets and Operational Inputs
 
-Drydock uses **SOPS + age** as the supported secrets workflow. Encrypted secret files are
-committed beside the channel that uses them; plaintext values are decrypted only into a
-process environment for local commands or CI jobs.
+Drydock keeps public project policy separate from secret and machine-specific inputs.
 
-## Classify First
+Commit:
 
-| Class | Examples | Where it lives |
-|---|---|---|
-| Public identifiers | Steam AppID + depot IDs, iOS bundle ID, Android package name, Apple Team ID, EOS product/sandbox IDs | Committed plainly in channel metadata. They ship inside binaries or dashboards anyway. |
-| Real secrets | Signing keys, API keys, service accounts, build passwords, TOTP shared secrets | SOPS-encrypted YAML committed in the owning channel folder. |
-| Accounts | Publisher logins, 2FA ownership | Dedicated least-privilege bot/service accounts, not personal identities. |
+- stable product/application identifiers;
+- release versions and build numbers;
+- channel identifiers and `deploymentId` values;
+- `secrets.example` files containing variable names only;
+- SOPS-encrypted values and a portable `.sops.yaml` when a game adopts them.
 
-Over-protecting identifiers breaks reproducibility. Under-protecting real secrets leaks
-publishing authority.
+Do not commit:
 
-## Product Updates Need No Secrets
+- plaintext credentials, signing keys, certificates, or service-account JSON;
+- age identities;
+- operational filesystem roots, account names, or private hostnames;
+- contributor checkout paths or local `.env` files.
 
-Product composition is public and deterministic. `.gitmodules`,
-`product/drydock-product.json`, runtime mappings, application identifiers, and the
-product revision are committed plainly. Building the product, running its tests,
-advancing the Drydock gitlink, and using the browser iteration path must not decrypt
-channel secrets.
+## Manual injection
 
-Secrets enter only when a later channel integration, signing, or publishing stage
-requires them. The product repository must never contain signing material, store
-credentials, or channel-specific secret names. See [`PRODUCT.md`](./PRODUCT.md) for the
-product update workflow.
-
-## Contract: Packagers Read Env Vars Only
-
-A packager or publisher (`publish.sh`, electron-builder, fastlane, steamcmd, Butler,
-BuildPatchTool) reads secrets exclusively from environment variables. It must not know
-where those variables came from.
+Packagers and publishers read secrets from environment variables. They do not know
+whether values came from a password manager, an encrypted file, or a scoped shell:
 
 ```text
-SOPS encrypted file -> decrypt/inject -> env vars -> packager
+secret store or SOPS file -> process environment -> channel command
 ```
 
-This keeps scripts stable while allowing local and CI injection to use the same encrypted
-source file.
-
-## File Layout
-
-Each channel owns its own secret contract and encrypted values:
-
-```text
-platforms/desktop/channels/steam/
-├─ secrets.example
-└─ secrets.enc.yaml
-
-platforms/desktop/channels/downloads/
-├─ secrets.example
-└─ secrets.enc.yaml
-
-platforms/mobile/channels/appstore/
-├─ secrets.example
-└─ secrets.enc.yaml
-```
-
-`secrets.example` lists required environment variable names only:
-
-```text
-STEAM_USERNAME=
-STEAM_PASSWORD=
-STEAM_TOTP_SHARED_SECRET=
-```
-
-`secrets.enc.yaml` contains the encrypted values:
-
-```yaml
-STEAM_USERNAME: ENC[AES256_GCM,...]
-STEAM_PASSWORD: ENC[AES256_GCM,...]
-STEAM_TOTP_SHARED_SECRET: ENC[AES256_GCM,...]
-```
-
-## `.sops.yaml`
-
-The repo root `.sops.yaml` declares age recipients. Prefer a separate recipient group per
-release channel so one workflow cannot decrypt another channel's secrets.
-
-Example shape:
-
-```yaml
-creation_rules:
-  - path_regex: platforms/desktop/channels/steam/secrets\.enc\.yaml$
-    age: age1steamrecipient...
-
-  - path_regex: platforms/mobile/channels/appstore/secrets\.enc\.yaml$
-    age: age1appstorerecipient...
-
-  - path_regex: platforms/mobile/channels/play/secrets\.enc\.yaml$
-    age: age1playrecipient...
-```
-
-Developer recipients can be added to the relevant channel rule when they need local
-release access. Do not use one global decrypt key for every channel unless the project is
-still a private solo prototype.
-
-## Local Use
-
-Run channel commands through `sops exec-env`:
+For a channel that uses SOPS:
 
 ```sh
-sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml \
-  'pnpm --filter @drydock/channel-steam run publish -- artifacts/build/windows-x64/drydock-artifact.json'
+sops exec-env shipping/channels/example/secrets.enc.yaml \
+  'node drydock/tools/drydock.js publish <channel> --project shipping/drydock-project.json'
 ```
 
-For multi-step local work, open a scoped shell:
+Do not enable shell tracing around secret injection or upload commands.
 
-```sh
-sops exec-env platforms/desktop/channels/steam/secrets.enc.yaml bash
-```
+## Operational configuration
 
-Do not write decrypted values to `.env`, shell profiles, committed config, or build logs.
+Non-secret machine state is still external. Current publishers require:
 
-## CI Use
+- `DRYDOCK_VPS_ROOT` or `publish vps --root`;
+- `DRYDOCK_DOWNLOADS_ROOT` or `publish downloads --root`;
+- configured public URLs for verification;
+- Caddy/systemd configuration copied and parameterized for the target host.
 
-Each workflow decrypts only its own channel file.
+Publishers reject filesystem roots and symlinked operational roots, then replace only
+the validated `<root>/<deploymentId>` namespace.
 
-1. The workflow stores the matching age private key as a GitHub environment secret, for
-   example `SOPS_AGE_KEY_STEAM`.
-2. The job writes that key to a temporary file or exports `SOPS_AGE_KEY`.
-3. The job runs `sops exec-env <channel>/secrets.enc.yaml '<command>'`.
-4. The command builds/packages/publishes using env vars only.
-5. The runner is discarded.
-
-CI should use GitHub Environments for approvals and scoping, but channel credentials
-themselves live in SOPS files. The GitHub secret is only the age private key needed to
-decrypt that channel's file.
-
-## Windows Signing
-
-Windows Authenticode signing material is a project credential, not something Steam grants
-for free. Steam packaging, Steam install scripts, and optional Steam DRM wrapping are
-separate from OS-level code signing.
-
-Keep Windows signing inputs in the channel that performs the signing step. The direct
-downloads proof channel reserves
-`platforms/desktop/channels/downloads/secrets.enc.yaml` for `WIN_CSC_LINK`,
-`WIN_CSC_KEY_PASSWORD`, Azure Trusted Signing service-principal values, or equivalent
-signing-tool inputs. A future Steam channel may either keep Steam-only credentials in its
-own `secrets.enc.yaml` and require an already signed artifact, or own a Steam-specific
-signing step with its own SOPS-encrypted signing inputs. Do not share a plaintext PFX or
-service-principal secret between channels.
-
-## iOS Signing
-
-iOS certificates and provisioning profiles should use fastlane `match`. The match
-repository or storage bucket is separate from this repo. The `MATCH_PASSWORD`,
-App Store Connect API key fields, and any other lane secrets live in
-`platforms/mobile/channels/appstore/secrets.enc.yaml`.
-
-Prefer App Store Connect API keys over Apple ID sessions so CI does not depend on
-interactive 2FA.
-
-## Per-Channel Inventory
-
-| Channel | Public values | SOPS-encrypted values |
-|---|---|---|
-| VPS web | Hostname, deploy root, Caddy route name | Optional SSH deploy key if publishing from a remote runner; none if publishing locally on the VPS |
-| Direct downloads | Public download route, package names | Optional Windows signing certificate/password or Azure Trusted Signing service-principal credentials |
-| Steam | AppID, depot IDs, public achievement IDs | Builder username/password, Steam Guard sentry/config or TOTP shared secret |
-| Epic | Product/sandbox/deployment IDs, artifact labels | EOS client secret, BuildPatchTool credentials |
-| itch | Project slug, channel names | Butler API key |
-| App Store | Team ID, bundle ID, SKU | App Store Connect API key, `MATCH_PASSWORD`, match repo credentials if needed |
-| Google Play | Android package name | Upload keystore, keystore passwords, Play service-account JSON |
-
-## Rules
-
-1. Prefer API keys over password+2FA whenever the store supports them.
-2. Use least-privilege bot/service accounts for publishing.
-3. Avoid `set -x` around secret injection and upload commands.
-4. Rotate age recipients and store credentials when access changes.
-5. Document secret expiry dates where the platform has them.
-6. Never commit plaintext `.env`, `*.p12`, `*.keystore`, `*.mobileprovision`, `*.p8`, or
-   service-account JSON files.
-
-## Git Ignore Expectations
-
-Committed:
-
-- `secrets.example`
-- `secrets.enc.yaml`
-- `.sops.yaml`
-
-Ignored:
-
-- `.env`
-- `*.p12`
-- `*.keystore`
-- `*.mobileprovision`
-- `*.p8`
-- service-account JSON files
-- SDK caches and downloaded SDK archives
+Use least-privilege publishing accounts, rotate credentials when access changes, and
+keep each channel's secret inventory independent.
