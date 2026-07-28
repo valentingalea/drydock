@@ -17,6 +17,7 @@ const SUPPORTED_COMMANDS = new Set([
 const DEFAULT_COMMANDS = Object.freeze({
   build: buildCommand,
   iterate: iterateCommand,
+  package: packageCommand,
   validate: validateProjectCommand
 });
 
@@ -300,6 +301,23 @@ async function buildCommand({ args, ...input }) {
     "ERROR: usage: build <web-static|electron> --release PATH [options]\n"
   );
   return 2;
+}
+
+async function packageCommand({ args, ...input }) {
+  if (args[0] !== "downloads") {
+    input.stderr.write(
+      "ERROR: usage: package downloads --artifact PATH [options]\n"
+    );
+    return 2;
+  }
+
+  const { packageDownloadsCommand } = await import(
+    "../platforms/desktop/channels/downloads/package.js"
+  );
+  return packageDownloadsCommand({
+    ...input,
+    args: args.slice(1)
+  });
 }
 
 function isDirectInvocation(moduleUrl, argvEntry) {

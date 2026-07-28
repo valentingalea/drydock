@@ -40,8 +40,9 @@ node drydock/tools/drydock.js build electron \
   --platform windows \
   --arch x64
 
-pnpm --filter @drydock/channel-downloads run package -- \
-  artifacts/build/windows-x64/drydock-artifact.json
+node drydock/tools/drydock.js package downloads \
+  --project shipping/drydock-project.json \
+  --artifact artifacts/build/windows-x64/drydock-artifact.json
 
 pnpm --filter @drydock/channel-downloads run publish -- \
   artifacts/channels/downloads

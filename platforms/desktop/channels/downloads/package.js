@@ -6,23 +6,61 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import yazl from "yazl";
 import {
+  prepareArtifactOutputDirectory,
+  resolveArtifactManifestPath,
   validateArtifactManifest,
   verifyArtifactChecksums
 } from "../../../../tools/artifacts.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
-const defaultOut = "artifacts/channels/downloads";
+const defaultOut = "artifacts/packages/downloads";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  await packageDownloads(parseArgs(process.argv.slice(2)));
+  const { runCli } = await import("../../../../tools/drydock.js");
+  process.exitCode = await runCli([
+    "package",
+    "downloads",
+    ...process.argv.slice(2)
+  ], {
+    invocationCwd: process.cwd()
+  });
 }
 
-export async function packageDownloads(options = {}) {
-  if (!options.manifest && !options._[0]) {
-    throw new Error("usage: node package.js <drydock-artifact.json> [--out path] [--name file.zip]");
+export async function packageDownloadsCommand({
+  args,
+  context,
+  stderr,
+  stdout
+}) {
+  let options;
+  try {
+    options = parsePackageArgs(args);
+  } catch (error) {
+    stderr.write(`ERROR: ${error.message}\n`);
+    return 2;
   }
 
-  const manifestPath = await resolveExistingPath(options.manifest ?? options._[0]);
+  await packageDownloads({
+    context,
+    options,
+    stdout
+  });
+  return 0;
+}
+
+export async function packageDownloads({
+  context,
+  options,
+  stdout = process.stdout
+}) {
+  if (!context) {
+    throw new TypeError("project context is required");
+  }
+
+  const manifestPath = await resolveArtifactManifestPath(
+    context,
+    options.artifact
+  );
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   await validateManifest(manifest);
   await verifyArtifactChecksums(manifest, manifestPath);
@@ -30,7 +68,11 @@ export async function packageDownloads(options = {}) {
   const sourceRoot = resolve(dirname(manifestPath), manifest.artifactRoot);
   await assertDirectory(sourceRoot);
 
-  const outDir = resolve(repoRoot, options.out ?? defaultOut);
+  const outDir = await prepareArtifactOutputDirectory(
+    context,
+    options.out ?? defaultOut,
+    "downloads output"
+  );
   const zipName = options.name ?? defaultZipName(manifest);
   assertZipName(zipName);
 
@@ -39,7 +81,6 @@ export async function packageDownloads(options = {}) {
   const indexPath = resolve(outDir, "index.html");
   const prefix = zipName.replace(/\.zip$/u, "");
 
-  await mkdir(outDir, { recursive: true });
   await createZip({
     artifactRoot: manifest.artifactRoot,
     manifestPath,
@@ -58,7 +99,9 @@ export async function packageDownloads(options = {}) {
     zipName
   }));
 
-  console.log(`packaged download artifact: ${relative(repoRoot, zipPath)}`);
+  stdout.write(
+    `packaged download artifact: ${relative(context.projectRoot, zipPath)}\n`
+  );
   return {
     checksumPath,
     digest,
@@ -68,6 +111,39 @@ export async function packageDownloads(options = {}) {
     zipName,
     zipPath
   };
+}
+
+export function parsePackageArgs(argv) {
+  const options = {};
+  const seen = new Set();
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (argument === "--artifact") {
+      rejectDuplicate(seen, argument);
+      options.artifact = requireValue(argv, ++index, argument);
+    } else if (argument === "--out") {
+      rejectDuplicate(seen, argument);
+      options.out = requireValue(argv, ++index, argument);
+    } else if (argument === "--name") {
+      rejectDuplicate(seen, argument);
+      options.name = requireValue(argv, ++index, argument);
+    } else {
+      throw new Error(`unknown downloads package argument: ${argument}`);
+    }
+  }
+
+  if (!options.artifact) {
+    throw new Error("--artifact is required");
+  }
+  return options;
+}
+
+function rejectDuplicate(seen, flag) {
+  if (seen.has(flag)) {
+    throw new Error(`${flag} may be provided only once`);
+  }
+  seen.add(flag);
 }
 
 export async function publishDownloads(options = {}) {

@@ -1,7 +1,10 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  lstat,
+  mkdir,
   readFile,
+  readdir,
   realpath
 } from "node:fs/promises";
 import {
@@ -164,6 +167,82 @@ export async function verifyArtifactChecksums(manifest, manifestPath) {
       throw new Error(`artifact checksum mismatch: ${checksum.path}`);
     }
   }
+}
+
+export async function resolveArtifactManifestPath(context, value) {
+  const requestedPath = resolveProjectPath(context, value, "artifact manifest");
+  if (requestedPath.split(sep).at(-1) !== "drydock-artifact.json") {
+    throw new Error("artifact manifest must be named drydock-artifact.json");
+  }
+
+  let artifactRoot;
+  let canonicalPath;
+  try {
+    artifactRoot = await canonicalProjectArtifactRoot(context);
+    canonicalPath = await realpath(requestedPath);
+  } catch (error) {
+    throw new Error(`cannot resolve artifact manifest: ${error.message}`);
+  }
+
+  if (!pathWithin(artifactRoot, canonicalPath)) {
+    throw new Error("artifact manifest must resolve below project artifacts");
+  }
+
+  return canonicalPath;
+}
+
+export async function prepareArtifactOutputDirectory(context, value, label) {
+  const requestedPath = resolveProjectPath(context, value, label);
+  const artifactRoot = await canonicalProjectArtifactRoot(context);
+  if (!pathWithin(artifactRoot, requestedPath)) {
+    throw new Error(`${label} must be below project artifacts`);
+  }
+
+  let current = requestedPath;
+  const missing = [];
+  while (current !== artifactRoot) {
+    try {
+      const info = await lstat(current);
+      if (info.isSymbolicLink()) {
+        throw new Error(`${label} path must not contain symbolic links`);
+      }
+      if (!info.isDirectory()) {
+        throw new Error(`${label} parent is not a directory`);
+      }
+      break;
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+      missing.push(current);
+      current = dirname(current);
+    }
+  }
+
+  for (const path of missing.reverse()) {
+    await mkdir(path);
+  }
+  if ((await readdir(requestedPath)).length > 0) {
+    throw new Error(`${label} directory must be empty`);
+  }
+
+  return requestedPath;
+}
+
+async function canonicalProjectArtifactRoot(context) {
+  const info = await lstat(context.artifactRoot);
+  if (info.isSymbolicLink() || !info.isDirectory()) {
+    throw new Error("project artifact root must be a real directory");
+  }
+
+  const canonicalRoot = await realpath(context.artifactRoot);
+  if (
+    canonicalRoot !== context.artifactRoot
+    || !pathWithin(context.projectRoot, canonicalRoot)
+  ) {
+    throw new Error("project artifact root resolves outside the project");
+  }
+  return canonicalRoot;
 }
 
 async function verifyReleaseHarness(verified) {

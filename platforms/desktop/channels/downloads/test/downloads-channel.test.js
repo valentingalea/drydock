@@ -8,10 +8,19 @@ import {
   defaultZipName,
   packageDownloads,
   parseArgs,
+  parsePackageArgs,
   publishDownloads,
   resolveRouteUrl,
   verifyDownloads
 } from "../package.js";
+import {
+  resolveProjectContext,
+  runCli
+} from "../../../../../tools/drydock.js";
+import {
+  createMinimalProject,
+  harnessRoot
+} from "../../../../../test/support/minimal-project.js";
 
 const manifest = {
   schemaVersion: 3,
@@ -89,17 +98,19 @@ test("downloads Caddy template exposes only the current package and checksum", a
 });
 
 test("parses downloads channel arguments", () => {
-  assert.deepEqual(parseArgs([
+  assert.deepEqual(parsePackageArgs([
+    "--artifact",
     "artifacts/build/windows-x64/drydock-artifact.json",
     "--out",
-    "artifacts/channels/downloads",
+    "artifacts/packages/downloads",
     "--name",
     "fixture-game-0.1.0-windows-x64.zip"
   ]), {
-    _: ["artifacts/build/windows-x64/drydock-artifact.json"],
-    out: "artifacts/channels/downloads",
+    artifact: "artifacts/build/windows-x64/drydock-artifact.json",
+    out: "artifacts/packages/downloads",
     name: "fixture-game-0.1.0-windows-x64.zip"
   });
+  assert.throws(() => parsePackageArgs([]), /--artifact is required/);
 
   assert.deepEqual(parseArgs([], {
     DRYDOCK_DOWNLOADS_URL: "https://example.com/drydock-downloads/"
@@ -118,9 +129,7 @@ test("default download zip name comes from artifact identity", () => {
   );
 });
 
-test("downloads package script creates zip, checksum, and index from an artifact manifest", async () => {
-  const artifact = await mkdtemp(join(tmpdir(), "drydock-downloads-artifact-"));
-  const out = await mkdtemp(join(tmpdir(), "drydock-downloads-out-"));
+test("downloads package script creates zip, checksum, and index from an artifact manifest", async (context) => {
   const rootManifest = structuredClone(manifest);
   rootManifest.artifactRoot = "payload.bin";
   rootManifest.checksums = [
@@ -131,74 +140,69 @@ test("downloads package script creates zip, checksum, and index from an artifact
     }
   ];
 
-  await writeFile(
-    join(artifact, "drydock-artifact.json"),
-    `${JSON.stringify(rootManifest, null, 2)}\n`
-  );
-  await writeFile(join(artifact, "payload.bin"), "");
+  const fixture = await createDownloadProject(context, rootManifest, {
+    payloadFile: ""
+  });
   await assert.rejects(
     packageDownloads({
-      _: [join(artifact, "drydock-artifact.json")],
-      out
+      context: fixture.context,
+      options: {
+        artifact: fixture.artifactPath,
+        out: "artifacts/packages/downloads"
+      }
     }),
     /artifact root is not a directory/
   );
 });
 
-test("downloads packaging rejects development artifacts", async () => {
-  const artifact = await mkdtemp(join(tmpdir(), "drydock-downloads-artifact-"));
+test("downloads packaging rejects development artifacts", async (context) => {
   const development = structuredClone(manifest);
   development.releasable = false;
   development.provenance.adapter.profile = "development";
-  await writeFile(
-    join(artifact, "drydock-artifact.json"),
-    `${JSON.stringify(development, null, 2)}\n`
-  );
+  const fixture = await createDownloadProject(context, development);
 
   await assert.rejects(
     packageDownloads({
-      _: [join(artifact, "drydock-artifact.json")],
-      out: join(artifact, "packages")
+      context: fixture.context,
+      options: {
+        artifact: fixture.artifactPath
+      }
     }),
     /artifact that is not releasable/
   );
 });
 
-test("downloads packaging rejects artifact checksum mismatches", async () => {
-  const artifact = await mkdtemp(join(tmpdir(), "drydock-downloads-artifact-"));
-  await mkdir(join(artifact, "win-unpacked"));
-  await writeFile(
-    join(artifact, "win-unpacked", "fixture-game.exe"),
-    "tampered\n"
-  );
-  await writeFile(
-    join(artifact, "drydock-artifact.json"),
-    `${JSON.stringify(manifest, null, 2)}\n`
-  );
+test("downloads packaging rejects artifact checksum mismatches", async (context) => {
+  const fixture = await createDownloadProject(context, manifest, {
+    executable: "tampered\n"
+  });
 
   await assert.rejects(
     packageDownloads({
-      _: [join(artifact, "drydock-artifact.json")],
-      out: join(artifact, "packages")
+      context: fixture.context,
+      options: {
+        artifact: fixture.artifactPath
+      }
     }),
     /artifact checksum mismatch/
   );
 });
 
-test("downloads package and publish scripts handle a valid artifact root", async () => {
-  const artifact = await mkdtemp(join(tmpdir(), "drydock-downloads-artifact-"));
-  const out = await mkdtemp(join(tmpdir(), "drydock-downloads-out-"));
+test("downloads package and publish scripts handle a valid artifact root", async (context) => {
+  const fixture = await createDownloadProject(context, manifest, {
+    executable: "fake exe\n"
+  });
   const root = await mkdtemp(join(tmpdir(), "drydock-downloads-root-"));
 
-  await writeFile(join(artifact, "drydock-artifact.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(join(root, "stale.zip"), "old");
-  await mkdir(join(artifact, "win-unpacked"), { recursive: true });
-  await writeFile(join(artifact, "win-unpacked/fixture-game.exe"), "fake exe\n");
 
   const result = await packageDownloads({
-    _: [join(artifact, "drydock-artifact.json")],
-    out
+    context: fixture.context,
+    options: {
+      artifact: fixture.artifactPath
+    }
   });
+  const out = result.outDir;
 
   assert.equal(result.zipName, "fixture-game-0.1.0-windows-x64.zip");
   await stat(join(out, result.zipName));
@@ -222,6 +226,33 @@ test("downloads package and publish scripts handle a valid artifact root", async
   await stat(join(root, "index.html"));
   await stat(join(root, ".drydock-channel"));
   await assert.rejects(stat(join(root, "stale.zip")), { code: "ENOENT" });
+});
+
+test("public CLI packages from outside the project working directory", async (context) => {
+  const fixture = await createDownloadProject(context, manifest, {
+    executable: "fake exe\n"
+  });
+  const output = captureStream();
+  const errors = captureStream();
+  const exitCode = await runCli([
+    "package",
+    "downloads",
+    "--project",
+    fixture.projectPath,
+    "--artifact",
+    fixture.artifactPath
+  ], {
+    invocationCwd: harnessRoot,
+    stderr: errors,
+    stdout: output
+  });
+
+  assert.equal(exitCode, 0, errors.value);
+  assert.equal(errors.value, "");
+  assert.match(
+    output.value,
+    /packaged download artifact: artifacts\/packages\/downloads\/fixture-game/
+  );
 });
 
 test("downloads route verifier checks public package files and denied internal files", async () => {
@@ -263,3 +294,58 @@ test("downloads route URL resolver preserves path-mounted prefixes", () => {
     "https://example.com/drydock-downloads/index.html"
   );
 });
+
+async function createDownloadProject(
+  context,
+  selectedManifest,
+  {
+    executable,
+    payloadFile
+  } = {}
+) {
+  const fixture = await createMinimalProject(context);
+  const artifactRoot = join(
+    fixture.projectRoot,
+    "artifacts",
+    "build",
+    "windows-x64"
+  );
+  await mkdir(artifactRoot, {
+    recursive: true
+  });
+
+  if (payloadFile !== undefined) {
+    await writeFile(join(artifactRoot, "payload.bin"), payloadFile);
+  }
+  if (executable !== undefined) {
+    await mkdir(join(artifactRoot, "win-unpacked"));
+    await writeFile(
+      join(artifactRoot, "win-unpacked", "fixture-game.exe"),
+      executable
+    );
+  }
+
+  await writeFile(
+    join(artifactRoot, "drydock-artifact.json"),
+    `${JSON.stringify(selectedManifest, null, 2)}\n`
+  );
+  const projectContext = await resolveProjectContext(fixture.projectPath, {
+    invocationCwd: fixture.projectRoot,
+    selectedHarnessRoot: harnessRoot
+  });
+
+  return {
+    artifactPath: "artifacts/build/windows-x64/drydock-artifact.json",
+    context: projectContext,
+    projectPath: fixture.projectPath
+  };
+}
+
+function captureStream() {
+  return {
+    value: "",
+    write(chunk) {
+      this.value += chunk;
+    }
+  };
+}

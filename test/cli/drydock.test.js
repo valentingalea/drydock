@@ -221,6 +221,27 @@ test("public build command rejects unknown adapters before project loading", asy
   assert.doesNotMatch(errors.value, /invalid Drydock project/);
 });
 
+test("public package command rejects unknown adapters before project loading", async (context) => {
+  const fixture = await createProjectFixture(context, "not-json\n");
+  const output = captureStream();
+  const errors = captureStream();
+  const exitCode = await runCli([
+    "package",
+    "unknown",
+    "--project",
+    fixture.projectPath
+  ], {
+    invocationCwd: fixture.projectRoot,
+    stderr: errors,
+    stdout: output
+  });
+
+  assert.equal(exitCode, 2);
+  assert.equal(output.value, "");
+  assert.match(errors.value, /usage: package downloads/);
+  assert.doesNotMatch(errors.value, /invalid Drydock project/);
+});
+
 test("importing the CLI from an empty directory has no observable side effects", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "drydock-cli-import-"));
   context.after(() => rm(root, { force: true, recursive: true }));
