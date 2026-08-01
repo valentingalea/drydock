@@ -25,7 +25,7 @@ import {
 import {
   isDirectInvocation,
   resolveProjectPath
-} from "../../../../tools/drydock.js";
+} from "../../../../tools/context.js";
 
 const maxArtifactManifestBytes = 1024 * 1024;
 

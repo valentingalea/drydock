@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   mkdir,
   readFile,
@@ -334,6 +335,39 @@ test("public CLI builds from outside the project working directory", async (cont
       fixture.projectRoot,
       "artifacts/build/web-static/drydock-artifact.json"
     )
+  );
+});
+
+test("direct CLI invocation builds without an import cycle", async (context) => {
+  const fixture = await createBuildProject(context);
+  const result = spawnSync(
+    process.execPath,
+    [
+      resolve(harnessRoot, "tools/drydock.js"),
+      "build",
+      "web-static",
+      "--project",
+      fixture.projectPath,
+      "--release",
+      "shipping/releases/0.1.0.yaml",
+      "--channel",
+      "preview",
+      "--profile",
+      "development"
+    ],
+    {
+      cwd: harnessRoot,
+      encoding: "utf8",
+      timeout: 10_000
+    }
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.signal, null);
+  assert.equal(result.stderr, "");
+  assert.equal(
+    result.stdout,
+    "built static web artifact: artifacts/build/web-static\n"
   );
 });
 

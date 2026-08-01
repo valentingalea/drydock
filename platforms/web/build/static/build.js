@@ -19,7 +19,7 @@ import {
 import { verifyProjectComponents } from "../../../../tools/components.js";
 import {
   resolveProjectPath
-} from "../../../../tools/drydock.js";
+} from "../../../../tools/context.js";
 import { loadProject } from "../../../../tools/project.js";
 
 const defaultChannel = "vps";

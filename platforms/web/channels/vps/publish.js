@@ -16,7 +16,7 @@ import {
   validateArtifactManifest,
   verifyArtifactChecksums
 } from "../../../../tools/artifacts.js";
-import { isDirectInvocation } from "../../../../tools/drydock.js";
+import { isDirectInvocation } from "../../../../tools/context.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 

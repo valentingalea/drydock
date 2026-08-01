@@ -886,16 +886,16 @@ async function loadBuildTools() {
   const [
     artifacts,
     composition,
-    drydock
+    context
   ] = await Promise.all([
     import(pathToFileURL(resolve(packageRoot, "../../../../tools/artifacts.js")).href),
     import(pathToFileURL(resolve(packageRoot, "../../../../tools/composition.js")).href),
-    import(pathToFileURL(resolve(packageRoot, "../../../../tools/drydock.js")).href)
+    import(pathToFileURL(resolve(packageRoot, "../../../../tools/context.js")).href)
   ]);
   return {
     createArtifactProvenance: artifacts.createArtifactProvenance,
     createRuntimeComposition: composition.createRuntimeComposition,
-    resolveProjectPath: drydock.resolveProjectPath,
+    resolveProjectPath: context.resolveProjectPath,
     stageRuntime: composition.stageRuntime,
     validateArtifactManifest: artifacts.validateArtifactManifest
   };

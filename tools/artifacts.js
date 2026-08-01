@@ -17,7 +17,7 @@ import {
 import { promisify } from "node:util";
 import Ajv2020 from "ajv/dist/2020.js";
 import YAML from "yaml";
-import { resolveProjectPath } from "./drydock.js";
+import { resolveProjectPath } from "./context.js";
 
 const execFileAsync = promisify(execFile);
 let verificationSequence = 0;

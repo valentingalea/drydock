@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { isDirectInvocation } from "../../../../tools/drydock.js";
+import { isDirectInvocation } from "../../../../tools/context.js";
 
 const defaultTimeoutMs = 5000;
 

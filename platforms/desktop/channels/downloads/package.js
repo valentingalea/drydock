@@ -22,7 +22,7 @@ import {
 import {
   isDirectInvocation,
   resolveProjectPath
-} from "../../../../tools/drydock.js";
+} from "../../../../tools/context.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 const defaultOut = "artifacts/packages/downloads";
