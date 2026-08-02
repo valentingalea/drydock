@@ -31,7 +31,11 @@ node drydock/tools/drydock.js build web-static \
   --channel vps \
   --channel-policy shipping/channels/vps.yaml
 
-DRYDOCK_VPS_ROOT=/srv/games \
+DRYDOCK_VPS_ROOT=/srv/games
+DRYDOCK_VPS_LOCK=/run/lock/example-game-vps.lock
+export DRYDOCK_VPS_ROOT DRYDOCK_VPS_LOCK
+
+flock "$DRYDOCK_VPS_LOCK" \
   node drydock/tools/drydock.js publish vps \
     --project shipping/drydock-project.json \
     --artifact artifacts/build/web-static/drydock-artifact.json
@@ -67,7 +71,11 @@ node drydock/tools/drydock.js package downloads \
   --project shipping/drydock-project.json \
   --artifact artifacts/build/windows-x64/drydock-artifact.json
 
-DRYDOCK_DOWNLOADS_ROOT=/srv/games \
+DRYDOCK_DOWNLOADS_ROOT=/srv/games
+DRYDOCK_DOWNLOADS_LOCK=/run/lock/example-game-downloads.lock
+export DRYDOCK_DOWNLOADS_ROOT DRYDOCK_DOWNLOADS_LOCK
+
+flock "$DRYDOCK_DOWNLOADS_LOCK" \
   node drydock/tools/drydock.js publish downloads \
     --project shipping/drydock-project.json \
     --source artifacts/packages/downloads
@@ -101,6 +109,11 @@ node drydock/tools/drydock.js build electron \
 
 Development artifacts are marked `releasable: false`; release packaging and publishing
 must reject them.
+
+The lock files are Linux VPS operational state. Give each deployment identity and
+channel a distinct writable lock path; do not commit that path into game policy. The
+lock serializes the destructive replacement window while Drydock confines the copy to
+the policy's validated `deploymentId` below the explicit operational root.
 
 ## Operational rollback
 

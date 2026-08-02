@@ -44,7 +44,11 @@ node drydock/tools/drydock.js package downloads \
   --project shipping/drydock-project.json \
   --artifact artifacts/build/windows-x64/drydock-artifact.json
 
-DRYDOCK_DOWNLOADS_ROOT=/srv/games \
+DRYDOCK_DOWNLOADS_ROOT=/srv/games
+DRYDOCK_DOWNLOADS_LOCK=/run/lock/example-game-downloads.lock
+export DRYDOCK_DOWNLOADS_ROOT DRYDOCK_DOWNLOADS_LOCK
+
+flock "$DRYDOCK_DOWNLOADS_LOCK" \
   node drydock/tools/drydock.js publish downloads \
     --project shipping/drydock-project.json \
     --source artifacts/packages/downloads
@@ -64,6 +68,8 @@ replaces only `<operational-root>/<deploymentId>`, where `deploymentId` comes fr
 `shipping/channels/downloads.yaml`.
 Set the Caddy template's `DRYDOCK_DOWNLOAD_ROOT` to the complete published
 `<operational-root>/<deploymentId>` directory.
+Keep the operator-owned `DRYDOCK_DOWNLOADS_LOCK` path distinct per deployment and
+outside committed project policy.
 
 The schema-v3 input manifest preserves checksummed project/release declarations and
 exact project, Drydock, and component revisions. Packaging rejects development

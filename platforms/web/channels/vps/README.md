@@ -32,7 +32,11 @@ node drydock/tools/drydock.js build web-static \
   --project shipping/drydock-project.json \
   --release shipping/releases/0.1.0.yaml
 
-DRYDOCK_VPS_ROOT=/srv/games \
+DRYDOCK_VPS_ROOT=/srv/games
+DRYDOCK_VPS_LOCK=/run/lock/example-game-vps.lock
+export DRYDOCK_VPS_ROOT DRYDOCK_VPS_LOCK
+
+flock "$DRYDOCK_VPS_LOCK" \
   node drydock/tools/drydock.js publish vps \
     --project shipping/drydock-project.json \
     --artifact artifacts/build/web-static/drydock-artifact.json
@@ -79,3 +83,5 @@ that release-only file.
 The path-mounted templates use explicit route variables for the live origin and
 packaged web root. Set `DRYDOCK_WEB_ROOT` to the complete published
 `<operational-root>/<deploymentId>` directory.
+Keep the operator-owned `DRYDOCK_VPS_LOCK` path distinct per deployment and outside
+committed project policy.
