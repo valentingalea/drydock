@@ -48,7 +48,7 @@ sudo systemctl reload caddy
 Verify both public routes after a change:
 
 ```sh
-pnpm --dir drydock --filter @drydock/channel-vps run verify -- \
+npx --yes pnpm@11.17.0 --dir drydock --filter @drydock/channel-vps run verify -- \
   --artifact artifacts/build/web-static/drydock-artifact.json \
   --live-url https://game.example/live/ \
   --release-url https://game.example/releases/
@@ -57,8 +57,8 @@ pnpm --dir drydock --filter @drydock/channel-vps run verify -- \
 For render-level checks, use the Playwright smoke skill command:
 
 ```sh
-pnpm --dir drydock smoke:web -- https://game.example/live/
-pnpm --dir drydock smoke:web -- https://game.example/releases/
+npx --yes pnpm@11.17.0 --dir drydock smoke:web -- https://game.example/live/
+npx --yes pnpm@11.17.0 --dir drydock smoke:web -- https://game.example/releases/
 ```
 
 The verifier expects artifact-selected runtime and Drydock host paths to return `200`.

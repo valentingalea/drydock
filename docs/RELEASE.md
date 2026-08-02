@@ -48,7 +48,7 @@ adapter supplies those capabilities.
 Verify the configured public routes using the same artifact:
 
 ```sh
-pnpm --dir drydock --filter @drydock/channel-vps run verify -- \
+npx --yes pnpm@11.17.0 --dir drydock --filter @drydock/channel-vps run verify -- \
   --artifact artifacts/build/web-static/drydock-artifact.json \
   --live-url https://game.example/live/ \
   --release-url https://game.example/releases/
@@ -81,7 +81,7 @@ package directory below project `artifacts/`, verifies each zip checksum, reads
 Verify the public package:
 
 ```sh
-pnpm --dir drydock --filter @drydock/channel-downloads run verify -- \
+npx --yes pnpm@11.17.0 --dir drydock --filter @drydock/channel-downloads run verify -- \
   --base-url https://game.example/downloads/ \
   --name example-game-0.1.0-windows-x64.zip
 ```

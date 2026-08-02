@@ -49,7 +49,7 @@ DRYDOCK_DOWNLOADS_ROOT=/srv/games \
     --project shipping/drydock-project.json \
     --source artifacts/packages/downloads
 
-pnpm --dir drydock --filter @drydock/channel-downloads run verify -- \
+npx --yes pnpm@11.17.0 --dir drydock --filter @drydock/channel-downloads run verify -- \
   --base-url https://game.example/downloads/ \
   --name example-game-0.1.0-windows-x64.zip
 ```
