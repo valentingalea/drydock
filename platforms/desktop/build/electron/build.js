@@ -107,7 +107,8 @@ async function buildElectron({
     createRuntimeComposition,
     resolveProjectPath,
     stageRuntime,
-    validateArtifactManifest
+    validateArtifactManifest,
+    verifyArtifactChecksums
   } = await loadBuildTools();
   const target = resolveBuildTarget(options);
   const identity = identityFromDescriptor(verified.project.descriptor);
@@ -131,8 +132,14 @@ async function buildElectron({
     "electron-stage",
     `${target.platform}-${target.arch}`
   );
-  if (pathsOverlap(outDir, stageDir)) {
-    throw new Error("build output must not overlap the transient Electron stage");
+  const builderOutDir = resolve(
+    context.artifactRoot,
+    "tmp",
+    "electron-builder",
+    `${target.platform}-${target.arch}`
+  );
+  if (pathsOverlap(outDir, stageDir) || pathsOverlap(outDir, builderOutDir)) {
+    throw new Error("build output must not overlap transient Electron storage");
   }
   const release = YAML.parse(await readFile(releasePath, "utf8"));
   const buildKey = options.buildKey ?? defaultBuildKey;
@@ -168,11 +175,17 @@ async function buildElectron({
     await prepareEmptyOutputDirectory(context, outDir);
 
     if (!options.skipPackage) {
+      await prepareEmptyOutputDirectory(context, builderOutDir);
       await runElectronBuilder({
         identity,
-        outDir,
+        outDir: builderOutDir,
         stageDir,
         target
+      });
+      await movePackagedArtifact({
+        artifactRoot: artifactRootForTarget(target, identity),
+        builderOutDir,
+        outDir
       });
     } else {
       await createFakeUnpackedOutput({
@@ -200,10 +213,12 @@ async function buildElectron({
     });
 
     await validateArtifactManifest(manifest, context.harnessRoot);
+    const manifestPath = resolve(outDir, "drydock-artifact.json");
     await writeFile(
-      resolve(outDir, "drydock-artifact.json"),
+      manifestPath,
       `${JSON.stringify(manifest, null, 2)}\n`
     );
+    await verifyArtifactChecksums(manifest, manifestPath);
 
     stdout.write(
       `built Electron artifact: ${portableRelative(context.projectRoot, outDir)}\n`
@@ -213,11 +228,29 @@ async function buildElectron({
       outDir
     };
   } finally {
-    await rm(stageDir, {
+    await Promise.all([
+      stageDir,
+      builderOutDir
+    ].map((path) => rm(path, {
       force: true,
       recursive: true
-    });
+    })));
   }
+}
+
+async function movePackagedArtifact({
+  artifactRoot,
+  builderOutDir,
+  outDir
+}) {
+  const source = resolve(builderOutDir, artifactRoot);
+  const target = resolve(outDir, artifactRoot);
+  await assertDirectory(source);
+  await materializeArtifactLinks(source);
+  await mkdir(dirname(target), {
+    recursive: true
+  });
+  await rename(source, target);
 }
 
 async function prepareStagedApp({
@@ -897,7 +930,8 @@ async function loadBuildTools() {
     createRuntimeComposition: composition.createRuntimeComposition,
     resolveProjectPath: context.resolveProjectPath,
     stageRuntime: composition.stageRuntime,
-    validateArtifactManifest: artifacts.validateArtifactManifest
+    validateArtifactManifest: artifacts.validateArtifactManifest,
+    verifyArtifactChecksums: artifacts.verifyArtifactChecksums
   };
 }
 
@@ -943,6 +977,7 @@ module.exports = {
   executableForTarget,
   inlineScriptHashes,
   materializeArtifactLinks,
+  movePackagedArtifact,
   normalizeArch,
   normalizePlatform,
   parseArgs,

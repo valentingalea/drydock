@@ -5,6 +5,7 @@ const {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   stat,
   symlink,
@@ -20,6 +21,7 @@ const {
   executableForTarget,
   inlineScriptHashes,
   materializeArtifactLinks,
+  movePackagedArtifact,
   parseArgs,
   prepareStagedApp,
   resolveBuildTarget,
@@ -228,6 +230,45 @@ test("invokes the package-local Electron builder without a PATH lookup", async (
       stageDir,
       "--config"
     ]
+  );
+});
+
+test("moves only the packaged payload out of transient builder output", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "drydock-electron-builder-"));
+  context.after(() => rm(root, {
+    force: true,
+    recursive: true
+  }));
+  const builderOutDir = join(root, "builder");
+  const outDir = join(root, "artifact");
+  await mkdir(join(builderOutDir, "win-unpacked"), {
+    recursive: true
+  });
+  await mkdir(outDir);
+  await writeFile(
+    join(builderOutDir, "win-unpacked", "fixture-game.exe"),
+    "fake executable\n"
+  );
+  await writeFile(join(builderOutDir, "builder-debug.yml"), "debug: true\n");
+  await writeFile(
+    join(builderOutDir, "builder-effective-config.yaml"),
+    "productName: Fixture Game\n"
+  );
+
+  await movePackagedArtifact({
+    artifactRoot: "win-unpacked",
+    builderOutDir,
+    outDir
+  });
+
+  assert.deepEqual(await readdir(outDir), ["win-unpacked"]);
+  assert.deepEqual((await readdir(builderOutDir)).sort(), [
+    "builder-debug.yml",
+    "builder-effective-config.yaml"
+  ]);
+  assert.equal(
+    await readFile(join(outDir, "win-unpacked", "fixture-game.exe"), "utf8"),
+    "fake executable\n"
   );
 });
 
@@ -494,7 +535,7 @@ test("Electron build rejects output inside its transient stage", async (context)
       },
       verified: state.verified
     }),
-    /build output must not overlap the transient Electron stage/
+    /build output must not overlap transient Electron storage/
   );
   await assert.rejects(
     stat(join(
