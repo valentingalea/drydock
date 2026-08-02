@@ -3,10 +3,12 @@ const { mkdir, mkdtemp, readFile, stat, writeFile } = require("node:fs/promises"
 const { tmpdir } = require("node:os");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
+const vm = require("node:vm");
 const test = require("node:test");
 const {
   HOST_PROTOCOL_VERSION,
   HostErrorCode,
+  IPC_CHANNEL,
   createElectronHostProvider,
   invokeHost,
   isTrustedFrameUrl
@@ -54,10 +56,15 @@ test("Electron CSP accepts reviewed inline-script hashes without unsafe-inline",
   const scriptPolicy = policy
     .split("; ")
     .find((directive) => directive.startsWith("script-src "));
+  const stylePolicy = policy
+    .split("; ")
+    .find((directive) => directive.startsWith("style-src "));
 
   assert.match(policy, /default-src 'self'/);
   assert.match(policy, /sha256-DV2rnjt8VaGp9BWYzkk/);
   assert.doesNotMatch(scriptPolicy, /unsafe-inline/);
+  assert.match(stylePolicy, /'self'/);
+  assert.match(stylePolicy, /'unsafe-inline'/);
   assert.doesNotMatch(contentSecurityPolicy, /sha256-/);
   assert.throws(
     () => createContentSecurityPolicy(["sha256-not valid"]),
@@ -213,12 +220,63 @@ test("Electron IPC dispatch validates service, method, arity, and frame origin",
 
 test("Electron preload exposes only the typed host bridge wrapper", async () => {
   const preload = await readFile(resolve(__dirname, "../preload.js"), "utf8");
+  const invocations = [];
+  let exposure;
 
-  assert.match(
-    preload,
-    /contextBridge\.exposeInMainWorld\("drydockHost", drydockHost\)/
+  vm.runInNewContext(preload, {
+    require(specifier) {
+      assert.equal(
+        specifier,
+        "electron",
+        "sandboxed preload must not require local or Node modules"
+      );
+      return {
+        contextBridge: {
+          exposeInMainWorld(name, value) {
+            exposure = {
+              name,
+              value
+            };
+          }
+        },
+        ipcRenderer: {
+          invoke(channel, request) {
+            invocations.push({
+              channel,
+              request
+            });
+            return Promise.resolve({
+              ok: true,
+              value: null
+            });
+          }
+        }
+      };
+    }
+  });
+
+  assert.equal(exposure.name, "drydockHost");
+  assert.equal(exposure.value.protocolVersion, HOST_PROTOCOL_VERSION);
+  await exposure.value.storage.save("slot1", {
+    ready: true
+  });
+  assert.equal(invocations.length, 1);
+  assert.equal(invocations[0].channel, IPC_CHANNEL);
+  assert.equal(invocations[0].request.service, "storage");
+  assert.equal(invocations[0].request.method, "save");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(invocations[0].request.args)),
+    [
+      "slot1",
+      {
+        ready: true
+      }
+    ]
   );
-  assert.match(preload, /drydock:host|IPC_CHANNEL/);
+  assert.throws(
+    () => exposure.value.storage.load(""),
+    /storage key must be a non-empty string/
+  );
   assert.doesNotMatch(preload, /exposeInMainWorld\([^)]*ipcRenderer/s);
 });
 

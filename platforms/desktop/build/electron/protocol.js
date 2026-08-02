@@ -39,7 +39,7 @@ function createContentSecurityPolicy(scriptHashes = []) {
       "script-src 'self'",
       ...normalizedHashes.map((hash) => `'${hash}'`)
     ].join(" "),
-    "style-src 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
     "connect-src 'self'",

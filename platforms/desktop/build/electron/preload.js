@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require("electron");
-const { HOST_PROTOCOL_VERSION, IPC_CHANNEL } = require("./host-provider.js");
+
+// Sandboxed Electron preloads may only import a limited set of built-in modules.
+// Keep these public protocol primitives in sync with host-provider.js.
+const HOST_PROTOCOL_VERSION = 1;
+const IPC_CHANNEL = "drydock:host";
 
 function invoke(service, method, args = []) {
   return ipcRenderer.invoke(IPC_CHANNEL, { service, method, args });
