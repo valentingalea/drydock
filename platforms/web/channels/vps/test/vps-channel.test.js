@@ -56,7 +56,14 @@ test("VPS publish copies a packaged web artifact to the deploy root", async (con
       await mkdir(join(shippingRoot, "channels"));
       await writeFile(
         join(shippingRoot, "releases", "0.1.0.yaml"),
-        "version: 0.1.0\nbuild:\n  vps: 8\n"
+        [
+          "version: 0.1.0",
+          "build:",
+          "  vps: 8",
+          "channels:",
+          "  vps: {}",
+          ""
+        ].join("\n")
       );
       await writeFile(
         join(shippingRoot, "channels", "vps.yaml"),

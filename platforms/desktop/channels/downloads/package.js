@@ -110,7 +110,7 @@ export async function packageDownloads({
 
   const digest = await sha256File(zipPath);
   await writeFile(checksumPath, `${digest}  ${zipName}\n`);
-  await writeFile(indexPath, await renderIndex({
+    await writeFile(indexPath, await renderDownloadIndex({
     checksumName: `${zipName}.sha256`,
     digest,
     manifest,
@@ -300,7 +300,13 @@ async function createZip({ artifactRoot, manifestPath, prefix, sourceRoot, zipPa
   });
 }
 
-async function renderIndex({ checksumName, digest, manifest, size, zipName }) {
+export async function renderDownloadIndex({
+  checksumName,
+  digest,
+  manifest,
+  size,
+  zipName
+}) {
   const sizeMb = (size / 1024 / 1024).toFixed(1);
 
   return `<!doctype html>

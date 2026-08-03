@@ -184,6 +184,7 @@ export async function loadChannelPolicy({
   ) {
     throw new Error("channel policy must contain a YAML object");
   }
+  validateKnownChannelPolicy(channel, snapshot);
 
   return {
     channel,
@@ -191,6 +192,57 @@ export async function loadChannelPolicy({
     sha256: sha256(contents),
     snapshot
   };
+}
+
+/**
+ * Parses and schema-validates a release declaration selected by a build adapter.
+ * A channel-aware adapter must also prove that its selected channel is declared.
+ */
+export async function loadReleaseManifest({
+  channel = null,
+  context,
+  releasePath
+}) {
+  const manifest = YAML.parse(await readFile(releasePath, "utf8"));
+  const schema = JSON.parse(await readFile(resolve(
+    context.harnessRoot,
+    "contracts/schemas/release-manifest.schema.json"
+  ), "utf8"));
+  const validate = new Ajv2020({
+    allErrors: true,
+    strict: true
+  }).compile(schema);
+
+  if (!validate(manifest)) {
+    const details = (validate.errors ?? [])
+      .map((error) => `${error.instancePath || "/"} ${error.message}`)
+      .join("; ");
+    throw new Error(`invalid release manifest: ${details}`);
+  }
+  if (
+    channel !== null
+    && !Object.hasOwn(manifest.channels, channel)
+  ) {
+    throw new Error(`release manifest does not declare channel.${channel}`);
+  }
+  return manifest;
+}
+
+function validateKnownChannelPolicy(channel, snapshot) {
+  if (channel !== "vps" && channel !== "downloads") {
+    return;
+  }
+
+  for (const key of ["deploymentId", "route"]) {
+    if (
+      typeof snapshot[key] !== "string"
+      || !/^[a-z0-9][a-z0-9._-]*$/u.test(snapshot[key])
+    ) {
+      throw new Error(
+        `${channel} channel policy requires a valid ${key}`
+      );
+    }
+  }
 }
 
 export async function validateArtifactManifest(manifest, harnessRoot) {

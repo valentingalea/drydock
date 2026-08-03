@@ -32,6 +32,13 @@ spaces but must be safe as a macOS application filename. Use
 `--profile development --skip-package` only for local adapter diagnostics; that path
 creates a fake unpacked executable and is not a publishable build.
 
+Linux unpacked builds use Chromium's SUID sandbox helper. Because an unpacked tree has
+no installer step that can establish privileged ownership later, the real Linux build
+must run as root; Drydock requires `chrome-sandbox` to be a regular root-owned file,
+sets mode `4755`, verifies it, and records that state in the artifact extension. It
+never falls back to `--no-sandbox`. Windows and macOS builds do not have this
+requirement.
+
 ## Runtime Contract
 
 - `main.js` registers a privileged `app://drydock` protocol.

@@ -1,13 +1,18 @@
 #!/usr/bin/env node
-import Ajv2020 from "ajv/dist/2020.js";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  validateArtifactManifest,
+  verifyArtifactChecksums
+} from "../artifacts.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 function usage() {
-  console.error("usage: node tools/scripts/validate-artifact.js <drydock-artifact.json>");
+  console.error(
+    "usage: node tools/scripts/validate-artifact.js [--checksums] <drydock-artifact.json>"
+  );
 }
 
 async function readJson(path) {
@@ -15,38 +20,28 @@ async function readJson(path) {
   return JSON.parse(text);
 }
 
-function formatErrors(errors) {
-  return errors
-    .map((error) => {
-      const location = error.instancePath || "/";
-      return `${location} ${error.message}`;
-    })
-    .join("\n");
-}
+const args = process.argv.slice(2).filter((arg) => arg !== "--");
+const verifyChecksums = args.includes("--checksums");
+const positional = args.filter((arg) => arg !== "--checksums");
+const [manifestPath] = positional;
 
-const [manifestPath] = process.argv.slice(2).filter((arg) => arg !== "--");
-
-if (!manifestPath) {
+if (!manifestPath || positional.length !== 1) {
   usage();
   process.exit(2);
 }
 
-const schemaPath = resolve(repoRoot, "contracts/schemas/drydock-artifact.schema.json");
 const dataPath = resolve(process.cwd(), manifestPath);
 
 try {
-  const schema = await readJson(schemaPath);
   const manifest = await readJson(dataPath);
-  const ajv = new Ajv2020({ allErrors: true, strict: true });
-  const validate = ajv.compile(schema);
-
-  if (!validate(manifest)) {
-    console.error(`invalid artifact manifest: ${manifestPath}`);
-    console.error(formatErrors(validate.errors ?? []));
-    process.exit(1);
+  await validateArtifactManifest(manifest, repoRoot);
+  if (verifyChecksums) {
+    await verifyArtifactChecksums(manifest, dataPath);
   }
 
-  console.log(`valid artifact manifest: ${manifestPath}`);
+  console.log(
+    `${verifyChecksums ? "verified artifact" : "valid artifact manifest"}: ${manifestPath}`
+  );
 } catch (error) {
   console.error(`artifact validation failed: ${error.message}`);
   process.exit(1);

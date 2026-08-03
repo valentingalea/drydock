@@ -21,6 +21,9 @@ node drydock/tools/drydock.js validate \
 
 Release-profile builds fail if the enclosing project, declared components, or exact
 `drydock/` gitlink are dirty, unpinned, or unreachable from their origins.
+Build adapters schema-validate the complete release declaration before staging. A
+channel-aware build also requires its selected channel under `release.channels` and
+validates the built-in channel policy before snapshotting it.
 
 ## Static web to VPS
 
@@ -44,6 +47,14 @@ flock "$DRYDOCK_VPS_LOCK" \
 The artifact contains the committed VPS policy snapshot. The publisher verifies the
 manifest and every staged checksum, requires `releasable: true`, then replaces only
 `<DRYDOCK_VPS_ROOT>/<deploymentId>`.
+
+To verify a built artifact locally, including its exact payload and absence of extra
+files, run:
+
+```sh
+node drydock/tools/scripts/validate-artifact.js --checksums \
+  artifacts/build/web-static/drydock-artifact.json
+```
 
 The built-in browser host guarantees local `storage` only. Static web builds reject
 projects that require achievements, telemetry, purchases, or identity until a web
@@ -84,7 +95,8 @@ flock "$DRYDOCK_DOWNLOADS_LOCK" \
 Packaging rejects non-releasable or checksum-invalid artifacts. Publishing resolves the
 package directory below project `artifacts/`, verifies each zip checksum, reads
 `shipping/channels/downloads.yaml`, and replaces only
-`<DRYDOCK_DOWNLOADS_ROOT>/<deploymentId>`.
+`<DRYDOCK_DOWNLOADS_ROOT>/<deploymentId>`. The public index is regenerated during
+publish from the verified archive and checksum; edited package-output HTML is ignored.
 
 Verify the public package:
 

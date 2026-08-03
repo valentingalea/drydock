@@ -17,6 +17,7 @@ const test = require("node:test");
 const {
   artifactRootForTarget,
   buildElectron,
+  configureLinuxSandbox,
   createStagedPackage,
   executableForTarget,
   inlineScriptHashes,
@@ -192,6 +193,34 @@ test("materializes contained Electron bundle links before checksumming", async (
     /link resolves outside its artifact root/
   );
   assert.equal((await lstat(escapingLink)).isSymbolicLink(), true);
+});
+
+test("configures the Linux SUID sandbox helper or rejects an unprivileged build", async (context) => {
+  const artifactRoot = await mkdtemp(join(tmpdir(), "drydock-electron-linux-"));
+  context.after(() => rm(artifactRoot, {
+    force: true,
+    recursive: true
+  }));
+  const helperPath = join(artifactRoot, "chrome-sandbox");
+  await writeFile(helperPath, "sandbox helper\n", { mode: 0o755 });
+
+  await assert.rejects(
+    configureLinuxSandbox({
+      artifactRootPath: artifactRoot,
+      target: { arch: "x64", platform: "linux" },
+      uid: 1000
+    }),
+    /require root/
+  );
+  assert.deepEqual(
+    await configureLinuxSandbox({
+      artifactRootPath: artifactRoot,
+      target: { arch: "x64", platform: "linux" },
+      uid: 0
+    }),
+    { helper: "chrome-sandbox", mode: "4755", owner: "root" }
+  );
+  assert.equal((await stat(helperPath)).mode & 0o4777, 0o4755);
 });
 
 test("invokes the package-local Electron builder without a PATH lookup", async () => {
@@ -572,6 +601,30 @@ test("Electron build rejects host capabilities it cannot provide", async (contex
   );
 });
 
+test("Electron build validates the complete release declaration", async (context) => {
+  const fixture = await createElectronState(context);
+  await writeFile(
+    join(fixture.fixture.shippingRoot, "releases", "0.1.0.yaml"),
+    "version: 0.1.0\nbuild:\n  desktop: 9\n"
+  );
+
+  await assert.rejects(
+    buildElectron({
+      context: fixture.context,
+      options: {
+        arch: "x64",
+        out: "artifacts/build/invalid-release",
+        platform: "windows",
+        profile: "development",
+        release: "shipping/releases/0.1.0.yaml",
+        skipPackage: true
+      },
+      verified: fixture.verified
+    }),
+    /required property 'channels'/
+  );
+});
+
 test("Electron release preflight fails before staging or output", async (context) => {
   const state = await createElectronState(context);
   const stageDir = join(
@@ -699,7 +752,14 @@ async function createElectronState(context, {
       await mkdir(join(shippingRoot, "releases"));
       await writeFile(
         join(shippingRoot, "releases", "0.1.0.yaml"),
-        "version: 0.1.0\nbuild:\n  desktop: 9\n"
+        [
+          "version: 0.1.0",
+          "build:",
+          "  desktop: 9",
+          "channels:",
+          "  downloads: {}",
+          ""
+        ].join("\n")
       );
     }
   );

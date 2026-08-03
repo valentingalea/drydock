@@ -9,6 +9,7 @@ import {
   readdir,
   realpath,
   rm,
+  stat,
   writeFile
 } from "node:fs/promises";
 import {
@@ -26,6 +27,7 @@ import {
   isDirectInvocation,
   resolveProjectPath
 } from "../../../../tools/context.js";
+import { renderDownloadIndex } from "./package.js";
 
 const maxArtifactManifestBytes = 1024 * 1024;
 
@@ -83,10 +85,11 @@ export async function publishDownloads({
     options.root ?? env.DRYDOCK_DOWNLOADS_ROOT
   );
   const root = resolve(rootBase, deploymentId);
-  const files = await verifiedPublicFiles(
+  const verifiedPackage = await verifiedPublicFiles(
     source,
     context.harnessRoot
   );
+  const { files } = verifiedPackage;
 
   if (options.dryRun) {
     stdout.write(
@@ -104,9 +107,10 @@ export async function publishDownloads({
   await rm(root, { recursive: true, force: true });
   await mkdir(root, { recursive: true });
 
-  for (const file of files) {
+  for (const file of files.filter((name) => name !== "index.html")) {
     await cp(resolve(source, file), resolve(root, file));
   }
+  await writeFile(resolve(root, "index.html"), verifiedPackage.index);
 
   await writeFile(resolve(root, ".drydock-channel"), "downloads\n");
   stdout.write(`published download files: ${source} -> ${root}\n`);
@@ -219,7 +223,7 @@ async function verifiedPublicFiles(source, harnessRoot) {
   const entries = await readdir(source, {
     withFileTypes: true
   });
-  const files = entries
+  const sourceFiles = entries
     .filter((entry) => (
       entry.isFile()
       && (
@@ -230,36 +234,43 @@ async function verifiedPublicFiles(source, harnessRoot) {
     ))
     .map((entry) => entry.name)
     .sort();
-  const zipNames = files.filter((name) => name.endsWith(".zip"));
+  const zipNames = sourceFiles.filter((name) => name.endsWith(".zip"));
 
-  if (!files.includes("index.html") || zipNames.length === 0) {
+  if (zipNames.length !== 1) {
+    throw new Error("downloads source requires exactly one zip");
+  }
+
+  const [zipName] = zipNames;
+  const checksumName = `${zipName}.sha256`;
+  if (!sourceFiles.includes(checksumName)) {
+    throw new Error(`downloads source is missing ${checksumName}`);
+  }
+  const digest = await verifyChecksum(source, zipName, checksumName);
+  const zipPath = resolve(source, zipName);
+  const { manifest, prefix } = await readPackagedArtifactManifest(zipPath);
+  await validateArtifactManifest(manifest, harnessRoot);
+  if (manifest.buildAdapter !== "electron") {
     throw new Error(
-      "downloads source requires index.html and at least one zip"
+      `downloads package contains an unsupported artifact: ${zipName}`
     );
   }
-
-  for (const zipName of zipNames) {
-    const checksumName = `${zipName}.sha256`;
-    if (!files.includes(checksumName)) {
-      throw new Error(`downloads source is missing ${checksumName}`);
-    }
-    await verifyChecksum(source, zipName, checksumName);
-    const zipPath = resolve(source, zipName);
-    const { manifest, prefix } = await readPackagedArtifactManifest(zipPath);
-    await validateArtifactManifest(manifest, harnessRoot);
-    if (manifest.buildAdapter !== "electron") {
-      throw new Error(
-        `downloads package contains an unsupported artifact: ${zipName}`
-      );
-    }
-    if (manifest.releasable !== true) {
-      throw new Error(
-        `downloads publishing rejects a non-releasable artifact: ${zipName}`
-      );
-    }
-    await verifyPackagedArtifactPayload(zipPath, manifest, prefix);
+  if (manifest.releasable !== true) {
+    throw new Error(
+      `downloads publishing rejects a non-releasable artifact: ${zipName}`
+    );
   }
-  return files;
+  await verifyPackagedArtifactPayload(zipPath, manifest, prefix);
+
+  return {
+    files: ["index.html", checksumName, zipName].sort(),
+    index: await renderDownloadIndex({
+      checksumName,
+      digest,
+      manifest,
+      size: (await stat(zipPath)).size,
+      zipName
+    })
+  };
 }
 
 async function readPackagedArtifactManifest(zipPath) {
@@ -477,6 +488,7 @@ async function verifyChecksum(source, zipName, checksumName) {
   if (actual !== match[1]) {
     throw new Error(`download checksum mismatch: ${zipName}`);
   }
+  return actual;
 }
 
 function pathWithin(root, candidate) {

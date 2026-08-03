@@ -231,6 +231,56 @@ test("static build rejects host capabilities its browser host cannot provide", a
   );
 });
 
+test("static build validates the release schema and selected channel", async (context) => {
+  const fixture = await createBuildProject(context);
+  const projectContext = await resolveContext(fixture);
+  const verified = await loadMinimalVerifiedProject(fixture);
+  const releasePath = join(fixture.shippingRoot, "releases", "0.1.0.yaml");
+
+  await writeFile(
+    releasePath,
+    "version: 0.1.0\nbuild:\n  preview: 7\n"
+  );
+  await assert.rejects(
+    buildStaticWeb({
+      context: projectContext,
+      options: {
+        channel: "preview",
+        out: "artifacts/build/invalid-release",
+        profile: "development",
+        release: "shipping/releases/0.1.0.yaml"
+      },
+      verified
+    }),
+    /required property 'channels'/
+  );
+
+  await writeFile(
+    releasePath,
+    [
+      "version: 0.1.0",
+      "build:",
+      "  preview: 7",
+      "channels:",
+      "  other: {}",
+      ""
+    ].join("\n")
+  );
+  await assert.rejects(
+    buildStaticWeb({
+      context: projectContext,
+      options: {
+        channel: "preview",
+        out: "artifacts/build/undeclared-channel",
+        profile: "development",
+        release: "shipping/releases/0.1.0.yaml"
+      },
+      verified
+    }),
+    /does not declare channel\.preview/
+  );
+});
+
 test("static release preflight fails before creating build output", async (context) => {
   const fixture = await createBuildProject(context);
   const projectContext = await resolveContext(fixture);

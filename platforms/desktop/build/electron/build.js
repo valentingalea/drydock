@@ -26,7 +26,6 @@ const {
   sep
 } = require("node:path");
 const { pathToFileURL } = require("node:url");
-const YAML = require("yaml");
 const {
   ELECTRON_HOST_CAPABILITIES
 } = require("./host-provider.js");
@@ -105,6 +104,7 @@ async function buildElectron({
   const {
     createArtifactProvenance,
     createRuntimeComposition,
+    loadReleaseManifest,
     resolveProjectPath,
     stageRuntime,
     validateArtifactManifest,
@@ -141,16 +141,12 @@ async function buildElectron({
   if (pathsOverlap(outDir, stageDir) || pathsOverlap(outDir, builderOutDir)) {
     throw new Error("build output must not overlap transient Electron storage");
   }
-  const release = YAML.parse(await readFile(releasePath, "utf8"));
+  const release = await loadReleaseManifest({
+    context,
+    releasePath
+  });
   const buildKey = options.buildKey ?? defaultBuildKey;
   const buildNumber = release?.build?.[buildKey];
-
-  if (
-    typeof release?.version !== "string"
-    && typeof release?.version !== "number"
-  ) {
-    throw new Error("release manifest must define version");
-  }
   if (!Number.isInteger(buildNumber)) {
     throw new Error(`release manifest does not define build.${buildKey}`);
   }
@@ -199,6 +195,9 @@ async function buildElectron({
     const artifactRootPath = resolve(outDir, artifactRoot);
     await assertDirectory(artifactRootPath);
     await materializeArtifactLinks(artifactRootPath);
+    const sandbox = options.skipPackage
+      ? null
+      : await configureLinuxSandbox({ artifactRootPath, target });
 
     const manifest = await createArtifactManifest({
       artifactRoot,
@@ -208,6 +207,7 @@ async function buildElectron({
       outDir,
       provenance,
       release,
+      sandbox,
       target,
       verified
     });
@@ -251,6 +251,39 @@ async function movePackagedArtifact({
     recursive: true
   });
   await rename(source, target);
+}
+
+async function configureLinuxSandbox({
+  artifactRootPath,
+  target,
+  uid = typeof process.getuid === "function" ? process.getuid() : null
+}) {
+  if (target.platform !== "linux") {
+    return null;
+  }
+  if (uid !== 0) {
+    throw new Error(
+      "Linux Electron unpacked builds require root so chrome-sandbox can be owned by root with mode 4755"
+    );
+  }
+
+  const helperPath = resolve(artifactRootPath, "chrome-sandbox");
+  const before = await lstat(helperPath);
+  if (before.isSymbolicLink() || !before.isFile()) {
+    throw new Error("Linux Electron chrome-sandbox must be a regular file");
+  }
+  await chmod(helperPath, 0o4755);
+  const after = await stat(helperPath);
+  if (after.uid !== 0 || (after.mode & 0o4777) !== 0o4755) {
+    throw new Error(
+      "Linux Electron chrome-sandbox must be owned by root with mode 4755"
+    );
+  }
+  return {
+    helper: "chrome-sandbox",
+    mode: "4755",
+    owner: "root"
+  };
 }
 
 async function prepareStagedApp({
@@ -513,6 +546,7 @@ async function createArtifactManifest({
   outDir,
   provenance,
   release,
+  sandbox = null,
   target,
   verified
 }) {
@@ -563,7 +597,8 @@ async function createArtifactManifest({
         builder: "electron-builder",
         executableName: identity.executableName,
         productName: identity.productName,
-        protocol: "app://drydock"
+        protocol: "app://drydock",
+        ...(sandbox ? { sandbox } : {})
       }
     }
   };
@@ -928,6 +963,7 @@ async function loadBuildTools() {
   return {
     createArtifactProvenance: artifacts.createArtifactProvenance,
     createRuntimeComposition: composition.createRuntimeComposition,
+    loadReleaseManifest: artifacts.loadReleaseManifest,
     resolveProjectPath: context.resolveProjectPath,
     stageRuntime: composition.stageRuntime,
     validateArtifactManifest: artifacts.validateArtifactManifest,
@@ -971,6 +1007,7 @@ module.exports = {
   buildElectron,
   buildElectronCommand,
   createArtifactManifest,
+  configureLinuxSandbox,
   createRuntimePolicy,
   createStagedPackage,
   electronVersion,

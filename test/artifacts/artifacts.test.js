@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   appendFile,
@@ -12,6 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { promisify } from "node:util";
 import {
   createArtifactProvenance,
   loadChannelPolicy,
@@ -26,6 +28,8 @@ import {
   harnessRoot,
   loadMinimalVerifiedProject
 } from "../support/minimal-project.js";
+
+const execFileAsync = promisify(execFile);
 
 test("removes credentials from provenance remote URLs", () => {
   assert.equal(
@@ -87,6 +91,22 @@ test("records portable project, release, component, and policy provenance", asyn
   });
   assert.equal(provenance.channelPolicy.path, "shipping/channels/preview.yaml");
   assert.doesNotMatch(JSON.stringify(provenance), /\/usr\/games\//);
+});
+
+test("validates built-in channel policy before snapshotting it", async (context) => {
+  const fixture = await createProvenanceProject(context);
+  await writeFile(
+    join(fixture.shippingRoot, "channels", "vps.yaml"),
+    "deploymentId: fixture-vps\n"
+  );
+
+  await assert.rejects(
+    loadChannelPolicy({
+      channel: "vps",
+      context: (await loadMinimalVerifiedProject(fixture)).project.context
+    }),
+    /vps channel policy requires a valid route/
+  );
 });
 
 test("release provenance requires the project's exact drydock gitlink", async (context) => {
@@ -330,6 +350,43 @@ test("artifact verification requires an exact regular-file checksum set", async 
   await assert.rejects(
     verifyArtifactChecksums(manifest, manifestPath),
     /artifact tree must not contain symbolic links: linked\.bin/
+  );
+});
+
+test("artifact validation CLI optionally verifies the exact payload", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "drydock-artifact-cli-"));
+  context.after(() => rm(root, { force: true, recursive: true }));
+  const payloadRoot = join(root, "win-unpacked");
+  const payloadPath = join(payloadRoot, "fixture-game.exe");
+  await mkdir(payloadRoot);
+  await writeFile(payloadPath, "verified payload\n");
+
+  const manifest = JSON.parse(await readFile(resolve(
+    harnessRoot,
+    "contracts/fixtures/artifacts/electron-windows-x64.json"
+  ), "utf8"));
+  manifest.checksums[0].value = createHash("sha256")
+    .update("verified payload\n")
+    .digest("hex");
+  const manifestPath = join(root, "drydock-artifact.json");
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const script = resolve(harnessRoot, "tools/scripts/validate-artifact.js");
+  const success = await execFileAsync(
+    process.execPath,
+    [script, "--checksums", manifestPath],
+    { cwd: harnessRoot }
+  );
+  assert.match(success.stdout, /verified artifact/);
+
+  await writeFile(payloadPath, "tampered payload\n");
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      [script, "--checksums", manifestPath],
+      { cwd: harnessRoot }
+    ),
+    /artifact checksum mismatch/
   );
 });
 

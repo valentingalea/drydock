@@ -3,13 +3,13 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import YAML from "yaml";
 import {
   DEV_HOST_CAPABILITIES
 } from "../../../../contracts/host-bridge/src/index.js";
 import {
   createArtifactProvenance,
   loadChannelPolicy,
+  loadReleaseManifest,
   validateArtifactManifest
 } from "../../../../tools/artifacts.js";
 import {
@@ -78,15 +78,12 @@ export async function buildStaticWeb({
     "build output"
   );
   const channel = options.channel ?? defaultChannel;
-  const release = YAML.parse(await readFile(releasePath, "utf8"));
+  const release = await loadReleaseManifest({
+    channel,
+    context,
+    releasePath
+  });
   const buildNumber = release?.build?.[channel];
-
-  if (
-    typeof release?.version !== "string"
-    && typeof release?.version !== "number"
-  ) {
-    throw new Error("release manifest must define version");
-  }
   if (!Number.isInteger(buildNumber)) {
     throw new Error(`release manifest does not define build.${channel}`);
   }

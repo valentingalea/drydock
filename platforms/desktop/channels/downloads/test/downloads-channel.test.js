@@ -322,6 +322,10 @@ test("downloads package and publish scripts handle a valid artifact root", async
 
   const checksum = await readFile(join(out, `${result.zipName}.sha256`), "utf8");
   assert.match(checksum, /^[a-f0-9]{64}  fixture-game-0\.1\.0-windows-x64\.zip\n$/);
+  await writeFile(
+    join(out, "index.html"),
+    "<!doctype html><script>globalThis.tampered = true</script>\n"
+  );
 
   const linkedRoot = join(fixture.fixture.projectRoot, "linked-download-root");
   await symlink(root, linkedRoot, "dir");
@@ -350,6 +354,9 @@ test("downloads package and publish scripts handle a valid artifact root", async
   await stat(join(deployedRoot, result.zipName));
   await stat(join(deployedRoot, `${result.zipName}.sha256`));
   await stat(join(deployedRoot, "index.html"));
+  const publishedIndex = await readFile(join(deployedRoot, "index.html"), "utf8");
+  assert.match(publishedIndex, /fixture-game-0\.1\.0-windows-x64\.zip/);
+  assert.doesNotMatch(publishedIndex, /tampered/);
   await stat(join(deployedRoot, ".drydock-channel"));
   await stat(join(root, "stale.zip"));
 });

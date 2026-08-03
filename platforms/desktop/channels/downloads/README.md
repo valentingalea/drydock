@@ -63,8 +63,10 @@ the zip, writes a SHA-256 checksum, and renders `index.html`. Package output mus
 separate from the input artifact tree. The publish script verifies those checksums,
 streaming archive bytes instead of buffering the package in memory, opens every zip to
 validate its embedded artifact manifest and releasability, verifies the archived
-payload has exactly the files and byte-level checksums declared by that manifest, and
-replaces only `<operational-root>/<deploymentId>`, where `deploymentId` comes from
+payload has exactly the files and byte-level checksums declared by that manifest,
+regenerates the public index from that verified package metadata instead of trusting a
+mutable ignored HTML file, and replaces only
+`<operational-root>/<deploymentId>`, where `deploymentId` comes from
 `shipping/channels/downloads.yaml`.
 Set the Caddy template's `DRYDOCK_DOWNLOAD_ROOT` to the complete published
 `<operational-root>/<deploymentId>` directory.
